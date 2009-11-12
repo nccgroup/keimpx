@@ -5,63 +5,18 @@
 '''
 $Id$
 
-Info:
+keimpx is an open source tool, released under a modified version of Apache
+License 1.1. It is developed in Python using CORE Impact's Impacket
+library.
 
-TODO
+It can be used to quickly check for the usefulness of credentials across a
+network over SMB.
 
-
-How to:
-
-$ ./keimpx.py -h
-This product includes software developed by CORE Security Technologies
-(http://www.coresecurity.com), Python Impacket library
-
-    keimpx 0.1
-    by Bernardo Damele A. G. <bernardo.damele@gmail.com>
-    
-Usage: ./keimpx.py [options]
-
-Options:
-  --version          show program's version number and exit
-  -h, --help         show this help message and exit
-  -v VERBOSE         Verbosity level: 0-2 (default 0)
-  -t TARGET          Target address
-  -l LIST            File with list of targets
-  -U USER            User
-  -P PASSWORD        Password
-  --nt=NTHASH        NT hash
-  --lm=LMHASH        LM hash
-  -c CREDSFILE       File with list of credentials
-  -D DOMAIN          Domain
-  -d DOMAINSFILE     File with list of domains
-  -p PORT            SMB port: 139 or 445 (default 445)
-  -n NAME            Local hostname
-  --threads=THREADS  Maximum simultaneous connections (default 10)
-
-
-Similar tools:
-
-* psexec <http://technet.microsoft.com/en-us/sysinternals/bb897553.aspx> -
-  basically it can be used to login to a remote machine over SMB and
-  execute commands. Very useful as a second step after you've identified
-  which plain-text passwords work across the network. Single executable
-  file, it works on any Windows system.
-
-* smbshell <http://cgi.tenablesecurity.com/tenable/smbshell.php> -
-  pre-compiled NASL script, similar in functionalities to this tool, but
-  it requires nasl interpreter and a bunch of other Nessus libraries to
-  run, not very convenient.
-
-
-Thanks to:
-
-* deanx <deanx@65535.com> - for some classes ripped from him.
-
-* frego <frego@0x3f.net> - for the service deploy/undeploy help.
-
-* gera <gera@coresecurity.com> and the rest of the CORE guys - for
-  developing such cool Python library and providing it with examples.
-
+Homepage:                   http://code.google.com/p/keimpx/wiki/Homepage
+Usage:                      http://code.google.com/p/keimpx/wiki/Usage
+Examples:                   http://code.google.com/p/keimpx/wiki/Examples
+Frequently Asked Questions: http://code.google.com/p/keimpx/wiki/FAQ
+Contributors:               http://code.google.com/p/keimpx/wiki/Contributors
 
 License:
 
