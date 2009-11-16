@@ -55,7 +55,7 @@ SUCH DAMAGE.
 
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.1'
+__version__ = '0.2-dev'
 
 
 import binascii
@@ -1274,11 +1274,10 @@ def parse_credentials_file(filename):
 
 
 def parse_credentials(credentials_line):
+    credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
+
     fgdumpmatch = re.compile('^(\S*?):.*?:(\S*?):(\S*?):.*?:.*?:')
     fgdump = fgdumpmatch.match(credentials_line)
-
-    emptypassmatch = re.compile('^(\S*?):.*?:NO\sPASSWORD.+')
-    empty = emptypassmatch.match(credentials_line)
 
     cainmatch = re.compile('^(\S*?):.*?:.*?:(\S*?):(\S*?)$')
     cain = cainmatch.match(credentials_line)
@@ -1295,10 +1294,6 @@ def parse_credentials(credentials_line):
             return fgdump.group(1), '', fgdump.group(2), fgdump.group(3)
         except:
             raise credentialsError, 'credentials error'
-
-    # Credentials with empty password (pwdump/pwdumpx/fgdump output format)
-    elif empty:
-        return empty.group(1), '', '', ''
 
     # Credentials with hashes (cain/l0phtcrack output format)
     elif cain:
