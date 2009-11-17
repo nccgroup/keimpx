@@ -95,11 +95,12 @@ except ImportError:
 
 try:
     from impacket import smb
+    from impacket import ImpactPacket
     from impacket.nmb import NetBIOSTimeout
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
-    from impacket.dcerpc import samr
     from impacket.dcerpc import svcctl
+    from impacket.dcerpc.samr import *
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first\n')
     sys.exit(255)
@@ -163,29 +164,344 @@ def autoCompletion():
         return
 
     completer = CompleterNG({
-                              'help': None,
-                              'info': None,
-                              'verbosity': None,
-                              'shares': None,
-                              'use': None,
-                              'cd': None,
-                              'pwd': None,
-                              'ls': None,
-                              'cat': None,
-                              'download': None,
-                              'upload': None,
-                              'mkdir': None,
-                              'rm': None,
-                              'rmdir': None,
-                              'deploy': None,
-                              'undeploy': None,
-                              'users': None,
-                              'domains': None,
-                              'exit': None
+                              'help':       None,
+                              'verbosity':  None,
+                              'info':       None,
+                              'exit':       None,
+                              'shares':     None,
+                              'use':        None,
+                              'cd':         None,
+                              'pwd':        None,
+                              'ls':         None,
+                              'cat':        None,
+                              'download':   None,
+                              'upload':     None,
+                              'mkdir':      None,
+                              'rm':         None,
+                              'rmdir':      None,
+                              'deploy':     None,
+                              'undeploy':   None,
+                              'users':      None,
+                              'pswpolicy':  None,
+                              'domains':    None,
+                              'regread':    None,
+                              'regwrite':   None,
+                              'regdelete':  None
                             })
 
     _rl.set_completer(completer.complete)
     _rl.parse_and_bind('tab: complete')
+
+
+########################################################################
+# Code ripped with permission from deanx's polenum tool,               #
+# http://labs.portcullis.co.uk/application/polenum/                    #
+########################################################################
+
+def get_obj(name):
+    return eval(name)
+
+
+def d2b(a):
+    bin = []
+
+    while a:
+        bin.append(a%2)
+        a /= 2
+
+    return bin[::-1]
+
+
+def display_time(filetime_high, filetime_low, minutes_utc=0):
+    import __builtins__
+    d = filetime_low + (filetime_high)*16**8 # convert to 64bit int
+    d *= 1.0e-7 # convert to seconds
+    d -= 11644473600 # remove 3389 years?
+
+    try:
+        return strftime("%a, %d %b %Y %H:%M:%S +0000ddddd", localtime(d)) # return the standard format day
+    except ValueError, e:
+        return "0"
+
+
+class ExtendInplace(type):
+    def __new__(self, name, bases, dict):
+        prevclass = get_obj(name)
+        del dict['__module__']
+        del dict['__metaclass__']
+
+        # We can't use prevclass.__dict__.update since __dict__
+        # isn't a real dict
+        for k, v in dict.iteritems():
+            setattr(prevclass, k, v)
+
+        return prevclass
+
+
+def convert(low, high, no_zero):
+    if low == 0 and hex(high) == "-0x80000000":
+        return "Not Set"
+    if low == 0 and high == 0:
+        return "None"
+    if no_zero: # make sure we have a +ve vale for the unsined int
+        if (low != 0):
+            high = 0 - (high+1)
+        else:
+            high = 0 - (high)
+        low = 0 - low
+
+    tmp = low + (high)*16**8 # convert to 64bit int
+    tmp *= (1e-7) #  convert to seconds
+
+    try:
+        minutes = int(strftime("%M", gmtime(tmp)))  # do the conversion to human readable format
+    except ValueError, e:
+        return "BAD TIME:"
+
+    hours = int(strftime("%H", gmtime(tmp)))
+    days = int(strftime("%j", gmtime(tmp)))-1
+    time = ""
+
+    if days > 1:
+     time = str(days) + " days "
+    elif days == 1:
+        time = str(days) + " day "
+    if hours > 1:
+        time += str(hours) + " hours "
+    elif hours == 1:
+        time = str(days) + " hour "    
+    if minutes > 1:
+        time += str(minutes) + " minutes"
+    elif minutes == 1:
+        time = str(days) + " minute "
+
+    return time
+
+
+class MSRPCPassInfo:
+    PASSCOMPLEX = {
+                    5: 'Domain Password Complex',
+                    4: 'Domain Password No Anon Change',
+                    3: 'Domain Password No Clear Change',
+                    2: 'Domain Password Lockout Admins',
+                    1: 'Domain Password Store Cleartext',
+                    0: 'Domain Refuse Password Change'
+                  }
+
+
+    def __init__(self, data = None):
+        self._min_pass_length = 0
+        self._pass_hist = 0
+        self._pass_prop= 0
+        self._min_age_low = 0
+        self._min_age_high = 0
+        self._max_age_low = 0
+        self._max_age_high = 0
+        self._pwd_can_change_low = 0
+        self._pwd_can_change_high = 0
+        self._pwd_must_change_low = 0
+        self._pwd_must_change_high = 0
+        self._max_force_low = 0
+        self._max_force_high = 0
+        self._role = 0
+        self._lockout_window_low = 0
+        self._lockout_window_high = 0
+        self._lockout_dur_low = 0
+        self._lockout_dur_high = 0
+        self._lockout_thresh = 0
+
+        if data:
+            self.set_header(data, 1)
+
+
+    def set_header(self,data,level):
+        index = 8
+
+        if level == 1: 
+            self._min_pass_length, self._pass_hist, self._pass_prop, self._max_age_low, self._max_age_high, self._min_age_low, self._min_age_high = unpack('<HHLllll',data[index:index+24])
+            bin = d2b(self._pass_prop)
+
+            if len(bin) != 8:
+                for x in xrange(6 - len(bin)):
+                    bin.insert(0,0)
+
+            self._pass_prop =  ''.join([str(g) for g in bin])    
+
+        if level == 3:
+            self._max_force_low, self._max_force_high = unpack('<ll',data[index:index+8])
+        elif level == 7:
+            self._role = unpack('<L',data[index:index+4])
+        elif level == 12:
+            self._lockout_dur_low, self._lockout_dur_high, self._lockout_window_low, self._lockout_window_high, self._lockout_thresh = unpack('<llllH',data[index:index+18])
+
+
+    def print_friendly(self):
+        print "Minimum password length: %s" % str(self._min_pass_length or "None")
+        print "Password history length: %s" % str(self._pass_hist or "None" )
+        print "Maximum password age: %s" % str(convert(self._max_age_low, self._max_age_high, 1))
+        print "Password Complexity Flags: %s" % str(self._pass_prop or "None")
+        print "Minimum password age: %s" % str(convert(self._min_age_low, self._min_age_high, 1))
+        print "Reset Account Lockout Counter: %s" % str(convert(self._lockout_window_low,self._lockout_window_high, 1)) 
+        print "Locked Account Duration: %s" % str(convert(self._lockout_dur_low,self._lockout_dur_high, 1)) 
+        print "Account Lockout Threshold: %s" % str(self._lockout_thresh or "None")
+        print "Forced Log off Time: %s" % str(convert(self._max_force_low, self._max_force_high, 1))
+
+        i = 0
+
+        for a in self._pass_prop:
+            print "%s: %s" % (self.PASSCOMPLEX[i], str(a))
+
+            i+= 1
+
+        return
+
+
+class SAMREnumDomainsPass(ImpactPacket.Header):
+    OP_NUM = 0x2E
+
+    __SIZE = 22
+
+    def __init__(self, aBuffer = None):
+        ImpactPacket.Header.__init__(self, SAMREnumDomainsPass.__SIZE)
+
+        if aBuffer:
+            self.load_header(aBuffer)
+
+
+    def get_context_handle(self):
+        return self.get_bytes().tolist()[:20]
+
+
+    def set_context_handle(self, handle):
+        assert 20 == len(handle)
+        self.get_bytes()[:20] = array.array('B', handle)
+
+
+    def get_resume_handle(self):
+        return self.get_long(20, '<')
+
+
+    def set_resume_handle(self, handle):
+        self.set_long(20, handle, '<')
+
+
+    def get_account_control(self):
+        return self.get_long(20, '<')
+
+
+    def set_account_control(self, mask):
+        self.set_long(20, mask, '<')
+
+
+    def get_pref_max_size(self):
+        return self.get_long(28, '<')
+
+
+    def set_pref_max_size(self, size):
+        self.set_long(28, size, '<')
+
+
+    def get_header_size(self):
+        return SAMREnumDomainsPass.__SIZE
+    
+
+    def get_level(self):
+        return self.get_word(20, '<')
+
+
+    def set_level(self, level):
+        self.set_word(20, level, '<')
+
+
+class SAMRRespLookupPassPolicy(ImpactPacket.Header):
+    __SIZE = 4
+
+    def __init__(self, aBuffer = None):
+        ImpactPacket.Header.__init__(self, SAMRRespLookupPassPolicy.__SIZE)
+
+        if aBuffer:
+            self.load_header(aBuffer)
+
+
+    def get_pass_info(self):
+        return MSRPCPassInfo(self.get_bytes()[:-4].tostring())
+
+
+    def set_pass_info(self, info, level):
+        assert isinstance(info, MSRPCPassInfo)
+        self.get_bytes()[:-4] = array.array('B', info.rawData())
+
+
+    def get_return_code(self):
+        return self.get_long(-4, '<')
+
+
+    def set_return_code(self, code):
+        self.set_long(-4, code, '<')
+
+
+    def get_context_handle(self):
+        return self.get_bytes().tolist()[:12]
+
+
+    def get_header_size(self):
+        var_size = len(self.get_bytes()) - SAMRRespLookupPassPolicy.__SIZE
+        assert var_size > 0
+
+        return SAMRRespLookupPassPolicy.__SIZE + var_size
+
+
+class DCERPCSamr:
+    __metaclass__ = ExtendInplace
+
+    def enumpswpolicy(self,context_handle): # needs to make 3 requests to get all pass policy
+        enumpas = SAMREnumDomainsPass()
+        enumpas.set_context_handle(context_handle)
+        enumpas.set_level(1)
+        self._dcerpc.send(enumpas)
+        data = self._dcerpc.recv()
+
+        retVal = SAMRRespLookupPassPolicy(data)
+        pspol = retVal.get_pass_info()
+        enumpas = SAMREnumDomainsPass()
+        enumpas.set_context_handle(context_handle)
+        enumpas.set_level(3)
+        self._dcerpc.send(enumpas)
+        data = self._dcerpc.recv()
+        pspol.set_header(data,3)
+
+        enumpas = SAMREnumDomainsPass()
+        enumpas.set_context_handle(context_handle)
+        enumpas.set_level(7)
+        self._dcerpc.send(enumpas)
+        data = self._dcerpc.recv()
+        pspol.set_header(data,7)
+
+        enumpas = SAMREnumDomainsPass()
+        enumpas.set_context_handle(context_handle)
+        enumpas.set_level(12)
+        self._dcerpc.send(enumpas)
+        data = self._dcerpc.recv()
+        pspol.set_header(data,12)
+
+        return pspol 
+
+
+    def opendomain(self, context_handle, domain_sid):
+        opendom = SAMROpenDomainHeader()
+        opendom.set_access_mask(0x305)
+        opendom.set_context_handle(context_handle)
+        opendom.set_domain_sid(domain_sid)
+        self._dcerpc.send(opendom)
+        data = self._dcerpc.recv()
+        retVal = SAMRRespOpenDomainHeader(data)
+
+        return retVal
+
+########################################################################
+# End of code ripped with permission from deanx's polenum tool,        #
+# http://labs.portcullis.co.uk/application/polenum/                    #
+########################################################################
 
 
 class SMBShell:
@@ -214,8 +530,8 @@ class SMBShell:
         self.pwd = ''
         self.share = None
         self.sharesList = []
-        self.domainsList = []
-        self.usersList = []
+        self.domainsDict = {}
+        self.usersList = set()
 
 
     def __local_exec(self, cmd):
@@ -325,6 +641,7 @@ undeploy {srvname} {filename} - undeploy remotely a service binary
 Users options
 =============
 users [domain] - list users, optionally for a specific domain
+pswpolicy [domain] - list password policy, optionally for a specific domain
 domains - list domains to which the system is part of
 
 Registry options (TODO)
@@ -611,6 +928,12 @@ regdelete {registry key} - delete a registry key
         self.__samr_disconnect()
 
 
+    def pswpolicy(self, usrdomain=None):
+        self.__samr_connect()
+        self.__samr_pswpolicy(usrdomain)
+        self.__samr_disconnect()
+
+
     def domains(self):
         self.__samr_connect()
         self.__samr_domains()
@@ -774,8 +1097,8 @@ regdelete {registry key} - delete a registry key
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
         self.__dce = dcerpc.DCERPC_v5(self.trans)
-        self.__dce.bind(samr.MSRPC_UUID_SAMR)
-        self.__samr = samr.DCERPCSamr(self.__dce)
+        self.__dce.bind(MSRPC_UUID_SAMR)
+        self.__samr = DCERPCSamr(self.__dce)
 
         resp = self.__samr.connect()
         self.rpcerror(resp.get_return_code())
@@ -806,9 +1129,7 @@ regdelete {registry key} - delete a registry key
 
         encoding = sys.getdefaultencoding()
 
-        for domain in self.domainsList:
-            domain_name = domain.get_name()
-
+        for domain_name, domain in self.domainsDict.items():
             if usrdomain is not None and usrdomain.upper() != domain_name.upper():
                 continue
 
@@ -835,75 +1156,104 @@ regdelete {registry key} - delete a registry key
                 if r.get_return_code() == 0:
                     info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
                     entry = (uname, uid, info)
-                    self.usersList.append(entry)
+                    self.usersList.add(entry)
                     c = self.__samr.closerequest(r.get_context_handle())
 
-        if self.usersList:
-            num = len(self.usersList)
+            if self.usersList:
+                num = len(self.usersList)
 
-            if num == 1:
-                logger.info('Enumerated one user')
+                if num == 1:
+                    logger.info('Enumerated one user')
+                else:
+                    logger.info('Enumerated %d user' % num)
             else:
-                logger.info('Enumerated %d user' % num)
-        else:
-            logger.info('No users enumerated')
+                logger.info('No users enumerated')
 
-        for entry in self.usersList:
-            user, uid, info = entry
+            for entry in self.usersList:
+                user, uid, info = entry
 
-            print user
-            print '  User ID: %d' % uid
-            print '  Group ID: %d' % info.get_group_id()
-            print '  Enabled: %s' % ('False', 'True')[info.is_enabled()]
+                print user
+                print '  User ID: %d' % uid
+                print '  Group ID: %d' % info.get_group_id()
+                print '  Enabled: %s' % ('False', 'True')[info.is_enabled()]
 
-            try:
-                print '  Logon count: %d' % info.get_logon_count()
-            except ValueError:
-                pass
+                try:
+                    print '  Logon count: %d' % info.get_logon_count()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Last Logon: %s' % info.get_logon_time()
-            except ValueError:
-                pass
+                try:
+                    print '  Last Logon: %s' % info.get_logon_time()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Last Logoff: %s' % info.get_logoff_time()
-            except ValueError:
-                pass
+                try:
+                    print '  Last Logoff: %s' % info.get_logoff_time()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Kickoff: %s' % info.get_kickoff_time()
-            except ValueError:
-                pass
+                try:
+                    print '  Kickoff: %s' % info.get_kickoff_time()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Last password set: %s' % info.get_pwd_last_set()
-            except ValueError:
-                pass
+                try:
+                    print '  Last password set: %s' % info.get_pwd_last_set()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Password can change: %s' % info.get_pwd_can_change()
-            except ValueError:
-                pass
+                try:
+                    print '  Password can change: %s' % info.get_pwd_can_change()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Password must change: %s' % info.get_pwd_must_change()
-            except ValueError:
-                pass
+                try:
+                    print '  Password must change: %s' % info.get_pwd_must_change()
+                except ValueError:
+                    pass
 
-            try:
-                print '  Bad password count: %d' % info.get_bad_pwd_count()
-            except ValueError:
-                pass
+                try:
+                    print '  Bad password count: %d' % info.get_bad_pwd_count()
+                except ValueError:
+                    pass
 
-            items = info.get_items()
+                items = info.get_items()
 
-            for i in samr.MSRPCUserInfo.ITEMS.keys():
-                name = items[samr.MSRPCUserInfo.ITEMS[i]].get_name()
-                name = name.encode(encoding, 'replace')
+                for i in MSRPCUserInfo.ITEMS.keys():
+                    name = items[MSRPCUserInfo.ITEMS[i]].get_name()
+                    name = name.encode(encoding, 'replace')
 
-                if name:
-                    print '  %s: %s' % (i, name)
+                    if name:
+                        print '  %s: %s' % (i, name)
+
+            self.usersList = set()
+
+
+    def __samr_pswpolicy(self, usrdomain=None):
+        '''
+        Enumerate password policy on the system
+        '''
+
+        self.__samr_domains(False)
+
+        encoding = sys.getdefaultencoding()
+
+        for domain_name, domain in self.domainsDict.items():
+            if usrdomain is not None and usrdomain.upper() != domain_name.upper():
+                continue
+
+            logger.info('Looking up password policy in domain \'%s\'' % domain_name)
+
+            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
+            self.rpcerror(resp.get_return_code())
+
+            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
+            self.rpcerror(resp.get_return_code())
+
+            self.__domain_context_handle = resp.get_context_handle()
+
+            resp = self.__samr.enumpswpolicy(self.__domain_context_handle)
+            resp.print_friendly()
 
 
     def __samr_domains(self, display=True):
@@ -923,10 +1273,13 @@ regdelete {registry key} - delete a registry key
 
         for domain in range(0, resp.get_entries_num()):
             domain = domains[domain]
-            self.domainsList.append(domain)
+            domain_name = domain.get_name()
+
+            if domain_name not in self.domainsDict:
+                self.domainsDict[domain_name] = domain
 
             if display is True:
-                print '  %s' % domain.get_name()
+                print '  %s' % domain_name
 
 
     def rpcerror(self, code):
@@ -1689,7 +2042,7 @@ def main():
     except RuntimeError:
         sys.exit(255)
     except KeyboardInterrupt:
-        print 'Bye bye!'
+        print '\nBye bye!'
         sys.exit(0)
 
 
