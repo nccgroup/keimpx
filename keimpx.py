@@ -82,6 +82,13 @@ from telnetlib import Telnet
 from threading import Thread
 
 try:
+    import psyco
+    psyco.full()
+    psyco.profile()
+except ImportError, _:
+    pass
+
+try:
     from readline import *
     import readline as _rl
 
@@ -1006,7 +1013,12 @@ regdelete {registry key} - delete a registry key
         for counter in range(0, 3):
             try:
                 time.sleep(1)
-                tn = Telnet(self.__dstip, int(port), 3)
+
+                if str(sys.version.split()[0]) >= "2.6":
+                    tn = Telnet(self.__dstip, int(port), 3)
+                else:
+                    tn = Telnet(self.__dstip, int(port))
+
                 connected = True
                 tn.interact()
 
