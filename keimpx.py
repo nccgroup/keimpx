@@ -653,8 +653,8 @@ rmdir {dirname} - removes the directory under the current path
 
 Services options
 ================
-deploy {service name} {local file} [service args] - deploy remotely a service binary
-undeploy {service name} {remote file} - undeploy remotely a service binary
+deploy {service name} {local file} [service args] - deploy remotely a service executable
+undeploy {service name} {remote file} - undeploy remotely a service executable
 
 Shell options
 =============
@@ -1111,7 +1111,7 @@ regdelete {registry key} - delete a registry key
 
     def __svcctl_bin_upload(self, local_file, remote_file):
         '''
-        Upload the service binary
+        Upload the service executable
         '''
 
         share = 'ADMIN$'
@@ -1123,7 +1123,7 @@ regdelete {registry key} - delete a registry key
 
     def __svcctl_bin_remove(self, remote_file):
         '''
-        Remove the service binary
+        Remove the service executable
         '''
 
         share = 'ADMIN$'
@@ -1956,8 +1956,11 @@ def cmdline_parser():
 
         parser.add_option('-n', dest='name', help='Local hostname')
 
-        parser.add_option('--threads', dest='threads', type='int', default=10,
+        parser.add_option('-T', dest='threads', type='int', default=10,
                           help='Maximum simultaneous connections (default 10)')
+
+        parser.add_option('-b', dest='batch', action="store_true", default=False,
+                          help='Batch mode: do not ask to get an interactive SMB shell')
 
         (args, _) = parser.parse_args()
 
@@ -2066,6 +2069,9 @@ def main():
 
             print
 
+    if conf.batch is True:
+        return
+
     msg = 'Do you want to get a shell from any of the targets? [Y/n] '
     choice = raw_input(msg)
 
@@ -2146,9 +2152,6 @@ def main():
         shell.run()
     except RuntimeError:
         sys.exit(255)
-    except KeyboardInterrupt:
-        print '\nBye bye!'
-        sys.exit(0)
 
 
 if __name__ == '__main__':
@@ -2156,6 +2159,10 @@ if __name__ == '__main__':
     print '(http://www.coresecurity.com), Python Impacket library'
 
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
-    main()
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        print '\nBye bye!'
 
     sys.exit(0)
