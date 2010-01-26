@@ -55,7 +55,7 @@ SUCH DAMAGE.
 
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.2-dev'
+__version__ = '0.3-dev'
 
 
 import binascii
@@ -1042,18 +1042,30 @@ regdelete {registry key} - delete a registry key
 
 
     def users(self, usrdomain=None):
+        '''
+        List users, optionally for a specific domain
+        '''
+
         self.__samr_connect()
         self.__samr_users(usrdomain)
         self.__samr_disconnect()
 
 
     def pswpolicy(self, usrdomain=None):
+        '''
+        List password policy, optionally for a specific domain
+        '''
+
         self.__samr_connect()
         self.__samr_pswpolicy(usrdomain)
         self.__samr_disconnect()
 
 
     def domains(self):
+        '''
+        List domains to which the system is part of
+        '''
+
         self.__samr_connect()
         self.__samr_domains()
         self.__samr_disconnect()
@@ -1102,7 +1114,7 @@ regdelete {registry key} - delete a registry key
         data = self.__dce.recv()
 
         resp = svcctl.SVCCTLRespOpenSCManagerHeader(data)
-        self.rpcerror(resp.get_return_code())
+        self.__rpcerror(resp.get_return_code())
 
         self.__mgr_handle = resp.get_context_handle()
 
@@ -1116,7 +1128,7 @@ regdelete {registry key} - delete a registry key
 
         if self.__mgr_handle:
             data = self.__svc.close_handle(self.__mgr_handle)
-            self.rpcerror(data.get_return_code())
+            self.__rpcerror(data.get_return_code())
 
         self.__dce.disconnect()
 
@@ -1153,7 +1165,7 @@ regdelete {registry key} - delete a registry key
         logger.info('Creating the service \'%s\'' % srvname)
 
         data = self.__svc.create_service(self.__mgr_handle, srvname, '%%SystemRoot%%\\%s' % remote_file)
-        self.rpcerror(data.get_return_code())
+        self.__rpcerror(data.get_return_code())
 
 
     def __svcctl_delete(self, srvname):
@@ -1179,10 +1191,10 @@ regdelete {registry key} - delete a registry key
         svc_handle = resp.get_context_handle()
 
         data = self.__svc.start_service(svc_handle, srvargs)
-        self.rpcerror(data.get_return_code())
+        self.__rpcerror(data.get_return_code())
 
         data = self.__svc.close_handle(svc_handle)
-        self.rpcerror(data.get_return_code())
+        self.__rpcerror(data.get_return_code())
 
 
     def __svcctl_stop(self, srvname):
@@ -1196,10 +1208,10 @@ regdelete {registry key} - delete a registry key
         svc_handle = resp.get_context_handle()
 
         data = self.__svc.stop_service(svc_handle)
-        self.rpcerror(data.get_return_code())
+        self.__rpcerror(data.get_return_code())
 
         data = self.__svc.close_handle(svc_handle)
-        self.rpcerror(data.get_return_code())
+        self.__rpcerror(data.get_return_code())
 
 
     def __samr_connect(self):
@@ -1217,7 +1229,7 @@ regdelete {registry key} - delete a registry key
         self.__samr = DCERPCSamr(self.__dce)
 
         resp = self.__samr.connect()
-        self.rpcerror(resp.get_return_code())
+        self.__rpcerror(resp.get_return_code())
 
         self.__mgr_handle = resp.get_context_handle()
 
@@ -1231,7 +1243,7 @@ regdelete {registry key} - delete a registry key
 
         if self.__mgr_handle:
             data = self.__samr.closerequest(self.__mgr_handle)
-            self.rpcerror(data.get_return_code())
+            self.__rpcerror(data.get_return_code())
 
         self.__dce.disconnect()
 
@@ -1252,15 +1264,15 @@ regdelete {registry key} - delete a registry key
             logger.info('Looking up users in domain \'%s\'' % domain_name)
 
             resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
-            self.rpcerror(resp.get_return_code())
+            self.__rpcerror(resp.get_return_code())
 
             resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
-            self.rpcerror(resp.get_return_code())
+            self.__rpcerror(resp.get_return_code())
 
             self.__domain_context_handle = resp.get_context_handle()
 
             resp = self.__samr.enumusers(self.__domain_context_handle)
-            self.rpcerror(resp.get_return_code())
+            self.__rpcerror(resp.get_return_code())
 
             for user in resp.get_users().elements():
                 uname = user.get_name().encode(encoding, 'replace')
@@ -1361,10 +1373,10 @@ regdelete {registry key} - delete a registry key
             logger.info('Looking up password policy in domain \'%s\'' % domain_name)
 
             resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
-            self.rpcerror(resp.get_return_code())
+            self.__rpcerror(resp.get_return_code())
 
             resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
-            self.rpcerror(resp.get_return_code())
+            self.__rpcerror(resp.get_return_code())
 
             self.__domain_context_handle = resp.get_context_handle()
 
@@ -1380,7 +1392,7 @@ regdelete {registry key} - delete a registry key
         logger.info('Enumerating domains')
 
         resp = self.__samr.enumdomains(self.__mgr_handle)
-        self.rpcerror(resp.get_return_code())
+        self.__rpcerror(resp.get_return_code())
 
         domains = resp.get_domains().elements()
 
@@ -1398,7 +1410,7 @@ regdelete {registry key} - delete a registry key
                 print '  %s' % domain_name
 
 
-    def rpcerror(self, code):
+    def __rpcerror(self, code):
         '''
         Check for an error in a response packet
         '''

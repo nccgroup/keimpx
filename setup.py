@@ -60,7 +60,7 @@ import py2exe
 
 setup(
        name = "keimpx",
-       version = "0.2-dev",
+       version = "0.3-dev",
        description = "keimpx: check for the usefulness of credentials across a network over SMB",
        author = "Bernardo Damele A. G.",
        author_email = "bernardo.damele@gmail.com",
