@@ -109,6 +109,7 @@ try:
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
     from impacket.dcerpc import svcctl
+    from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first\n')
@@ -1071,6 +1072,36 @@ regdelete {registry key} - delete a registry key
         self.__samr_disconnect()
 
 
+    def regread(self, reg_key):
+        '''
+        Read a Windows registry key
+        '''
+
+        self.__winreg_connect()
+        self.__winreg_read(reg_key)
+        self.__winreg_disconnect()
+
+
+    def regwrite(self, reg_key, reg_value):
+        '''
+        Write a value on a Windows registry key
+        '''
+
+        self.__winreg_connect()
+        self.__winreg_write(reg_key, reg_value)
+        self.__winreg_disconnect()
+
+
+    def regdelete(self, reg_key):
+        '''
+        Delete a Windows registry key
+        '''
+
+        self.__winreg_connect()
+        self.__winreg_delete(reg_key)
+        self.__winreg_disconnect()
+
+
     def __smb_transport(self, named_pipe):
         '''
         Initiate a SMB connection on a specific named pipe
@@ -1410,6 +1441,72 @@ regdelete {registry key} - delete a registry key
                 print '  %s' % domain_name
 
 
+    def __winreg_connect(self):
+        '''
+        Connect to winreg named pipe
+        '''
+
+        logger.info('Connecting to the WINREG named pipe')
+
+        self.__smb_transport('winreg')
+
+        logger.debug('Binding on Windows registry interface')
+        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce.bind(winreg.MSRPC_UUID_WINREG)
+        self.__winreg = winreg.DCERPCWinReg(self.__dce)
+
+        resp = self.__winreg.openHKLM()
+        self.__rpcerror(resp.get_return_code())
+
+        self.__mgr_handle = resp.get_context_handle()
+
+
+    def __winreg_disconnect(self):
+        '''
+        Disconnect from winreg named pipe
+        '''
+
+        logger.debug('Disconneting from the WINREG named pipe')
+
+        #if self.__mgr_handle:
+        #    data = self.__winreg.close_handle(self.__mgr_handle)
+        #    self.__rpcerror(data.get_return_code())
+
+        self.__dce.disconnect()
+
+
+    def __winreg_read(self, reg_key):
+        '''
+        Read a registry key
+        '''
+
+        resp = self.__winreg.regOpenKey(self.__mgr_handle, 'SOFTWARE\\Microsoft\\Windows NT', winreg.KEY_READ)
+        self.__rpcerror(resp.get_return_code())
+
+        self.__regkey_handle = resp.get_context_handle()
+        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, 'CurrentVersion', 3)
+
+        self.__rpcerror(self.__regkey_value.get_return_code())
+
+        print self.__regkey_value.get_data()
+
+
+    def __winreg_write(self, reg_key, reg_value):
+        '''
+        Write a value on a registry key
+        '''
+
+        pass
+
+
+    def __winreg_delete(self, reg_key):
+        '''
+        Delete a registry key
+        '''
+
+        pass
+
+
     def __rpcerror(self, code):
         '''
         Check for an error in a response packet
@@ -1454,8 +1551,6 @@ class test_login(Thread):
 
         try:
             logger.info('Attacking host %s' % self.__target.getIdentity())
-            self.connect()
-            logger.debug('Connection to host %s established' % self.__target.getIdentity())
 
             for credential in credentials:
                 user, password, lmhash, nthash = credential.getCredentials()
@@ -1474,6 +1569,7 @@ class test_login(Thread):
                         target_str = '%s:%s' % (self.__dstip, self.__dstport)
 
                     try:
+                        self.connect()
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
 
@@ -1486,6 +1582,8 @@ class test_login(Thread):
                         logger.info('Wrong credentials on %s: %s/%s (%s)' % (target_str, user, password_str, str(e).split('code: ')[1]))
 
                         status = str(e.get_error_code())
+                    except smb.UnsupportedFeature, e:
+                        logger.warn(str(e))
 
                     credential.addAnswer(self.__dstip, self.__dstport, domain, status)
                     self.__target.addAnswer(user, password, lmhash, nthash, domain, status)
@@ -1764,7 +1862,7 @@ def parse_credentials(credentials_line):
     cainmatch = re.compile('^(\S*?):.*?:.*?:(\S*?):(\S*?)$')
     cain = cainmatch.match(credentials_line)
 
-    plaintextpassmatch = re.compile('^(\S+?)\s(\S+?)$')
+    plaintextpassmatch = re.compile('^(\S+?)\s(\S*?)$')
     plain = plaintextpassmatch.match(credentials_line)
 
     # Credentials with hashes (pwdump/pwdumpx/fgdump/pass-the-hash output format)
@@ -1808,7 +1906,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
 
     if (user, password, lmhash, nthash) in added_credentials:
         return
-    elif user not in ( None, '' ):
+    elif user is not None:
         added_credentials.add((user, password, lmhash, nthash))
 
         credential = Credentials(user, password, lmhash, nthash)
