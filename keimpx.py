@@ -6,8 +6,8 @@
 $Id$
 
 keimpx is an open source tool, released under a modified version of Apache
-License 1.1. It is developed in Python using CORE Impact's Impacket
-library.
+License 1.1. It is developed in Python using CORE Security Technologies's
+Impacket library, http://code.google.com/p/impacket/.
 
 It can be used to quickly check for the usefulness of credentials across a
 network over SMB.
@@ -32,7 +32,7 @@ License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2011 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
 This product includes software developed by CORE Security Technologies
@@ -108,6 +108,7 @@ try:
     from impacket.nmb import NetBIOSTimeout
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
+    from impacket.dcerpc import srvsvc
     from impacket.dcerpc import svcctl
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
@@ -534,6 +535,7 @@ class SMBShell:
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
 
+        self.__smb = None
         self.__user = credentials.getUser()
         self.__password = credentials.getPassword()
         self.__lmhash = credentials.getlmhash()
@@ -545,7 +547,6 @@ class SMBShell:
 
         self.__timeout = 10
 
-        self.smb = None
         self.tid = None
         self.pwd = ''
         self.share = None
@@ -739,9 +740,19 @@ regdelete {registry key} - delete a registry key
 
         count = 1
 
-        for share in self.__smb.list_shared():
-            self.sharesList.append(share.get_name())
-            print '[%d] %s (type: %s, comment: %s)' % (count, share.get_name(), share.get_type(), share.get_comment())
+        rpctransport = transport.SMBTransport(self.__smb.get_remote_name(), self.__smb.get_remote_host(), filename = r'\srvsvc', smb_server = self.__smb)
+        dce = dcerpc.DCERPC_v5(rpctransport)
+        dce.connect()
+        dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        srv_svc = srvsvc.DCERPCSrvSvc(dce)
+        resp = srv_svc.get_share_enum_1(rpctransport.get_dip())
+
+        for i in range(len(resp)):
+            name = resp[i]['NetName'].decode('utf-16')
+            comment = resp[i]['Remark'].decode('utf-16')
+            print '[%d] %s (comment: %s)' % (count, name, comment)
+
+            self.sharesList.append(name)
             count += 1
 
         msg = 'Which share do you want to connect to? (default 1) '
@@ -756,8 +767,8 @@ regdelete {registry key} - delete a registry key
         Select the share to connect to
         '''
 
-        self.share = sharename
-        self.tid = self.__smb.tree_connect(sharename)
+        self.share = sharename.strip("\x00")
+        self.tid = self.__smb.tree_connect(self.share)
         self.pwd = ''
 
 
@@ -2277,9 +2288,6 @@ def main():
 
 
 if __name__ == '__main__':
-    print 'This product includes software developed by CORE Security Technologies'
-    print '(http://www.coresecurity.com), Python Impacket library'
-
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
 
     try:
