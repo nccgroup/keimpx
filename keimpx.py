@@ -610,7 +610,8 @@ class SMBShell:
             self.eval(cmd)
 
         except Exception, e:
-            logger.error('Exception: %s' % e)
+            if e is not None:
+                logger.error('Exception: %s' % e)
 
 
     def run(self):
@@ -1044,7 +1045,8 @@ regdelete {registry key} - delete a registry key
                     logger.warn(warn_msg)
 
             except Exception, e:
-                logger.error('Exception: %s' % e)
+                if e is not None:
+                    logger.error('Exception: %s' % e)
 
             if connected is True:
                 break
@@ -1089,6 +1091,7 @@ regdelete {registry key} - delete a registry key
         '''
 
         self.__winreg_connect()
+        self.__winreg_hklm()
         self.__winreg_read(reg_key)
         self.__winreg_disconnect()
 
@@ -1119,7 +1122,7 @@ regdelete {registry key} - delete a registry key
         '''
 
         self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe)
-        self.trans.set_credentials(self.__user, self.__password, self.__lmhash, self.__nthash)
+        self.trans.set_credentials(username=self.__user, password=self.__password, domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash)
 
         try:
             self.trans.connect()
@@ -1466,6 +1469,14 @@ regdelete {registry key} - delete a registry key
         self.__dce.bind(winreg.MSRPC_UUID_WINREG)
         self.__winreg = winreg.DCERPCWinReg(self.__dce)
 
+
+    def __winreg_hklm(self):
+        '''
+        Bind to HKLM registry hive
+        '''
+
+        logger.debug('Binding to HKLM registry hive')
+
         resp = self.__winreg.openHKLM()
         self.__rpcerror(resp.get_return_code())
 
@@ -1491,11 +1502,11 @@ regdelete {registry key} - delete a registry key
         Read a registry key
         '''
 
-        resp = self.__winreg.regOpenKey(self.__mgr_handle, 'SOFTWARE\\Microsoft\\Windows NT', winreg.KEY_READ)
+        resp = self.__winreg.regOpenKey(self.__mgr_handle, 'SYSTEM\\CurrentControlSet\\Control\\', winreg.KEY_READ)
         self.__rpcerror(resp.get_return_code())
 
         self.__regkey_handle = resp.get_context_handle()
-        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, 'CurrentVersion', 3)
+        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, 'FirmwareBootDevice', 10)
 
         self.__rpcerror(self.__regkey_value.get_return_code())
 
