@@ -125,6 +125,7 @@ domains           = []
 pool_thread       = None
 successes         = 0
 targets           = []
+execute_commands  = []
 
 logger         = logging.getLogger('logger')
 logger_handler = logging.StreamHandler(sys.stdout)
@@ -614,7 +615,18 @@ class SMBShell:
                 logger.error('Exception: %s' % e)
 
 
-    def run(self):
+    def interactive(self):
+        logger.info('type \'help\' for help menu')
+
+        i = raw_input('# ')
+
+        while i:
+            self.eval(i)
+
+            i = raw_input('# ')
+
+
+    def run(self, cmds=None):
         '''
         Create a new SMB session with the provided login details and
         show the command prompt
@@ -625,14 +637,11 @@ class SMBShell:
         self.login()
         logger.debug('Logged in as %s' % self.__user)
 
-        logger.info('type \'help\' for help menu')
-
-        i = raw_input('# ')
-
-        while i:
-            self.eval(i)
-
-            i = raw_input('# ')
+        if cmds is None or len(cmds) == 0:
+            self.interactive()
+        else:
+            for cmd in cmds:
+                self.eval(cmd)
 
 
     def help(self):
@@ -1183,11 +1192,9 @@ regdelete {registry key} - delete a registry key
         Upload the service executable
         '''
 
-        share = 'ADMIN$'
+        logger.info('Uploading the service executable to \'%s\\%s\'' % (conf.share, remote_file))
 
-        logger.info('Uploading the service executable to \'%s\\%s\'' % (share, remote_file))
-
-        self.upload(local_file, share, remote_file)
+        self.upload(local_file, conf.share, remote_file)
 
 
     def __svcctl_bin_remove(self, remote_file):
@@ -1195,11 +1202,9 @@ regdelete {registry key} - delete a registry key
         Remove the service executable
         '''
 
-        share = 'ADMIN$'
+        logger.info('Removing the service executable \'%s\\%s\'' % (conf.share, remote_file))
 
-        logger.info('Removing the service executable \'%s\\%s\'' % (share, remote_file))
-
-        self.rm(remote_file, share)
+        self.rm(remote_file, conf.share)
 
 
     def __svcctl_create(self, srvname, remote_file):
@@ -1812,6 +1817,53 @@ def remove_comments(lines):
     return cleaned_lines
 
 
+def add_execute(cmd):
+    global execute_commands
+
+    #if cmd is not None and len(cmd) > 0 and cmd not in execute_commands:
+    if cmd is not None and len(cmd) > 0:
+        execute_commands.append(cmd)
+
+
+def parse_executelist_file():
+    try:
+        fp = open(conf.executelist, 'r')
+        file_lines = fp.read().splitlines()
+        fp.close()
+
+    except IOError, e:
+        logger.error('Could not open list of commands file \'%s\'' % conf.executelist)
+        return
+
+    file_lines = remove_comments(file_lines)
+
+    for line in file_lines:
+        add_execute(line)
+
+
+def executelist():
+    global execute_commands
+    global targets
+
+    parse_executelist_file()
+
+    targets_tuple = ()
+
+    for target in targets:
+        results = target.getResults()
+
+        print target.getIdentity()
+
+        if len(results):
+            first_credentials = results[0]
+
+        try:
+            shell = SMBShell(target, first_credentials)
+            shell.run(execute_commands)
+        except RuntimeError:
+            sys.exit(255)
+
+
 def parse_domains_file(filename):
     try:
         fp = open(filename, 'r')
@@ -2106,6 +2158,12 @@ def cmdline_parser():
         parser.add_option('-b', dest='batch', action="store_true", default=False,
                           help='Batch mode: do not ask to get an interactive SMB shell')
 
+        parser.add_option('-s', dest='share', default='ADMIN$',
+                          help='Share to use to upload files (default: ADMIN$)')
+
+        parser.add_option('-x', dest='executelist', help='Execute a list of '
+                          'commands against all hosts')
+
         (args, _) = parser.parse_args()
 
         if not args.target and not args.list:
@@ -2214,6 +2272,9 @@ def main():
             print
 
     if conf.batch is True:
+        return
+    elif conf.executelist is not None:
+        executelist()
         return
 
     msg = 'Do you want to get a shell from any of the targets? [Y/n] '
