@@ -118,18 +118,18 @@ except ImportError:
 
 
 added_credentials = set()
-added_targets     = set()
-credentials       = []
-conf              = {}
-domains           = []
-pool_thread       = None
-successes         = 0
-targets           = []
-execute_commands  = []
-
-logger         = logging.getLogger('logger')
+added_targets = set()
+credentials = []
+conf = {}
+domains = []
+pool_thread = None
+successes = 0
+targets = []
+execute_commands = []
+share = 'ADMIN$'
+logger = logging.getLogger('logger')
 logger_handler = logging.StreamHandler(sys.stdout)
-formatter      = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', '%H:%M:%S')
+formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', '%H:%M:%S')
 
 logger_handler.setFormatter(formatter)
 logger.addHandler(logger_handler)
@@ -200,6 +200,8 @@ def autoCompletion():
                               'mkdir':      None,
                               'rm':         None,
                               'rmdir':      None,
+                              'start':      None,
+                              'stop':       None,
                               'deploy':     None,
                               'undeploy':   None,
                               'shell':      None,
@@ -672,6 +674,9 @@ rmdir {dirname} - removes the directory under the current path
 
 Services options
 ================
+services - list services
+start {service name} - start a service
+stop {service name} - stop a service
 deploy {service name} {local file} [service args] - deploy remotely a service executable
 undeploy {service name} {remote file} - undeploy remotely a service executable
 
@@ -765,7 +770,7 @@ regdelete {registry key} - delete a registry key
             self.sharesList.append(name)
             count += 1
 
-        msg = 'Which share do you want to connect to? (default 1) '
+        msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.sharesList)
         choice = read_input(msg, limit)
 
@@ -967,6 +972,28 @@ regdelete {registry key} - delete a registry key
         self.__smb.rmdir(self.share, path)
 
 
+    def start(self, srvname):
+        '''
+        Start a service.
+        '''
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_start(srvname)
+        self.__svcctl_disconnect(srvname)
+
+
+    def stop(self, srvname):
+        '''
+        Stop a service.
+        '''
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_stop(srvname)
+        self.__svcctl_disconnect(srvname)
+
+
     def deploy(self, srvname, local_file, srvargs=None, remote_file=None):
         '''
         Deploy a Windows service: upload the service executable to the
@@ -987,8 +1014,8 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_bin_upload(local_file, remote_file)
         self.__svcctl_connect()
         self.__svcctl_create(srvname, remote_file)
+        self.__svcctl_srv_manager(srvname)
         self.__svcctl_start(srvname, srvargs)
-        self.__svcctl_disconnect()
 
         self.pwd = self.__old_pwd
 
@@ -1005,13 +1032,21 @@ regdelete {registry key} - delete a registry key
         self.__old_pwd = self.pwd
         self.pwd = ''
 
-        self.__svcctl_connect()
         self.__svcctl_stop(srvname)
         self.__svcctl_delete(srvname)
-        self.__svcctl_disconnect()
+        self.__svcctl_disconnect(srvname)
         self.__svcctl_bin_remove(remote_file)
 
         self.pwd = self.__old_pwd
+
+
+    def services(self):
+        logger.error('Service listing is not yet implemented')
+        return
+
+        #self.__svcctl_connect()
+        #self.__svcctl_list()
+        #self.__svcctl_disconnect()
 
 
     def shell(self, port=2090):
@@ -1145,7 +1180,12 @@ regdelete {registry key} - delete a registry key
             raise RuntimeError
 
 
-    def __svcctl_connect(self):
+    def __svcctl_srv_manager(self, srvname):
+        self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
+        self.__svc_handle = self.__resp['ContextHandle']
+
+
+    def __svcctl_connect(self, srvname=None):
         '''
         Connect to svcctl named pipe
         '''
@@ -1158,31 +1198,22 @@ regdelete {registry key} - delete a registry key
         self.__dce = dcerpc.DCERPC_v5(self.trans)
         self.__dce.bind(svcctl.MSRPC_UUID_SVCCTL)
         self.__svc = svcctl.DCERPCSvcCtl(self.__dce)
-
-        logger.debug('Sending SVCCTL open SCM request')
-        opensc = svcctl.SVCCTLOpenSCManagerHeader()
-        opensc.set_machine_name('IMPACT')
-        self.__dce.send(opensc)
-
-        logger.debug('Parsing SVCCTL open SCM response')
-        data = self.__dce.recv()
-
-        resp = svcctl.SVCCTLRespOpenSCManagerHeader(data)
-        self.__rpcerror(resp.get_return_code())
-
-        self.__mgr_handle = resp.get_context_handle()
+        self.__resp = self.__svc.OpenSCManagerW()
+        self.__mgr_handle = self.__resp['ContextHandle']
 
 
-    def __svcctl_disconnect(self):
+    def __svcctl_disconnect(self, srvname=None):
         '''
         Disconnect from svcctl named pipe
         '''
 
         logger.debug('Disconneting from the SVCCTL named pipe')
 
+        if srvname is not None:
+            self.__svc.CloseServiceHandle(self.__svc_handle)
+
         if self.__mgr_handle:
-            data = self.__svc.close_handle(self.__mgr_handle)
-            self.__rpcerror(data.get_return_code())
+            self.__svc.CloseServiceHandle(self.__mgr_handle)
 
         self.__dce.disconnect()
 
@@ -1192,9 +1223,11 @@ regdelete {registry key} - delete a registry key
         Upload the service executable
         '''
 
-        logger.info('Uploading the service executable to \'%s\\%s\'' % (conf.share, remote_file))
+        global share
 
-        self.upload(local_file, conf.share, remote_file)
+        logger.info('Uploading the service executable to \'%s\\%s\'' % (share, remote_file))
+
+        self.upload(local_file, share, remote_file)
 
 
     def __svcctl_bin_remove(self, remote_file):
@@ -1202,9 +1235,11 @@ regdelete {registry key} - delete a registry key
         Remove the service executable
         '''
 
-        logger.info('Removing the service executable \'%s\\%s\'' % (conf.share, remote_file))
+        global share
 
-        self.rm(remote_file, conf.share)
+        logger.info('Removing the service executable \'%s\\%s\'' % (share, remote_file))
+
+        self.rm(remote_file, share)
 
 
     def __svcctl_create(self, srvname, remote_file):
@@ -1214,8 +1249,10 @@ regdelete {registry key} - delete a registry key
 
         logger.info('Creating the service \'%s\'' % srvname)
 
-        data = self.__svc.create_service(self.__mgr_handle, srvname, '%%SystemRoot%%\\%s' % remote_file)
-        self.__rpcerror(data.get_return_code())
+        self.__pathname = '%%SystemRoot%%\\%s' % remote_file
+        self.__pathname = self.__pathname.encode('utf-16le')
+
+        self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), srvname.encode('utf-16le'), self.__pathname)
 
 
     def __svcctl_delete(self, srvname):
@@ -1225,25 +1262,19 @@ regdelete {registry key} - delete a registry key
 
         logger.info('Deleting the service \'%s\'' % srvname)
 
-        resp = self.__svc.open_service(self.__mgr_handle, srvname)
-        svc_handle = resp.get_context_handle()
-        self.__svc.delete_service(svc_handle)
+        self.__svc.DeleteService(self.__svc_handle)
 
 
-    def __svcctl_start(self, srvname, srvargs):
+    def __svcctl_start(self, srvname, srvargs=''):
         '''
         Start the service
         '''
 
         logger.info('Starting the service \'%s\'' % srvname)
 
-        resp = self.__svc.open_service(self.__mgr_handle, srvname)
-        svc_handle = resp.get_context_handle()
-
-        data = self.__svc.start_service(svc_handle, srvargs)
-        self.__rpcerror(data.get_return_code())
-
-        data = self.__svc.close_handle(svc_handle)
+        # TODO: use StartServiceW() only when it handle arguments - bugged now
+        #self.__svc.StartServiceW(self.__svc_handle)
+        data = self.__svc.start_service(self.__svc_handle, srvargs)
         self.__rpcerror(data.get_return_code())
 
 
@@ -1254,14 +1285,17 @@ regdelete {registry key} - delete a registry key
 
         logger.info('Stopping the service \'%s\'' % srvname)
 
-        resp = self.__svc.open_service(self.__mgr_handle, srvname)
-        svc_handle = resp.get_context_handle()
+        self.__svc.StopService(self.__svc_handle)
 
-        data = self.__svc.stop_service(svc_handle)
-        self.__rpcerror(data.get_return_code())
 
-        data = self.__svc.close_handle(svc_handle)
-        self.__rpcerror(data.get_return_code())
+    def __svcctl_list(self):
+        '''
+        List services
+        '''
+
+        logger.info('Listing services')
+
+        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle)
 
 
     def __samr_connect(self):
@@ -2127,7 +2161,7 @@ def cmdline_parser():
 
     try:
         parser.add_option('-v', dest='verbose', type='int', default=0,
-                          help='Verbosity level: 0-2 (default 0)')
+                          help='Verbosity level: 0-2 (default: 0)')
 
         parser.add_option('-t', dest='target', help='Target address')
 
@@ -2148,18 +2182,15 @@ def cmdline_parser():
         parser.add_option('-d', dest='domainsfile', help='File with list of domains')
 
         parser.add_option('-p', dest='port', type='int', default=445,
-                           help='SMB port: 139 or 445 (default 445)')
+                           help='SMB port: 139 or 445 (default: 445)')
 
         parser.add_option('-n', dest='name', help='Local hostname')
 
         parser.add_option('-T', dest='threads', type='int', default=10,
-                          help='Maximum simultaneous connections (default 10)')
+                          help='Maximum simultaneous connections (default: 10)')
 
         parser.add_option('-b', dest='batch', action="store_true", default=False,
                           help='Batch mode: do not ask to get an interactive SMB shell')
-
-        parser.add_option('-s', dest='share', default='ADMIN$',
-                          help='Share to use to upload files (default: ADMIN$)')
 
         parser.add_option('-x', dest='executelist', help='Execute a list of '
                           'commands against all hosts')
