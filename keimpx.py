@@ -157,6 +157,10 @@ class threadError(Exception):
     pass
 
 
+class missingService(Exception):
+    pass
+
+
 class missingShare(Exception):
     pass
 
@@ -600,8 +604,8 @@ class SMBShell:
             l[0] = self
             f(*l)
 
-        except missingShare, _:
-            logger.error('You first have to specify the share with \'use\' or \'shares\' command')
+        except (missingShare, missingService, missingFile), e:
+            logger.error(e)
 
         except smb.SessionError, e:
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
@@ -674,7 +678,7 @@ rmdir {dirname} - removes the directory under the current path
 
 Services options
 ================
-services - list services
+services [service name] - list services
 start {service name} - start a service
 stop {service name} - stop a service
 deploy {service name} {local file} [service args] - deploy remotely a service executable
@@ -777,10 +781,13 @@ regdelete {registry key} - delete a registry key
         self.use(self.sharesList[choice-1])
 
 
-    def use(self, sharename):
+    def use(self, sharename=None):
         '''
         Select the share to connect to
         '''
+
+        if sharename is None:
+            raise missingShare, 'Share has not been specified'
 
         self.share = sharename.strip("\x00")
         self.tid = self.__smb.tree_connect(self.share)
@@ -972,21 +979,27 @@ regdelete {registry key} - delete a registry key
         self.__smb.rmdir(self.share, path)
 
 
-    def start(self, srvname):
+    def start(self, srvname=None, srvargs=None):
         '''
         Start a service.
         '''
 
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
+
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_start(srvname)
+        self.__svcctl_start(srvname, srvargs)
         self.__svcctl_disconnect(srvname)
 
 
-    def stop(self, srvname):
+    def stop(self, srvname=None):
         '''
         Stop a service.
         '''
+
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
 
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
@@ -994,16 +1007,14 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_disconnect(srvname)
 
 
-    def deploy(self, srvname, local_file, srvargs=None, remote_file=None):
+    def deploy(self, srvname=None, local_file=None, srvargs=None, remote_file=None):
         '''
         Deploy a Windows service: upload the service executable to the
         file system, create a service as 'Automatic' and start it
         '''
 
-        if srvargs is None:
-            srvargs = '\x00'
-        else:
-            srvargs = [ str(srvargs), ]
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
 
         if remote_file is None:
             remote_file = str(os.path.basename(local_file.replace('\\', '/')))
@@ -1016,22 +1027,29 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_create(srvname, remote_file)
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_start(srvname, srvargs)
+        self.__svcctl_disconnect(srvname)
 
         self.pwd = self.__old_pwd
 
 
-    def undeploy(self, srvname, remote_file):
+    def undeploy(self, srvname=None, remote_file=None):
         '''
         Wrapper method to undeploy a Windows service. It stops the
         services, removes it and removes the executable from the file
         system
         '''
 
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
+
+        # TODO: extract executable name automatically
         remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
 
         self.__old_pwd = self.pwd
         self.pwd = ''
 
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
         self.__svcctl_stop(srvname)
         self.__svcctl_delete(srvname)
         self.__svcctl_disconnect(srvname)
@@ -1040,13 +1058,10 @@ regdelete {registry key} - delete a registry key
         self.pwd = self.__old_pwd
 
 
-    def services(self):
-        logger.error('Service listing is not yet implemented')
-        return
-
-        #self.__svcctl_connect()
-        #self.__svcctl_list()
-        #self.__svcctl_disconnect()
+    def services(self, srvname=None):
+        self.__svcctl_connect()
+        self.__svcctl_list(srvname)
+        self.__svcctl_disconnect()
 
 
     def shell(self, port=2090):
@@ -1185,7 +1200,7 @@ regdelete {registry key} - delete a registry key
         self.__svc_handle = self.__resp['ContextHandle']
 
 
-    def __svcctl_connect(self, srvname=None):
+    def __svcctl_connect(self):
         '''
         Connect to svcctl named pipe
         '''
@@ -1265,15 +1280,19 @@ regdelete {registry key} - delete a registry key
         self.__svc.DeleteService(self.__svc_handle)
 
 
-    def __svcctl_start(self, srvname, srvargs=''):
+    def __svcctl_start(self, srvname, srvargs=None):
         '''
         Start the service
         '''
 
         logger.info('Starting the service \'%s\'' % srvname)
 
-        # TODO: use StartServiceW() only when it handle arguments - bugged now
-        #self.__svc.StartServiceW(self.__svc_handle)
+        if srvargs is None:
+            srvargs = [ '\x00', ]
+        else:
+            srvargs = [ str(srvargs), ]
+
+        #self.__svc.StartServiceW(self.__svc_handle, srvargs)
         data = self.__svc.start_service(self.__svc_handle, srvargs)
         self.__rpcerror(data.get_return_code())
 
@@ -1288,14 +1307,54 @@ regdelete {registry key} - delete a registry key
         self.__svc.StopService(self.__svc_handle)
 
 
-    def __svcctl_list(self):
+    def __svcctl_list_parse(self, srvname, resp):
+        services = []
+
+        for i in range(len(resp)):
+            name = resp[i]['ServiceName'].decode('utf-16')
+            display = resp[i]['DisplayName'].decode('utf-16')
+            state = resp[i]['CurrentState']
+
+            if srvname is not None and srvname.lower() not in name.lower():
+                continue
+
+            services.append((name, display, state))
+
+        services.sort()
+
+        print '%-30s - %-70s - STATUS' % ('SERVICE NAME', 'DISPLAY NAME')
+
+        for service in services:
+            print "%-30s - %-70s -" % (service[0], service[1]),
+
+            if service[2] == svcctl.SERVICE_CONTINUE_PENDING:
+               print "CONTINUE PENDING"
+            elif service[2] == svcctl.SERVICE_PAUSE_PENDING:
+               print "PAUSE PENDING"
+            elif service[2] == svcctl.SERVICE_PAUSED:
+               print "PAUSED"
+            elif service[2] == svcctl.SERVICE_RUNNING:
+               print "RUNNING"
+            elif service[2] == svcctl.SERVICE_START_PENDING:
+               print "START PENDING"
+            elif service[2] == svcctl.SERVICE_STOP_PENDING:
+               print "STOP PENDING"
+            elif service[2] == svcctl.SERVICE_STOPPED:
+               print "STOPPED"
+            else:
+               print "UNKOWN"
+
+
+    def __svcctl_list(self, srvname):
         '''
         List services
         '''
 
         logger.info('Listing services')
 
-        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle)
+        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
+        self.__svcctl_list_parse(srvname, resp)
+        print 'Total services: %d\n' % len(resp)
 
 
     def __samr_connect(self):
