@@ -1361,13 +1361,12 @@ regdelete {registry key} - delete a registry key
         for i in range(len(resp)):
             name = resp[i]['ServiceName'].decode('utf-16')
             display = resp[i]['DisplayName'].decode('utf-16')
-            stype = resp[i]['ServiceType']
             state = resp[i]['CurrentState']
 
             if srvname is not None and srvname.lower() not in name.lower():
                 continue
 
-            services.append((name, display, state, stype))
+            services.append((name, display, state))
 
         services.sort()
 
@@ -1388,6 +1387,7 @@ regdelete {registry key} - delete a registry key
         #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceState=svcctl.SERVICE_STATE_ALL)
         resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
         self.__svcctl_list_parse(srvname, resp)
+
         print 'Total services: %d\n' % len(resp)
 
 
