@@ -204,6 +204,8 @@ def autoCompletion():
                               'mkdir':      None,
                               'rm':         None,
                               'rmdir':      None,
+                              'services':   None,
+                              'status':     None,
                               'start':      None,
                               'stop':       None,
                               'deploy':     None,
@@ -679,6 +681,7 @@ rmdir {dirname} - removes the directory under the current path
 Services options
 ================
 services [service name] - list services
+status {service name} - query the status of a service
 start {service name} - start a service
 stop {service name} - stop a service
 deploy {service name} {local file} [service args] - deploy remotely a service executable
@@ -1064,6 +1067,16 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_disconnect()
 
 
+    def status(self, srvname):
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_status(srvname)
+        self.__svcctl_disconnect()
+
+
     def shell(self, port=2090):
         '''
         Deploy a bindshell backdoor listening on a predefined TCP port for
@@ -1280,6 +1293,39 @@ regdelete {registry key} - delete a registry key
         self.__svc.DeleteService(self.__svc_handle)
 
 
+    def __svcctl_parse_status(self, status):
+        if status == svcctl.SERVICE_CONTINUE_PENDING:
+           return "CONTINUE PENDING"
+        elif status == svcctl.SERVICE_PAUSE_PENDING:
+           return "PAUSE PENDING"
+        elif status == svcctl.SERVICE_PAUSED:
+           return "PAUSED"
+        elif status == svcctl.SERVICE_RUNNING:
+           return "RUNNING"
+        elif status == svcctl.SERVICE_START_PENDING:
+           return "START PENDING"
+        elif status == svcctl.SERVICE_STOP_PENDING:
+           return "STOP PENDING"
+        elif status == svcctl.SERVICE_STOPPED:
+           return "STOPPED"
+        else:
+           return "UNKOWN"
+
+
+    def __svcctl_status(self, srvname):
+        '''
+        Query status service
+        '''
+
+        logger.info('Querying the status of service \'%s\'' % srvname)
+
+        #ans = self.__svc.QueryServiceConfigW(self.__svc_handle)
+        ans = self.__svc.QueryServiceStatus(self.__svc_handle)
+        status = ans['CurrentState']
+
+        print 'Service \'%s\' status is: %s' % (srvname, self.__svcctl_parse_status(status))
+
+
     def __svcctl_start(self, srvname, srvargs=None):
         '''
         Start the service
@@ -1295,6 +1341,7 @@ regdelete {registry key} - delete a registry key
         #self.__svc.StartServiceW(self.__svc_handle, srvargs)
         data = self.__svc.start_service(self.__svc_handle, srvargs)
         self.__rpcerror(data.get_return_code())
+        self.__svcctl_status(srvname)
 
 
     def __svcctl_stop(self, srvname):
@@ -1305,6 +1352,7 @@ regdelete {registry key} - delete a registry key
         logger.info('Stopping the service \'%s\'' % srvname)
 
         self.__svc.StopService(self.__svc_handle)
+        self.__svcctl_status(srvname)
 
 
     def __svcctl_list_parse(self, srvname, resp):
@@ -1313,12 +1361,13 @@ regdelete {registry key} - delete a registry key
         for i in range(len(resp)):
             name = resp[i]['ServiceName'].decode('utf-16')
             display = resp[i]['DisplayName'].decode('utf-16')
+            stype = resp[i]['ServiceType']
             state = resp[i]['CurrentState']
 
             if srvname is not None and srvname.lower() not in name.lower():
                 continue
 
-            services.append((name, display, state))
+            services.append((name, display, state, stype))
 
         services.sort()
 
@@ -1326,23 +1375,7 @@ regdelete {registry key} - delete a registry key
 
         for service in services:
             print "%-30s - %-70s -" % (service[0], service[1]),
-
-            if service[2] == svcctl.SERVICE_CONTINUE_PENDING:
-               print "CONTINUE PENDING"
-            elif service[2] == svcctl.SERVICE_PAUSE_PENDING:
-               print "PAUSE PENDING"
-            elif service[2] == svcctl.SERVICE_PAUSED:
-               print "PAUSED"
-            elif service[2] == svcctl.SERVICE_RUNNING:
-               print "RUNNING"
-            elif service[2] == svcctl.SERVICE_START_PENDING:
-               print "START PENDING"
-            elif service[2] == svcctl.SERVICE_STOP_PENDING:
-               print "STOP PENDING"
-            elif service[2] == svcctl.SERVICE_STOPPED:
-               print "STOPPED"
-            else:
-               print "UNKOWN"
+            print self.__svcctl_parse_status(service[2])
 
 
     def __svcctl_list(self, srvname):
@@ -1352,6 +1385,7 @@ regdelete {registry key} - delete a registry key
 
         logger.info('Listing services')
 
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceState=svcctl.SERVICE_STATE_ALL)
         resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
         self.__svcctl_list_parse(srvname, resp)
         print 'Total services: %d\n' % len(resp)
