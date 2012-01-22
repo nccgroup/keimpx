@@ -32,7 +32,7 @@ License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009-2011 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2012 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
 This product includes software developed by CORE Security Technologies
@@ -128,10 +128,10 @@ successes = 0
 targets = []
 execute_commands = []
 share = 'ADMIN$'
+default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
 logger = logging.getLogger('logger')
 logger_handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', '%H:%M:%S')
-
 logger_handler.setFormatter(formatter)
 logger.addHandler(logger_handler)
 logger.setLevel(logging.WARN)
@@ -169,6 +169,8 @@ class missingShare(Exception):
 class missingFile(Exception):
     pass
 
+class registryKey(Exception):
+    pass
 
 class CompleterNG(rlcompleter.Completer):
     def global_matches(self, text):
@@ -611,6 +613,10 @@ class SMBShell:
 
         except (missingShare, missingService, missingFile), e:
             logger.error(e)
+
+        except registryKey, e:
+            logger.error(e)
+            sys.exit(1)
 
         except smb.SessionError, e:
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
@@ -1160,14 +1166,20 @@ regdelete {registry key} - delete a registry key
         self.__samr_disconnect()
 
 
-    def regread(self, reg_key):
+    def regread(self, reg_key=None):
         '''
         Read a Windows registry key
         '''
 
+        if reg_key is None:
+            logger.warn('No registry hive provided, going to read \'%s\'' % default_reg_key)
+            self.__winreg_key = default_reg_key
+        else:
+            self.__winreg_key = reg_key
+
         self.__winreg_connect()
-        self.__winreg_hklm()
-        self.__winreg_read(reg_key)
+        self.__winreg_open()
+        self.__winreg_read()
         self.__winreg_disconnect()
 
 
@@ -1176,8 +1188,12 @@ regdelete {registry key} - delete a registry key
         Write a value on a Windows registry key
         '''
 
+        self.__winreg_key = reg_key
+        self.__winreg_value = reg_value
+
         self.__winreg_connect()
-        self.__winreg_write(reg_key, reg_value)
+        self.__winreg_open()
+        self.__winreg_write()
         self.__winreg_disconnect()
 
 
@@ -1186,8 +1202,11 @@ regdelete {registry key} - delete a registry key
         Delete a Windows registry key
         '''
 
+        self.__winreg_key = reg_key
+
         self.__winreg_connect()
-        self.__winreg_delete(reg_key)
+        self.__winreg_open()
+        self.__winreg_delete()
         self.__winreg_disconnect()
 
 
@@ -1605,63 +1624,97 @@ regdelete {registry key} - delete a registry key
         self.__winreg = winreg.DCERPCWinReg(self.__dce)
 
 
-    def __winreg_hklm(self):
-        '''
-        Bind to HKLM registry hive
-        '''
-
-        logger.debug('Binding to HKLM registry hive')
-
-        resp = self.__winreg.openHKLM()
-        self.__rpcerror(resp.get_return_code())
-
-        self.__mgr_handle = resp.get_context_handle()
-
-
     def __winreg_disconnect(self):
         '''
         Disconnect from winreg named pipe
         '''
 
+        logger.debug('Closing registry key')
+        self.__winreg.regCloseKey(self.__regkey_handle)
+
         logger.debug('Disconneting from the WINREG named pipe')
-
-        #if self.__mgr_handle:
-        #    data = self.__winreg.close_handle(self.__mgr_handle)
-        #    self.__rpcerror(data.get_return_code())
-
         self.__dce.disconnect()
 
 
-    def __winreg_read(self, reg_key):
+    def __winreg_parse(self):
+        '''
+        Parse the provided registry key
+        '''
+
+        __reg_key_parse = re.findall('(HKLM|HKCR|HKU|HKCU)\\\\(.*\\\\)(.+)$', self.__winreg_key, re.I)
+
+        if len(__reg_key_parse) < 1:
+            raise registryKey, 'Invalid registry key provided, make sure it is like HKLM\\registry\\path\\name'
+
+        self.__winreg_hive, self.__winreg_path, self.__winreg_name = __reg_key_parse[0]
+
+
+    def __winreg_open(self):
+        '''
+        Bind to registry hive
+        '''
+
+        self.__winreg_parse()
+
+        if self.__winreg_hive.upper() == 'HKLM':
+            self.__resp = self.__winreg.openHKLM()
+        elif self.__winreg_hive.upper() == 'HKCR':
+            self.__resp = self.__winreg.openHKCR()
+        elif self.__winreg_hive.upper() in ('HKU', 'HKCU'):
+            self.__resp = self.__winreg.openHKU()
+
+        self.__mgr_handle = self.__resp.get_context_handle()
+
+        logger.debug('Opening registry key')
+
+        self.__resp = self.__winreg.regOpenKey(self.__mgr_handle, self.__winreg_path, winreg.KEY_ALL_ACCESS)
+        self.__rpcerror(self.__resp.get_return_code())
+        self.__regkey_handle = self.__resp.get_context_handle()
+
+
+    def __winreg_read(self):
         '''
         Read a registry key
         '''
 
-        resp = self.__winreg.regOpenKey(self.__mgr_handle, 'SYSTEM\\CurrentControlSet\\Control\\', winreg.KEY_READ)
-        self.__rpcerror(resp.get_return_code())
+        logger.info('Reading registry key \'%s\' value' % self.__winreg_key)
 
-        self.__regkey_handle = resp.get_context_handle()
-        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, 'FirmwareBootDevice', 10)
-
+        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, self.__winreg_name, 1024)
         self.__rpcerror(self.__regkey_value.get_return_code())
 
         print self.__regkey_value.get_data()
 
 
-    def __winreg_write(self, reg_key, reg_value):
+    def __winreg_write(self):
         '''
         Write a value on a registry key
         '''
 
-        pass
+        logger.info('Write value \'%s\' to registry key \'%s\'' % (self.__winreg_value, self.__winreg_key))
+
+        resp = self.__winreg.regCreateKey(self.__regkey_handle, self.__winreg_name)
+        self.__rpcerror(resp.get_return_code())
+
+        resp = self.__winreg.regSetValue(self.__regkey_handle, winreg.REG_SZ, self.__winreg_name, self.__winreg_value)
+        self.__rpcerror(resp.get_return_code())
 
 
-    def __winreg_delete(self, reg_key):
+    def __winreg_delete(self):
         '''
         Delete a registry key
         '''
 
-        pass
+        logger.error('Registry key deletion is not yet implemented')
+        return
+
+        # TODO: it does not work yet
+        logger.info('Deleting registry key \'%s\'' % self.__winreg_key)
+
+        resp = self.__winreg.regDeleteValue(self.__regkey_handle, '')
+        self.__rpcerror(resp.get_return_code())
+
+        resp = self.__winreg.regDeleteKey(self.__regkey_handle, self.__winreg_name)
+        self.__rpcerror(resp.get_return_code())
 
 
     def __rpcerror(self, code):
@@ -1676,6 +1729,8 @@ regdelete {registry key} - delete a registry key
         elif code != 0:
             logger.error('Unknown error during negotiation (%d)' % code)
             raise RuntimeError
+
+        #logger.debug('RPC code returned: %d' % code)
 
 
 class test_login(Thread):
@@ -1982,7 +2037,7 @@ def executelist():
     for target in targets:
         results = target.getResults()
 
-        print target.getIdentity()
+        logger.info('Executing commands on %s' % target.getIdentity())
 
         if len(results):
             first_credentials = results[0]
