@@ -64,6 +64,7 @@ import os
 import random
 import re
 import rlcompleter
+import shlex
 import socket
 import string
 import sys
@@ -598,7 +599,9 @@ class SMBShell:
             self.__local_exec(cmd[1:])
             return
 
-        l = string.split(cmd, ' ')
+        l = []
+        for arg in shlex.split(cmd):
+            l.append(arg)
         cmd = l[0]
 
         try:
