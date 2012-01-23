@@ -769,18 +769,13 @@ regdelete {registry key} - delete a registry key
         connect to
         '''
 
+        self.__shares_connect()
+
         count = 1
 
-        rpctransport = transport.SMBTransport(self.__smb.get_remote_name(), self.__smb.get_remote_host(), filename = r'\srvsvc', smb_server = self.__smb)
-        dce = dcerpc.DCERPC_v5(rpctransport)
-        dce.connect()
-        dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        srv_svc = srvsvc.DCERPCSrvSvc(dce)
-        resp = srv_svc.get_share_enum_1(rpctransport.get_dip())
-
-        for i in range(len(resp)):
-            name = resp[i]['NetName'].decode('utf-16')
-            comment = resp[i]['Remark'].decode('utf-16')
+        for i in range(len(self.__resp)):
+            name = self.__resp[i]['NetName'].decode('utf-16')
+            comment = self.__resp[i]['Remark'].decode('utf-16')
             print '[%d] %s (comment: %s)' % (count, name, comment)
 
             self.sharesList.append(name)
@@ -1230,6 +1225,22 @@ regdelete {registry key} - delete a registry key
             raise RuntimeError
 
 
+    def __shares_connect(self):
+        '''
+        Connect to the srvsvc named pipe
+        '''
+
+        logger.info('Connecting to the SRVSVC named pipe')
+
+        self.__smb_transport('srvsvc')
+
+        logger.debug('Binding on Server Service (SRVSVC) interface')
+        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
+        self.__resp = self.__svc.get_share_enum_1(self.trans.get_dip())
+
+
     def __svcctl_srv_manager(self, srvname):
         self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
         self.__svc_handle = self.__resp['ContextHandle']
@@ -1618,7 +1629,7 @@ regdelete {registry key} - delete a registry key
 
         self.__smb_transport('winreg')
 
-        logger.debug('Binding on Windows registry interface')
+        logger.debug('Binding on Windows registry (WINREG) interface')
         self.__dce = dcerpc.DCERPC_v5(self.trans)
         self.__dce.bind(winreg.MSRPC_UUID_WINREG)
         self.__winreg = winreg.DCERPCWinReg(self.__dce)
