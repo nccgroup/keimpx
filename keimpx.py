@@ -693,6 +693,7 @@ services [service name] - list services
 status {service name} - query the status of a service
 start {service name} - start a service
 stop {service name} - stop a service
+query {service name} - display the information of a service
 deploy {service name} {local file} [service args] - deploy remotely a service executable
 undeploy {service name} {remote file} - undeploy remotely a service executable
 
@@ -1081,6 +1082,16 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_disconnect()
 
 
+    def query(self, srvname):
+        if srvname is None:
+            raise missingService, 'Service name has not been specified'
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_info(srvname)
+        self.__svcctl_disconnect()
+
+
     def shell(self, port=2090):
         '''
         Deploy a bindshell backdoor listening on a predefined TCP port for
@@ -1326,6 +1337,56 @@ regdelete {registry key} - delete a registry key
         self.__svc.DeleteService(self.__svc_handle)
 
 
+    def __svcctl_parse_info(self, resp):
+        print "TYPE              : %2d - " % resp['QueryConfig']['ServiceType'],
+
+        if resp['QueryConfig']['ServiceType'] == 0x1:
+            print "SERVICE_KERNLE_DRIVER"
+        elif resp['QueryConfig']['ServiceType'] == 0x2:
+            print "SERVICE_FILE_SYSTEM_DRIVER"
+        elif resp['QueryConfig']['ServiceType'] == 0x10:
+            print "SERVICE_WIN32_OWN_PROCESS"
+        elif resp['QueryConfig']['ServiceType'] == 0x20:
+            print "SERVICE_WIN32_SHARE_PROCESS"
+        else:
+            print "UNKOWN"
+
+        print "START_TYPE        : %2d - " % resp['QueryConfig']['StartType'],
+
+        if resp['QueryConfig']['StartType'] == 0x0:
+            print "BOOT START"
+        elif resp['QueryConfig']['StartType'] == 0x1:
+            print "SYSTEM START"
+        elif resp['QueryConfig']['StartType'] == 0x2:
+            print "AUTO START"
+        elif resp['QueryConfig']['StartType'] == 0x3:
+            print "DEMAND START"
+        elif resp['QueryConfig']['StartType'] == 0x4:
+            print "DISABLED"
+        else:
+            print "UNKOWN"
+
+        print "ERROR_CONTROL     : %2d - " % resp['QueryConfig']['ErrorControl'],
+
+        if resp['QueryConfig']['ErrorControl'] == 0x0:
+            print "IGNORE"
+        elif resp['QueryConfig']['ErrorControl'] == 0x1:
+            print "NORMAL"
+        elif resp['QueryConfig']['ErrorControl'] == 0x2:
+            print "SEVERE"
+        elif resp['QueryConfig']['ErrorControl'] == 0x3:
+            print "CRITICAL"
+        else:
+            print "UNKOWN"
+
+        print "BINARY_PATH_NAME  : %s" % resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
+        print "LOAD_ORDER_GROUP  : %s" % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
+        print "TAG               : %d" % resp['QueryConfig']['TagID']
+        print "DISPLAY_NAME      : %s" % resp['QueryConfig']['DisplayName'].decode('utf-16le')
+        print "DEPENDENCIES      : %s" % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/',' - ')
+        print "SERVICE_START_NAME: %s" % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
+
+
     def __svcctl_parse_status(self, status):
         if status == svcctl.SERVICE_CONTINUE_PENDING:
            return "CONTINUE PENDING"
@@ -1347,16 +1408,28 @@ regdelete {registry key} - delete a registry key
 
     def __svcctl_status(self, srvname):
         '''
-        Query status service
+        Display status of a service
         '''
 
         logger.info('Querying the status of service \'%s\'' % srvname)
 
-        #ans = self.__svc.QueryServiceConfigW(self.__svc_handle)
         ans = self.__svc.QueryServiceStatus(self.__svc_handle)
         status = ans['CurrentState']
 
         print 'Service \'%s\' status is: %s' % (srvname, self.__svcctl_parse_status(status))
+
+
+    def __svcctl_info(self, srvname):
+        '''
+        Display a service information
+        '''
+
+        logger.info('Querying service \'%s\' information' % srvname)
+
+        print 'Service \'%s\' information:' % srvname
+
+        resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
+        self.__svcctl_parse_info(resp)
 
 
     def __svcctl_start(self, srvname, srvargs=None):
