@@ -1440,13 +1440,16 @@ regdelete {registry key} - delete a registry key
         logger.info('Starting the service \'%s\'' % srvname)
 
         if srvargs is None:
-            srvargs = [ '\x00', ]
+            srvargs = []
         else:
-            srvargs = [ str(srvargs), ]
+            new_srvargs = [ ]
 
-        #self.__svc.StartServiceW(self.__svc_handle, srvargs)
-        data = self.__svc.start_service(self.__svc_handle, srvargs)
-        self.__rpcerror(data.get_return_code())
+            for arg in str(srvargs).split(' '):
+                new_srvargs.append(arg.encode('utf-16le'))
+
+            srvargs = new_srvargs
+
+        self.__svc.StartServiceW(self.__svc_handle, srvargs)
         self.__svcctl_status(srvname)
 
 
@@ -1834,7 +1837,7 @@ class test_login(Thread):
 
 
     def login(self, user, password, lmhash, nthash, domain):
-        self.__smb.login(user, password, domain, lmhash, nthash)
+        self.__smb.login(user=user, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
 
 
     def logoff(self):
