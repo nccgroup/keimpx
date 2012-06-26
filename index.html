@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>keimpx by inquisb</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1 class="header">keimpx</h1>
+        <p class="header">Check for validity of NT/LM credentials across a network over SMB</p>
+
+        <ul>
+          <li class="download"><a class="buttons" href="https://github.com/inquisb/keimpx/zipball/master">Download ZIP</a></li>
+          <li class="download"><a class="buttons" href="https://github.com/inquisb/keimpx/tarball/master">Download TAR</a></li>
+          <li><a class="buttons github" href="https://github.com/inquisb/keimpx">View On GitHub</a></li>
+        </ul>
+
+        <p class="header">This project is maintained by <a class="header name" href="https://github.com/inquisb">inquisb</a></p>
+
+
+      </header>
+      <section>
+        <h1>Introduction</h1>
+
+<p>keimpx is an open source tool, released under a modified version of Apache License 1.1.</p>
+
+<p>It can be used to quickly check for valid credentials across a network over SMB. Credentials can be:</p>
+
+<ul>
+<li>Combination of <strong>user / plain-text password</strong>.</li>
+<li>Combination of <strong>user / NTLM hash</strong>.</li>
+<li>Combination of <strong>user / NTLM logon session token</strong>.</li>
+</ul><p>If any valid credentials has been discovered across the network after its attack phase, the user is asked to choose which host to connect to and which valid credentials to use, then he will be prompted with an <strong>interactive SMB shell</strong> where the user can:</p>
+
+<ul>
+<li>Spawn an interactive command prompt.</li>
+<li>Navigate through the remote SMB shares: list, upload, download files, create, remove files, etc.</li>
+<li>Deploy and undeploy his own service, for instance, a backdoor listening on a TCP port for incoming connections.</li>
+<li>List users details, domains and password policy.</li>
+<li>More to come, see the <a href="https://github.com/inquisb/keimpx/issues">issues</a> page.</li>
+</ul><h2>Dependencies</h2>
+
+<p>It is developed in <a href="http://www.python.org">Python</a> using CORE Impact's <a href="http://code.google.com/p/impacket/">Impacket</a> library: <strong>you need to install the latest development version from its Google Code subversion repository</strong> otherwise keimpx won't work. This Python library requires also <a href="http://www.dlitz.net/software/pycrypto/">PyCrypto</a> to work. If you want to run keimpx on Windows, you might find useful the prebuilt <a href="http://www.voidspace.org.uk/python/modules.shtml#pycrypto">PyCrypto binaries</a>.</p>
+
+<h2>Usage</h2>
+
+<p>Let's say you are performing an infrastructure penetration test of a large network, you 
+<a href="http://metasploit.com/">owned</a> a Windows workstation, <a href="http://corelabs.coresecurity.com/index.php?module=Wiki&amp;action=view&amp;type=tool&amp;name=Pass-The-Hash_Toolkit">escalated</a> <a href="http://www.mwrinfosecurity.com/publications/mwri_security-implications-of-windows-access-tokens_2008-04-14.pdf">your</a> <a href="http://technet.microsoft.com/en-us/sysinternals/bb664922.aspx">privileges</a> to <code>Administrator</code> or <code>LOCAL SYSTEM</code> and <a href="http://bernardodamele.blogspot.com/search/label/dump">dumped password hashes</a>.</p>
+
+<p>You also enumerated the list of machines within the Windows domain via <code>net</code> command, ping sweep, ARP scan and network traffic sniffing.</p>
+
+<p>Now, what if you want to check for the validity of the dumped hashes <strong>without the need to crack them</strong> across the whole Windows network over SMB? What if you want to login to one or more system using the dumped NTLM hashes then surf the shares or even spawn a command prompt?</p>
+
+<p><strong>Fire up keimpx and let it do the work for you!</strong></p>
+
+<p>Another scenario where it comes handy is discussed in <a href="http://bernardodamele.blogspot.com/2009/11/abuse-citrix-and-own-domain.html">this blog post</a>.</p>
+
+<h2>Help message</h2>
+
+<pre><code>    keimpx 0.3-dev
+    by Bernardo Damele A. G. &lt;bernardo.damele@gmail.com&gt;
+
+Usage: keimpx.py [options]
+
+Options:
+  --version       show program's version number and exit
+  -h, --help      show this help message and exit
+  -v VERBOSE      Verbosity level: 0-2 (default: 0)
+  -t TARGET       Target address
+  -l LIST         File with list of targets
+  -U USER         User
+  -P PASSWORD     Password
+  --nt=NTHASH     NT hash
+  --lm=LMHASH     LM hash
+  -c CREDSFILE    File with list of credentials
+  -D DOMAIN       Domain
+  -d DOMAINSFILE  File with list of domains
+  -p PORT         SMB port: 139 or 445 (default: 445)
+  -n NAME         Local hostname
+  -T THREADS      Maximum simultaneous connections (default: 10)
+  -b              Batch mode: do not ask to get an interactive SMB shell
+  -x EXECUTELIST  Execute a list of commands against all hosts
+</code></pre>
+
+<p>For examples see <a href="https://github.com/inquisb/keimpx/wiki/Examples">this wiki page</a>.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p>See <a href="https://github.com/inquisb/keimpx/wiki/FAQ">this wiki page</a>.</p>
+
+<h2>License</h2>
+
+<p>I provide this software under a slightly modified version of the Apache Software License. The only changes to the document were the replacement of "Apache" with "keimpx" and "Apache Software Foundation" with "Bernardo Damele A. G.". Feel free to compare the resulting document to the official Apache license.</p>
+
+<p>The `Apache Software License' is an Open Source Initiative Approved License.</p>
+
+<p>The Apache Software License, Version 1.1
+Modifications by Bernardo Damele A. G. (see above)</p>
+
+<p>Copyright (c) 2009-2012 Bernardo Damele A. G. <a href="mailto:bernardo.damele@gmail.com">bernardo.damele@gmail.com</a>
+All rights reserved.</p>
+
+<p>This product includes software developed by CORE Security Technologies
+(<a href="http://www.coresecurity.com/">http://www.coresecurity.com/</a>).</p>
+
+<p>THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
+ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.</p>
+
+<h2>Contributors</h2>
+
+<p>Thanks to:</p>
+
+<ul>
+<li>
+<a href="mailto:deanx@65535.com">deanx</a> - for developing <a href="http://labs.portcullis.co.uk/application/polenum/">polenum</a> tool and some classes ripped from him.</li>
+<li>
+<a href="mailto:frego@0x3f.net">frego</a> - for his Windows service bind-shell executable and help with the service deploy/undeploy methods.</li>
+<li>
+<a href="mailto:gera@coresecurity.com">gera</a>, <a href="mailto:bethus@gmail.com">beto</a> and the rest of the <a href="http://corelabs.coresecurity.com">CORE Security</a> guys - for developing such amazing Python <a href="http://code.google.com/p/impacket/">library</a> and providing it with <a href="http://code.google.com/p/impacket/source/browse/#svn%2Ftrunk%2Fexamples">examples</a>.</li>
+</ul>
+      </section>
+      <footer>
+        <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><!--<![endif]-->
+		          <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-32960908-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
