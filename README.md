@@ -2,7 +2,7 @@
 
 keimpx is an open source tool, released under a modified version of Apache License 1.1.
 
-It can be used to quickly check for the usefulness of credentials across a network over SMB. Credentials can be:
+It can be used to quickly check for valid credentials across a network over SMB. Credentials can be:
 
 * Combination of **user / plain-text password**.
 * Combination of **user / NTLM hash**.
