@@ -59,11 +59,11 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
       -b              Batch mode: do not ask to get an interactive SMB shell
       -x EXECUTELIST  Execute a list of commands against all hosts
 
-For examples see [this wiki page](https://github.com/inquisb/keimpx/Examples).
+For examples see [this wiki page](https://github.com/inquisb/keimpx/wiki/Examples).
 
 ## Frequently Asked Questions
 
-See [this wiki page](https://github.com/inquisb/keimpx/FAQ).
+See [this wiki page](https://github.com/inquisb/keimpx/wiki/FAQ).
 
 ## License
 
