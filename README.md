@@ -23,7 +23,7 @@ It is developed in [Python](http://www.python.org) using CORE Impact's [Impacket
 ## Usage
 
 Let's say you are performing an infrastructure penetration test of a large network, you 
-[owned](http://metasploit.com/) a Windows workstation, [escalated](http://corelabs.coresecurity.com/index.php?module=Wiki&action=view&type=tool&name=Pass-The-Hash_Toolkit) [your](http://www.mwrinfosecurity.com/publications/mwri_security-implications-of-windows-access-tokens_2008-04-14.pdf) [privileges](http://technet.microsoft.com/en-us/sysinternals/bb664922.aspx) to `Administrator` or `LOCAL SYSTEM` and [dumped password hashes](bernardodamele.blogspot.com/search/label/dump).
+[owned](http://metasploit.com/) a Windows workstation, [escalated](http://corelabs.coresecurity.com/index.php?module=Wiki&action=view&type=tool&name=Pass-The-Hash_Toolkit) [your](http://www.mwrinfosecurity.com/publications/mwri_security-implications-of-windows-access-tokens_2008-04-14.pdf) [privileges](http://technet.microsoft.com/en-us/sysinternals/bb664922.aspx) to `Administrator` or `LOCAL SYSTEM` and [dumped password hashes](http://bernardodamele.blogspot.com/search/label/dump).
 
 You also enumerated the list of machines within the Windows domain via `net` command, ping sweep, ARP scan and network traffic sniffing.
 
