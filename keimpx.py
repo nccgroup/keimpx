@@ -124,6 +124,7 @@ formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', '%H:%
 logger_handler.setFormatter(formatter)
 logger.addHandler(logger_handler)
 logger.setLevel(logging.WARN)
+socket.setdefaulttimeout(3)
 
 if hasattr(sys, "frozen"):
     keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
@@ -133,26 +134,20 @@ else:
 class credentialsError(Exception):
     pass
 
-
 class domainError(Exception):
     pass
-
 
 class targetError(Exception):
     pass
 
-
 class threadError(Exception):
     pass
-
 
 class missingService(Exception):
     pass
 
-
 class missingShare(Exception):
     pass
-
 
 class missingFile(Exception):
     pass
@@ -511,7 +506,7 @@ class SMBShell:
         self.__dstname = '*SMBSERVER'
         self.__srcname = conf.name
 
-        self.__timeout = 10
+        self.__timeout = 3
 
         self.tid = None
         self.pwd = ''
@@ -680,7 +675,7 @@ regdelete {registry key} - delete a registry key
             self.__smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
 
         except socket.error, e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e[1]))
+            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
 
         except smb.SessionError, e:
@@ -1142,7 +1137,7 @@ regdelete {registry key} - delete a registry key
             self.trans.connect()
 
         except socket.error, e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e[1]))
+            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
 
         except smb.SessionError, e:
@@ -1374,11 +1369,8 @@ regdelete {registry key} - delete a registry key
 
         services.sort()
 
-        print '%-30s - %-70s - STATUS' % ('SERVICE NAME', 'DISPLAY NAME')
-
         for service in services:
-            print "%-30s - %-70s -" % (service[0], service[1]),
-            print self.__svcctl_parse_status(service[2])
+            print "%s (%s): %-80s" % (service[1], service[0], self.__svcctl_parse_status(service[2]))
 
     def __svcctl_list(self, srvname):
         '''
@@ -1391,7 +1383,7 @@ regdelete {registry key} - delete a registry key
         resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
         self.__svcctl_list_parse(srvname, resp)
 
-        print 'Total services: %d\n' % len(resp)
+        print '\nTotal services: %d\n' % len(resp)
 
     def __samr_connect(self):
         '''
@@ -1754,7 +1746,7 @@ class test_login(Thread):
                         successes += 1
 
                     except smb.SessionError, e:
-                        logger.info('Wrong credentials on %s: %s/%s (%s)' % (target_str, user, password_str, str(e).split('code: ')[1]))
+                        logger.debug('Wrong credentials on %s: %s/%s (%s)' % (target_str, user, password_str, str(e).split('code: ')[1]))
 
                         status = str(e.get_error_code())
                     except smb.UnsupportedFeature, e:
@@ -1769,10 +1761,9 @@ class test_login(Thread):
             logger.info('Attack on host %s finished' % self.__target.getIdentity())
 
         except (socket.error, NetBIOSTimeout), e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), e[1]))
+            logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), e))
 
         pool_thread.release()
-
 
 class CredentialsStatus:
     def __init__(self, user, password, lmhash, nthash, domain, status):
@@ -1783,37 +1774,29 @@ class CredentialsStatus:
         self.domain = domain
         self.status = status
 
-
     def getUser(self):
         return self.user
-
 
     def getPassword(self):
         return self.password
 
-
     def getlmhash(self):
         return self.lmhash
-
 
     def getnthash(self):
         return self.nthash    
 
-
     def getDomain(self):
         return self.domain
 
-
     def getStatus(self):
         return self.status
-
 
     def getIdentity(self):
         if self.lmhash != '' and self.nthash != '':
             return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
         elif self.user not in ( None, '' ):
             return '%s/%s' % (self.user, self.password or 'BLANK')
-
 
 class TargetStatus:
     def __init__(self, host, port, domain, status):
@@ -1822,29 +1805,23 @@ class TargetStatus:
         self.domain = domain
         self.status = status
 
-
     def getHost(self):
         return self.host
-
 
     def getPort(self):
         return self.port
 
-
     def getDomain(self):
         return self.domain
 
-
     def getStatus(self):
         return self.status
-
 
     def getIdentity(self):
         if self.domain:
             return '%s:%s@%s' % (self.host, self.port, self.domain)
         else:
             return '%s:%s' % (self.host, self.port)
-
 
 class Credentials:
     def __init__(self, user, password='', lmhash='', nthash=''):
@@ -1860,18 +1837,14 @@ class Credentials:
     def getUser(self):
         return self.user
 
-
     def getPassword(self):
         return self.password
-
 
     def getlmhash(self):
         return self.lmhash
 
-
     def getnthash(self):
         return self.nthash
-
 
     def getIdentity(self):
         if self.lmhash != '' and self.nthash != '':
@@ -1879,17 +1852,14 @@ class Credentials:
         elif self.user not in ( None, '' ):
             return '%s/%s' % (self.user, self.password or 'BLANK')
 
-
     def getCredentials(self):
         if self.password != '' or ( self.password == '' and self.lmhash == '' and self.nthash == ''):
             return self.user, self.password, '', ''
         elif self.lmhash != '' and self.nthash != '':
             return self.user, '', self.lmhash, self.nthash
 
-
     def addAnswer(self, host, port, domain, status):
         self.targets.append(TargetStatus(host, port, domain, status))
-
 
     def getResults(self, status=True):
         return_targets = []
@@ -1900,7 +1870,6 @@ class Credentials:
 
         return return_targets
 
-
 class Target:
     def __init__(self, target, port):
         self.target = target
@@ -1909,22 +1878,17 @@ class Target:
         # Credentials tested on this target
         self.credentials = []
 
-
     def getHost(self):
         return self.target
-
 
     def getPort(self):
         return self.port
 
-
     def getIdentity(self):
         return '%s:%s' % (self.target, self.port)
 
-
     def addAnswer(self, user, password, lmhash, nthash, domain, status):
         self.credentials.append(CredentialsStatus(user, password, lmhash, nthash, domain, status))
-
 
     def getResults(self, status=True):
         return_credentials = []
@@ -2046,6 +2010,12 @@ def set_domains():
 
     domains = list(set(domains))
 
+    if len(domains) == 0:
+        logger.info('No domains specified, using a blank domain')
+        domains.append('')
+    elif len(domains) > 0:
+        logger.info('Loaded %s unique domain%s' % (len(domains), "s" if len(domains) > 1 else ""))
+
 def parse_credentials_file(filename):
     try:
         fp = open(filename, 'r')
@@ -2145,6 +2115,12 @@ def set_credentials():
         logger.debug('Loading credentials from file \'%s\'' % conf.credsfile)
         parse_credentials_file(conf.credsfile)
 
+    if len(credentials) < 1:
+        logger.error('No valid credentials loaded')
+        sys.exit(1)
+
+    logger.info('Loaded %s unique credential%s' % (len(credentials), "s" if len(credentials) > 1 else ""))
+
 def parse_targets_file(filename):
     try:
         fp = open(filename, 'r')
@@ -2211,6 +2187,12 @@ def set_targets():
     if conf.list is not None:
         logger.debug('Loading targets from file \'%s\'' % conf.list)
         parse_targets_file(conf.list)
+
+    if len(targets) < 1:
+        logger.error('No valid targets loaded')
+        sys.exit(1)
+
+    logger.info('Loaded %s unique target%s' % (len(targets), "s" if len(targets) > 1 else ""))
 
 def set_verbosity(level=None):
     if level is not None:
@@ -2322,25 +2304,6 @@ def main():
     banner()
     conf = cmdline_parser()
     check_conf()
-
-    if len(targets) < 1:
-        logger.error('No valid targets loaded')
-        sys.exit(1)
-
-    logger.info('Loaded %s unique targets' % len(targets))
-
-    if len(credentials) < 1:
-        logger.error('No valid credentials loaded')
-        sys.exit(1)
-
-    logger.info('Loaded %s unique credentials' % len(credentials))
-
-    if len(domains) == 0:
-        logger.info('No domains specified, using NULL domain')
-        domains.append('')
-    elif len(domains) > 0:
-        logger.info('Loaded %s unique domains' % len(domains))
-
     pool_thread = threading.BoundedSemaphore(conf.threads)
 
     try:
@@ -2418,7 +2381,7 @@ def main():
 
         if len(results):
             counter += 1
-            msg += '\n[%d] %s' % (counter, target.getIdentity())
+            msg += '\n[%d] %s%s' % (counter, target.getIdentity(), " (default)" if counter == 1 else "")
             targets_dict[counter] = (target, results)
 
     msg += '\n> '
@@ -2432,7 +2395,7 @@ def main():
 
     for credential in credentials:
         counter += 1
-        msg += '\n[%d] %s' % (counter, credential.getIdentity())
+        msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), " (default)" if counter == 1 else "")
         credentials_dict[counter] = credential
 
     msg += '\n> '
