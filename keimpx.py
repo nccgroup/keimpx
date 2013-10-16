@@ -863,7 +863,7 @@ regdelete {registry key} - delete a registry key
         try:
             fp = open(filename, 'rb')
         except IOError:
-            logger.error('Unable to open file \'%s\'' % filename)
+            logger.error('Unable to open file %s' % filename)
             sys.exit(1)
 
         if share is None:
@@ -1090,7 +1090,7 @@ regdelete {registry key} - delete a registry key
         '''
 
         if reg_key is None:
-            logger.warn('No registry hive provided, going to read \'%s\'' % default_reg_key)
+            logger.warn('No registry hive provided, going to read %s' % default_reg_key)
             self.__winreg_key = default_reg_key
         else:
             self.__winreg_key = reg_key
@@ -1199,7 +1199,7 @@ regdelete {registry key} - delete a registry key
         Upload the service executable
         '''
 
-        logger.info('Uploading the service executable to \'%s\\%s\'' % (share, remote_file))
+        logger.info('Uploading the service executable to %s\\%s' % (share, remote_file))
 
         self.upload(local_file, share, remote_file)
 
@@ -1208,7 +1208,7 @@ regdelete {registry key} - delete a registry key
         Remove the service executable
         '''
 
-        logger.info('Removing the service executable \'%s\\%s\'' % (share, remote_file))
+        logger.info('Removing the service executable %s\\%s' % (share, remote_file))
 
         self.rm(remote_file, share)
 
@@ -1217,7 +1217,7 @@ regdelete {registry key} - delete a registry key
         Create the service
         '''
 
-        logger.info('Creating the service \'%s\'' % srvname)
+        logger.info('Creating the service %s' % srvname)
 
         self.__pathname = '%%SystemRoot%%\\%s' % remote_file
         self.__pathname = self.__pathname.encode('utf-16le')
@@ -1229,7 +1229,7 @@ regdelete {registry key} - delete a registry key
         Delete the service
         '''
 
-        logger.info('Deleting the service \'%s\'' % srvname)
+        logger.info('Deleting the service %s' % srvname)
 
         self.__svc.DeleteService(self.__svc_handle)
 
@@ -1305,21 +1305,21 @@ regdelete {registry key} - delete a registry key
         Display status of a service
         '''
 
-        logger.info('Querying the status of service \'%s\'' % srvname)
+        logger.info('Querying the status of service %s' % srvname)
 
         ans = self.__svc.QueryServiceStatus(self.__svc_handle)
         status = ans['CurrentState']
 
-        print 'Service \'%s\' status is: %s' % (srvname, self.__svcctl_parse_status(status))
+        print 'Service %s status is: %s' % (srvname, self.__svcctl_parse_status(status))
 
     def __svcctl_info(self, srvname):
         '''
         Display a service information
         '''
 
-        logger.info('Querying service \'%s\' information' % srvname)
+        logger.info('Querying service %s information' % srvname)
 
-        print 'Service \'%s\' information:' % srvname
+        print 'Service %s information:' % srvname
 
         resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
         self.__svcctl_parse_info(resp)
@@ -1329,7 +1329,7 @@ regdelete {registry key} - delete a registry key
         Start the service
         '''
 
-        logger.info('Starting the service \'%s\'' % srvname)
+        logger.info('Starting the service %s' % srvname)
 
         if srvargs is None:
             srvargs = []
@@ -1349,7 +1349,7 @@ regdelete {registry key} - delete a registry key
         Stop the service
         '''
 
-        logger.info('Stopping the service \'%s\'' % srvname)
+        logger.info('Stopping the service %s' % srvname)
 
         self.__svc.StopService(self.__svc_handle)
         self.__svcctl_status(srvname)
@@ -1430,7 +1430,7 @@ regdelete {registry key} - delete a registry key
             if usrdomain is not None and usrdomain.upper() != domain_name.upper():
                 continue
 
-            logger.info('Looking up users in domain \'%s\'' % domain_name)
+            logger.info('Looking up users in domain %s' % domain_name)
 
             resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
             self.__rpcerror(resp.get_return_code())
@@ -1448,7 +1448,7 @@ regdelete {registry key} - delete a registry key
                 uid = user.get_id()
 
                 r = self.__samr.openuser(self.__domain_context_handle, uid)
-                logger.debug('Found user \'%s\' (UID: %d)' % (uname, uid))
+                logger.debug('Found user %s (UID: %d)' % (uname, uid))
 
                 if r.get_return_code() == 0:
                     info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
@@ -1538,7 +1538,7 @@ regdelete {registry key} - delete a registry key
             if usrdomain is not None and usrdomain.upper() != domain_name.upper():
                 continue
 
-            logger.info('Looking up password policy in domain \'%s\'' % domain_name)
+            logger.info('Looking up password policy in domain %s' % domain_name)
 
             resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
             self.__rpcerror(resp.get_return_code())
@@ -1640,7 +1640,7 @@ regdelete {registry key} - delete a registry key
         Read a registry key
         '''
 
-        logger.info('Reading registry key \'%s\' value' % self.__winreg_key)
+        logger.info('Reading registry key %s value' % self.__winreg_key)
 
         self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, self.__winreg_name, 1024)
         self.__rpcerror(self.__regkey_value.get_return_code())
@@ -1652,7 +1652,7 @@ regdelete {registry key} - delete a registry key
         Write a value on a registry key
         '''
 
-        logger.info('Write value \'%s\' to registry key \'%s\'' % (self.__winreg_value, self.__winreg_key))
+        logger.info('Write value %s to registry key %s' % (self.__winreg_value, self.__winreg_key))
 
         resp = self.__winreg.regCreateKey(self.__regkey_handle, self.__winreg_name)
         self.__rpcerror(resp.get_return_code())
@@ -1669,7 +1669,7 @@ regdelete {registry key} - delete a registry key
         return
 
         # TODO: it does not work yet
-        logger.info('Deleting registry key \'%s\'' % self.__winreg_key)
+        logger.info('Deleting registry key %s' % self.__winreg_key)
 
         resp = self.__winreg.regDeleteValue(self.__regkey_handle, '')
         self.__rpcerror(resp.get_return_code())
@@ -1941,7 +1941,7 @@ def parse_executelist_file():
         fp.close()
 
     except IOError, e:
-        logger.error('Could not open list of commands file \'%s\'' % conf.executelist)
+        logger.error('Could not open list of commands file %s' % conf.executelist)
         return
 
     file_lines = remove_comments(file_lines)
@@ -1968,14 +1968,17 @@ def executelist():
         except RuntimeError:
             sys.exit(255)
 
+###############
+# Set domains #
+###############
 def parse_domains_file(filename):
     try:
-        fp = open(filename, 'r')
+        fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
         fp.close()
 
     except IOError, e:
-        logger.error('Could not open domains file \'%s\'' % filename)
+        logger.error('Could not open domains file %s' % filename)
         return
 
     file_lines = remove_comments(file_lines)
@@ -1986,15 +1989,10 @@ def parse_domains_file(filename):
 def add_domain(line):
     global domains
 
-    try:
-        local_domains = str(line).replace(' ', '').split(',')
-    except domainError, _:
-        logger.warn('Bad line in domains file \'%s\': %s' % (conf.domainsfile, line))
-        return
+    _ = str(line).replace(' ', '').split(',')
+    domains.extend(_)
 
-    domains.extend(local_domains)
-
-    logger.debug('Parsed domain(s) \'%s\'' % ', '.join([domain for domain in local_domains]))
+    logger.debug('Parsed domain%s: %s' % ('(s)' if len(_) > 1 else '', ', '.join([d for d in _])))
 
 def set_domains():
     global domains
@@ -2003,10 +2001,10 @@ def set_domains():
 
     if conf.domain is not None:
         logger.debug('Loading domains from command line')
-        add_domain(str(conf.domain))
+        add_domain(conf.domain)
 
     if conf.domainsfile is not None:
-        logger.debug('Loading domains from file \'%s\'' % conf.list)
+        logger.debug('Loading domains from file %s' % conf.domainsfile)
         parse_domains_file(conf.domainsfile)
 
     domains = list(set(domains))
@@ -2017,14 +2015,17 @@ def set_domains():
     elif len(domains) > 0:
         logger.info('Loaded %s unique domain%s' % (len(domains), "s" if len(domains) > 1 else ""))
 
+###################
+# Set credentials #
+###################
 def parse_credentials_file(filename):
     try:
-        fp = open(filename, 'r')
+        fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
         fp.close()
 
     except IOError, e:
-        logger.error('Could not open credentials file \'%s\'' % filename)
+        logger.error('Could not open credentials file %s' % filename)
         return
 
     file_lines = remove_comments(file_lines)
@@ -2092,7 +2093,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
         try:
             user, password, lmhash, nthash = parse_credentials(line)
         except credentialsError, _:
-            logger.warn('Bad line in credentials file \'%s\': %s' % (conf.credsfile, line))
+            logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return
 
     if (user, password, lmhash, nthash) in added_credentials:
@@ -2103,7 +2104,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
         credential = Credentials(user, password, lmhash, nthash)
         credentials.append(credential)
 
-        logger.debug('Parsed credentials \'%s\'' % credential.getIdentity())
+        logger.debug('Parsed credentials: %s' % credential.getIdentity())
 
 def set_credentials():
     logger.info('Loading credentials')
@@ -2113,7 +2114,7 @@ def set_credentials():
         add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '')
 
     if conf.credsfile is not None:
-        logger.debug('Loading credentials from file \'%s\'' % conf.credsfile)
+        logger.debug('Loading credentials from file %s' % conf.credsfile)
         parse_credentials_file(conf.credsfile)
 
     if len(credentials) < 1:
@@ -2122,14 +2123,17 @@ def set_credentials():
 
     logger.info('Loaded %s unique credential%s' % (len(credentials), "s" if len(credentials) > 1 else ""))
 
+###############
+# Set targets #
+###############
 def parse_targets_file(filename):
     try:
-        fp = open(filename, 'r')
+        fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
         fp.close()
 
     except IOError, e:
-        logger.error('Could not open targets file \'%s\'' % filename)
+        logger.error('Could not open targets file %s' % filename)
         return
 
     file_lines = remove_comments(file_lines)
@@ -2138,21 +2142,20 @@ def parse_targets_file(filename):
         add_target(line)
 
 def parse_target(target_line):
-    targetmatch = re.compile('^([A-z0-9\.]+)(:(\d+))?')
-    h = targetmatch.match(target_line)
+    targetmatch = re.compile('^([0-9a-zA-Z\-\_\.]+)(:(\d+))?')
+    h = targetmatch.match(str(target_line))
 
     if h and h.group(3):
         host = h.group(1)
         port = h.group(3)
 
-        if port.isdigit() and int(port) > 1 and int(port) < 65535:
+        if port.isdigit() and int(port) > 0 and int(port) <= 65535:
             return host, int(port)
         else:
             return host, conf.port
 
     elif h:
         host = h.group(1)
-
         return host, conf.port
 
     else:
@@ -2165,7 +2168,7 @@ def add_target(line):
     try:
         host, port = parse_target(line)
     except targetError, _:
-        logger.warn('Bad line in targets file \'%s\': %s' % (conf.list, line))
+        logger.warn('Bad line in l file %s: %s' % (conf.list, line))
         return
 
     if (host, port) in added_targets:
@@ -2176,17 +2179,17 @@ def add_target(line):
         target = Target(host, port)
         targets.append(target)
 
-        logger.debug('Parsed target \'%s\'' % target.getIdentity())
+        logger.debug('Parsed target: %s' % target.getIdentity())
 
 def set_targets():
     logger.info('Loading targets')
 
     if conf.target is not None:
         logger.debug('Loading targets from command line')
-        add_target(str(conf.target))
+        add_target(conf.target)
 
     if conf.list is not None:
-        logger.debug('Loading targets from file \'%s\'' % conf.list)
+        logger.debug('Loading targets from file %s' % conf.list)
         parse_targets_file(conf.list)
 
     if len(targets) < 1:
@@ -2221,7 +2224,7 @@ def check_conf():
     if conf.port is None:
         conf.port = 445
 
-    logger.debug('Using \'%s\' as local NetBIOS hostname' % conf.name)
+    logger.debug('Using %s as local NetBIOS hostname' % conf.name)
 
     if conf.threads < 3:
         conf.threads = 3
