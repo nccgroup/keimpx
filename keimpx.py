@@ -3,8 +3,6 @@
 # -*- Mode: python -*-
 
 '''
-$Id$
-
 keimpx is an open source tool, released under a modified version of Apache
 License 1.1. It is developed in Python using CORE Security Technologies's
 Impacket library, http://code.google.com/p/impacket/.
@@ -12,11 +10,11 @@ Impacket library, http://code.google.com/p/impacket/.
 It can be used to quickly check for the usefulness of credentials across a
 network over SMB.
 
-Homepage:                   http://code.google.com/p/keimpx/wiki/Homepage
-Usage:                      http://code.google.com/p/keimpx/wiki/Usage
-Examples:                   http://code.google.com/p/keimpx/wiki/Examples
-Frequently Asked Questions: http://code.google.com/p/keimpx/wiki/FAQ
-Contributors:               http://code.google.com/p/keimpx/wiki/Contributors
+Homepage:                   https://inquisb.github.com/keimpx
+Usage:                      https://github.com/inquisb/keimpx#usage
+Examples:                   https://github.com/inquisb/keimpx/wiki/Examples
+Frequently Asked Questions: https://github.com/inquisb/keimpx/wiki/FAQ
+Contributors:               https://github.com/inquisb/keimpx#contributors
 
 License:
 
@@ -32,7 +30,7 @@ License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009-2012 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2013 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
 This product includes software developed by CORE Security Technologies
@@ -51,8 +49,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 '''
-
-
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.3-dev'
@@ -83,13 +79,6 @@ from telnetlib import Telnet
 from threading import Thread
 
 try:
-    import psyco
-    psyco.full()
-    psyco.profile()
-except ImportError, _:
-    pass
-
-try:
     from readline import *
     import readline as _rl
 
@@ -114,7 +103,7 @@ try:
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first\n')
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository, https://code.google.com/p/impacket/source/checkout')
     sys.exit(255)
 
 
@@ -140,7 +129,6 @@ if hasattr(sys, "frozen"):
     keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
 else:
     keimpx_path = os.path.dirname(os.path.realpath(__file__))
-
 
 class credentialsError(Exception):
     pass
@@ -184,10 +172,7 @@ class CompleterNG(rlcompleter.Completer):
 
         return matches
 
-
 def autoCompletion():
-    global have_readline
-
     if not have_readline:
         return
 
@@ -225,7 +210,6 @@ def autoCompletion():
     _rl.set_completer(completer.complete)
     _rl.parse_and_bind('tab: complete')
 
-
 ########################################################################
 # Code ripped with permission from deanx's polenum tool,               #
 # http://labs.portcullis.co.uk/application/polenum/                    #
@@ -233,7 +217,6 @@ def autoCompletion():
 
 def get_obj(name):
     return eval(name)
-
 
 def d2b(a):
     bin = []
@@ -243,7 +226,6 @@ def d2b(a):
         a /= 2
 
     return bin[::-1]
-
 
 def display_time(filetime_high, filetime_low, minutes_utc=0):
     import __builtins__
@@ -255,7 +237,6 @@ def display_time(filetime_high, filetime_low, minutes_utc=0):
         return strftime('%a, %d %b %Y %H:%M:%S +0000ddddd', localtime(d)) # return the standard format day
     except ValueError, e:
         return '0'
-
 
 class ExtendInplace(type):
     def __new__(self, name, bases, dict):
@@ -269,7 +250,6 @@ class ExtendInplace(type):
             setattr(prevclass, k, v)
 
         return prevclass
-
 
 def convert(low, high, no_zero):
     if low == 0 and hex(high) == '-0x80000000':
@@ -310,7 +290,6 @@ def convert(low, high, no_zero):
 
     return time
 
-
 class MSRPCPassInfo:
     PASSCOMPLEX = {
                     5: 'Domain Password Complex',
@@ -320,7 +299,6 @@ class MSRPCPassInfo:
                     1: 'Domain Password Store Cleartext',
                     0: 'Domain Refuse Password Change'
                   }
-
 
     def __init__(self, data = None):
         self._min_pass_length = 0
@@ -346,7 +324,6 @@ class MSRPCPassInfo:
         if data:
             self.set_header(data, 1)
 
-
     def set_header(self,data,level):
         index = 8
 
@@ -366,7 +343,6 @@ class MSRPCPassInfo:
             self._role = unpack('<L',data[index:index+4])
         elif level == 12:
             self._lockout_dur_low, self._lockout_dur_high, self._lockout_window_low, self._lockout_window_high, self._lockout_thresh = unpack('<llllH',data[index:index+18])
-
 
     def print_friendly(self):
         print 'Minimum password length: %s' % str(self._min_pass_length or 'None')
@@ -388,7 +364,6 @@ class MSRPCPassInfo:
 
         return
 
-
 class SAMREnumDomainsPass(ImpactPacket.Header):
     OP_NUM = 0x2E
 
@@ -400,51 +375,39 @@ class SAMREnumDomainsPass(ImpactPacket.Header):
         if aBuffer:
             self.load_header(aBuffer)
 
-
     def get_context_handle(self):
         return self.get_bytes().tolist()[:20]
-
 
     def set_context_handle(self, handle):
         assert 20 == len(handle)
         self.get_bytes()[:20] = array.array('B', handle)
 
-
     def get_resume_handle(self):
         return self.get_long(20, '<')
-
 
     def set_resume_handle(self, handle):
         self.set_long(20, handle, '<')
 
-
     def get_account_control(self):
         return self.get_long(20, '<')
-
 
     def set_account_control(self, mask):
         self.set_long(20, mask, '<')
 
-
     def get_pref_max_size(self):
         return self.get_long(28, '<')
-
 
     def set_pref_max_size(self, size):
         self.set_long(28, size, '<')
 
-
     def get_header_size(self):
         return SAMREnumDomainsPass.__SIZE
-    
 
     def get_level(self):
         return self.get_word(20, '<')
 
-
     def set_level(self, level):
         self.set_word(20, level, '<')
-
 
 class SAMRRespLookupPassPolicy(ImpactPacket.Header):
     __SIZE = 4
@@ -455,34 +418,27 @@ class SAMRRespLookupPassPolicy(ImpactPacket.Header):
         if aBuffer:
             self.load_header(aBuffer)
 
-
     def get_pass_info(self):
         return MSRPCPassInfo(self.get_bytes()[:-4].tostring())
-
 
     def set_pass_info(self, info, level):
         assert isinstance(info, MSRPCPassInfo)
         self.get_bytes()[:-4] = array.array('B', info.rawData())
 
-
     def get_return_code(self):
         return self.get_long(-4, '<')
-
 
     def set_return_code(self, code):
         self.set_long(-4, code, '<')
 
-
     def get_context_handle(self):
         return self.get_bytes().tolist()[:12]
-
 
     def get_header_size(self):
         var_size = len(self.get_bytes()) - SAMRRespLookupPassPolicy.__SIZE
         assert var_size > 0
 
         return SAMRRespLookupPassPolicy.__SIZE + var_size
-
 
 class DCERPCSamr:
     __metaclass__ = ExtendInplace
@@ -519,7 +475,6 @@ class DCERPCSamr:
 
         return pspol 
 
-
     def opendomain(self, context_handle, domain_sid):
         opendom = SAMROpenDomainHeader()
         opendom.set_access_mask(0x305)
@@ -535,7 +490,6 @@ class DCERPCSamr:
 # End of code ripped with permission from deanx's polenum tool,        #
 # http://labs.portcullis.co.uk/application/polenum/                    #
 ########################################################################
-
 
 class SMBShell:
     def __init__(self, target, credentials):
@@ -566,7 +520,6 @@ class SMBShell:
         self.domainsDict = {}
         self.usersList = set()
 
-
     def __local_exec(self, cmd):
         '''
         Execute a local command if the provided command is preceed by an
@@ -579,15 +532,12 @@ class SMBShell:
         if stdout is not None:
             print stdout
 
-
     def __replace(self, value):
         return value.replace('/', '\\')
-
 
     def __check_share(self):
         if self.share is None or self.tid is None:
             raise missingShare, 'Share has not been specified'
-
 
     def eval(self, cmd=None):
         '''
@@ -631,7 +581,6 @@ class SMBShell:
             if e is not None:
                 logger.error('Exception: %s' % e)
 
-
     def interactive(self):
         logger.info('type \'help\' for help menu')
 
@@ -641,7 +590,6 @@ class SMBShell:
             self.eval(i)
 
             i = raw_input('# ')
-
 
     def run(self, cmds=None):
         '''
@@ -659,7 +607,6 @@ class SMBShell:
         else:
             for cmd in cmds:
                 self.eval(cmd)
-
 
     def help(self):
         '''
@@ -714,10 +661,8 @@ regwrite {registry key} {registry value} - add a value to a registry key
 regdelete {registry key} - delete a registry key
 '''
 
-
     def verbosity(self, level):
         set_verbosity(level)
-
 
     def connect(self):
         '''
@@ -725,7 +670,6 @@ regdelete {registry key} - delete a registry key
         '''
 
         self.__smb = smb.SMB(remote_name=self.__dstname, remote_host=self.__dstip, my_name=self.__srcname, sess_port=self.__dstport, timeout=self.__timeout)
-
 
     def login(self):
         '''
@@ -743,7 +687,6 @@ regdelete {registry key} - delete a registry key
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
             raise RuntimeError
 
-
     def exit(self):
         '''
         Disconnect the SMB session
@@ -751,7 +694,6 @@ regdelete {registry key} - delete a registry key
 
         self.__smb.logoff()
         sys.exit(0)
-
 
     def info(self):
         '''
@@ -762,7 +704,6 @@ regdelete {registry key} - delete a registry key
         print 'Netbios name: %s' % self.__smb.get_server_name()
         print 'Domain: %s' % self.__smb.get_server_domain()
         print 'Time: %s' % self.__smb.get_server_time()
-
 
     def shares(self):
         '''
@@ -788,7 +729,6 @@ regdelete {registry key} - delete a registry key
 
         self.use(self.sharesList[choice-1])
 
-
     def use(self, sharename=None):
         '''
         Select the share to connect to
@@ -800,7 +740,6 @@ regdelete {registry key} - delete a registry key
         self.share = sharename.strip("\x00")
         self.tid = self.__smb.tree_connect(self.share)
         self.pwd = ''
-
 
     def cd(self, path=None):
         '''
@@ -828,7 +767,6 @@ regdelete {registry key} - delete a registry key
         else:
            self.pwd += '\\%s' % path
 
-
     def pwd(self):
         '''
         Display the current path
@@ -836,14 +774,12 @@ regdelete {registry key} - delete a registry key
 
         print self.pwd
 
-
     def dir(self, path=None):
         '''
         Alias to ls
         '''
 
         self.ls(path)
-
 
     def ls(self, path=None):
         '''
@@ -873,7 +809,6 @@ regdelete {registry key} - delete a registry key
 
             print '%s\t%s\t%s\t%s' % (time.ctime(float(f.get_mtime_epoch())), is_dir, filesize, f.get_longname())
 
-
     def cat(self, filename):
         '''
         Display a file content from the current path
@@ -898,14 +833,12 @@ regdelete {registry key} - delete a registry key
 
         self.__smb.close(self.tid, self.fid)
 
-
     def get(self, filename):
         '''
         Alias to download
         '''
 
         self.download(filename)
-
 
     def download(self, filename):
         '''
@@ -920,14 +853,12 @@ regdelete {registry key} - delete a registry key
         self.__smb.retr_file(self.share, filename, fh.write)
         fh.close()
 
-
     def put(self, filename, share=None, destfile=None):
         '''
         Alias to upload
         '''
 
         self.upload(filename, share=None, destfile=None)
-
 
     def upload(self, filename, share=None, destfile=None):
         '''
@@ -950,7 +881,6 @@ regdelete {registry key} - delete a registry key
         self.__smb.stor_file(share, destfile, fp.read)
         fp.close()
 
-
     def mkdir(self, path):
         '''
         Create a directory in the current share
@@ -960,7 +890,6 @@ regdelete {registry key} - delete a registry key
 
         path = '%s\\%s' % (self.pwd, self.__replace(path))
         self.__smb.mkdir(self.share, path)
-
 
     def rm(self, filename, share=None):
         '''
@@ -986,7 +915,6 @@ regdelete {registry key} - delete a registry key
         path = '%s\\%s' % (self.pwd, self.__replace(path))
         self.__smb.rmdir(self.share, path)
 
-
     def start(self, srvname=None, srvargs=None):
         '''
         Start a service.
@@ -1000,7 +928,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_start(srvname, srvargs)
         self.__svcctl_disconnect(srvname)
 
-
     def stop(self, srvname=None):
         '''
         Stop a service.
@@ -1013,7 +940,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_stop(srvname)
         self.__svcctl_disconnect(srvname)
-
 
     def deploy(self, srvname=None, local_file=None, srvargs=None, remote_file=None):
         '''
@@ -1038,7 +964,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_disconnect(srvname)
 
         self.pwd = self.__old_pwd
-
 
     def undeploy(self, srvname=None, remote_file=None):
         '''
@@ -1065,12 +990,10 @@ regdelete {registry key} - delete a registry key
 
         self.pwd = self.__old_pwd
 
-
     def services(self, srvname=None):
         self.__svcctl_connect()
         self.__svcctl_list(srvname)
         self.__svcctl_disconnect()
-
 
     def status(self, srvname):
         if srvname is None:
@@ -1081,7 +1004,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_status(srvname)
         self.__svcctl_disconnect()
 
-
     def query(self, srvname):
         if srvname is None:
             raise missingService, 'Service name has not been specified'
@@ -1090,7 +1012,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_info(srvname)
         self.__svcctl_disconnect()
-
 
     def shell(self, port=2090):
         '''
@@ -1141,7 +1062,6 @@ regdelete {registry key} - delete a registry key
         time.sleep(1)
         self.undeploy(srvname, remote_file)
 
-
     def users(self, usrdomain=None):
         '''
         List users, optionally for a specific domain
@@ -1150,7 +1070,6 @@ regdelete {registry key} - delete a registry key
         self.__samr_connect()
         self.__samr_users(usrdomain)
         self.__samr_disconnect()
-
 
     def pswpolicy(self, usrdomain=None):
         '''
@@ -1161,7 +1080,6 @@ regdelete {registry key} - delete a registry key
         self.__samr_pswpolicy(usrdomain)
         self.__samr_disconnect()
 
-
     def domains(self):
         '''
         List domains to which the system is part of
@@ -1170,7 +1088,6 @@ regdelete {registry key} - delete a registry key
         self.__samr_connect()
         self.__samr_domains()
         self.__samr_disconnect()
-
 
     def regread(self, reg_key=None):
         '''
@@ -1188,7 +1105,6 @@ regdelete {registry key} - delete a registry key
         self.__winreg_read()
         self.__winreg_disconnect()
 
-
     def regwrite(self, reg_key, reg_value):
         '''
         Write a value on a Windows registry key
@@ -1202,7 +1118,6 @@ regdelete {registry key} - delete a registry key
         self.__winreg_write()
         self.__winreg_disconnect()
 
-
     def regdelete(self, reg_key):
         '''
         Delete a Windows registry key
@@ -1214,7 +1129,6 @@ regdelete {registry key} - delete a registry key
         self.__winreg_open()
         self.__winreg_delete()
         self.__winreg_disconnect()
-
 
     def __smb_transport(self, named_pipe):
         '''
@@ -1235,7 +1149,6 @@ regdelete {registry key} - delete a registry key
             logger.warn('SMB exception: %s' % str(e).split('code: ')[1])
             raise RuntimeError
 
-
     def __shares_connect(self):
         '''
         Connect to the srvsvc named pipe
@@ -1251,11 +1164,9 @@ regdelete {registry key} - delete a registry key
         self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
         self.__resp = self.__svc.get_share_enum_1(self.trans.get_dip())
 
-
     def __svcctl_srv_manager(self, srvname):
         self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
         self.__svc_handle = self.__resp['ContextHandle']
-
 
     def __svcctl_connect(self):
         '''
@@ -1273,7 +1184,6 @@ regdelete {registry key} - delete a registry key
         self.__resp = self.__svc.OpenSCManagerW()
         self.__mgr_handle = self.__resp['ContextHandle']
 
-
     def __svcctl_disconnect(self, srvname=None):
         '''
         Disconnect from svcctl named pipe
@@ -1289,30 +1199,23 @@ regdelete {registry key} - delete a registry key
 
         self.__dce.disconnect()
 
-
     def __svcctl_bin_upload(self, local_file, remote_file):
         '''
         Upload the service executable
         '''
 
-        global share
-
         logger.info('Uploading the service executable to \'%s\\%s\'' % (share, remote_file))
 
         self.upload(local_file, share, remote_file)
-
 
     def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
 
-        global share
-
         logger.info('Removing the service executable \'%s\\%s\'' % (share, remote_file))
 
         self.rm(remote_file, share)
-
 
     def __svcctl_create(self, srvname, remote_file):
         '''
@@ -1326,7 +1229,6 @@ regdelete {registry key} - delete a registry key
 
         self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), srvname.encode('utf-16le'), self.__pathname)
 
-
     def __svcctl_delete(self, srvname):
         '''
         Delete the service
@@ -1335,7 +1237,6 @@ regdelete {registry key} - delete a registry key
         logger.info('Deleting the service \'%s\'' % srvname)
 
         self.__svc.DeleteService(self.__svc_handle)
-
 
     def __svcctl_parse_info(self, resp):
         print "TYPE              : %2d - " % resp['QueryConfig']['ServiceType'],
@@ -1386,7 +1287,6 @@ regdelete {registry key} - delete a registry key
         print "DEPENDENCIES      : %s" % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/',' - ')
         print "SERVICE_START_NAME: %s" % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
 
-
     def __svcctl_parse_status(self, status):
         if status == svcctl.SERVICE_CONTINUE_PENDING:
            return "CONTINUE PENDING"
@@ -1405,7 +1305,6 @@ regdelete {registry key} - delete a registry key
         else:
            return "UNKOWN"
 
-
     def __svcctl_status(self, srvname):
         '''
         Display status of a service
@@ -1418,7 +1317,6 @@ regdelete {registry key} - delete a registry key
 
         print 'Service \'%s\' status is: %s' % (srvname, self.__svcctl_parse_status(status))
 
-
     def __svcctl_info(self, srvname):
         '''
         Display a service information
@@ -1430,7 +1328,6 @@ regdelete {registry key} - delete a registry key
 
         resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
         self.__svcctl_parse_info(resp)
-
 
     def __svcctl_start(self, srvname, srvargs=None):
         '''
@@ -1452,7 +1349,6 @@ regdelete {registry key} - delete a registry key
         self.__svc.StartServiceW(self.__svc_handle, srvargs)
         self.__svcctl_status(srvname)
 
-
     def __svcctl_stop(self, srvname):
         '''
         Stop the service
@@ -1462,7 +1358,6 @@ regdelete {registry key} - delete a registry key
 
         self.__svc.StopService(self.__svc_handle)
         self.__svcctl_status(srvname)
-
 
     def __svcctl_list_parse(self, srvname, resp):
         services = []
@@ -1485,7 +1380,6 @@ regdelete {registry key} - delete a registry key
             print "%-30s - %-70s -" % (service[0], service[1]),
             print self.__svcctl_parse_status(service[2])
 
-
     def __svcctl_list(self, srvname):
         '''
         List services
@@ -1498,7 +1392,6 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_list_parse(srvname, resp)
 
         print 'Total services: %d\n' % len(resp)
-
 
     def __samr_connect(self):
         '''
@@ -1519,7 +1412,6 @@ regdelete {registry key} - delete a registry key
 
         self.__mgr_handle = resp.get_context_handle()
 
-
     def __samr_disconnect(self):
         '''
         Disconnect from samr named pipe
@@ -1532,7 +1424,6 @@ regdelete {registry key} - delete a registry key
             self.__rpcerror(data.get_return_code())
 
         self.__dce.disconnect()
-
 
     def __samr_users(self, usrdomain=None):
         '''
@@ -1642,7 +1533,6 @@ regdelete {registry key} - delete a registry key
 
             self.usersList = set()
 
-
     def __samr_pswpolicy(self, usrdomain=None):
         '''
         Enumerate password policy on the system
@@ -1669,7 +1559,6 @@ regdelete {registry key} - delete a registry key
             resp = self.__samr.enumpswpolicy(self.__domain_context_handle)
             resp.print_friendly()
 
-
     def __samr_domains(self, display=True):
         '''
         Enumerate domains to which the system is part of
@@ -1695,7 +1584,6 @@ regdelete {registry key} - delete a registry key
             if display is True:
                 print '  %s' % domain_name
 
-
     def __winreg_connect(self):
         '''
         Connect to winreg named pipe
@@ -1710,7 +1598,6 @@ regdelete {registry key} - delete a registry key
         self.__dce.bind(winreg.MSRPC_UUID_WINREG)
         self.__winreg = winreg.DCERPCWinReg(self.__dce)
 
-
     def __winreg_disconnect(self):
         '''
         Disconnect from winreg named pipe
@@ -1721,7 +1608,6 @@ regdelete {registry key} - delete a registry key
 
         logger.debug('Disconneting from the WINREG named pipe')
         self.__dce.disconnect()
-
 
     def __winreg_parse(self):
         '''
@@ -1734,7 +1620,6 @@ regdelete {registry key} - delete a registry key
             raise registryKey, 'Invalid registry key provided, make sure it is like HKLM\\registry\\path\\name'
 
         self.__winreg_hive, self.__winreg_path, self.__winreg_name = __reg_key_parse[0]
-
 
     def __winreg_open(self):
         '''
@@ -1758,7 +1643,6 @@ regdelete {registry key} - delete a registry key
         self.__rpcerror(self.__resp.get_return_code())
         self.__regkey_handle = self.__resp.get_context_handle()
 
-
     def __winreg_read(self):
         '''
         Read a registry key
@@ -1770,7 +1654,6 @@ regdelete {registry key} - delete a registry key
         self.__rpcerror(self.__regkey_value.get_return_code())
 
         print self.__regkey_value.get_data()
-
 
     def __winreg_write(self):
         '''
@@ -1784,7 +1667,6 @@ regdelete {registry key} - delete a registry key
 
         resp = self.__winreg.regSetValue(self.__regkey_handle, winreg.REG_SZ, self.__winreg_name, self.__winreg_value)
         self.__rpcerror(resp.get_return_code())
-
 
     def __winreg_delete(self):
         '''
@@ -1803,7 +1685,6 @@ regdelete {registry key} - delete a registry key
         resp = self.__winreg.regDeleteKey(self.__regkey_handle, self.__winreg_name)
         self.__rpcerror(resp.get_return_code())
 
-
     def __rpcerror(self, code):
         '''
         Check for an error in a response packet
@@ -1819,7 +1700,6 @@ regdelete {registry key} - delete a registry key
 
         #logger.debug('RPC code returned: %d' % code)
 
-
 class test_login(Thread):
     def __init__(self, target):
         Thread.__init__(self)
@@ -1831,21 +1711,17 @@ class test_login(Thread):
         self.__srcname = conf.name
         self.__timeout = 10
 
-
     def connect(self):
         self.__smb = smb.SMB(remote_name=self.__dstname, remote_host=self.__dstip, my_name=self.__srcname, sess_port=self.__dstport, timeout=self.__timeout)
-
 
     def login(self, user, password, lmhash, nthash, domain):
         self.__smb.login(user=user, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
 
-
     def logoff(self):
         self.__smb.logoff()
 
-
     def run(self):
-        global credentials
+        global pool_thread
         global successes
 
         try:
@@ -2059,7 +1935,6 @@ class Target:
 
         return return_credentials
 
-
 def read_input(msg, counter):
     while True:
         choice = raw_input(msg)
@@ -2075,7 +1950,6 @@ def read_input(msg, counter):
 
     return choice
 
-
 def remove_comments(lines):
     cleaned_lines = []
 
@@ -2088,14 +1962,12 @@ def remove_comments(lines):
 
     return cleaned_lines
 
-
 def add_execute(cmd):
     global execute_commands
 
     #if cmd is not None and len(cmd) > 0 and cmd not in execute_commands:
     if cmd is not None and len(cmd) > 0:
         execute_commands.append(cmd)
-
 
 def parse_executelist_file():
     try:
@@ -2112,11 +1984,7 @@ def parse_executelist_file():
     for line in file_lines:
         add_execute(line)
 
-
 def executelist():
-    global execute_commands
-    global targets
-
     parse_executelist_file()
 
     targets_tuple = ()
@@ -2135,7 +2003,6 @@ def executelist():
         except RuntimeError:
             sys.exit(255)
 
-
 def parse_domains_file(filename):
     try:
         fp = open(filename, 'r')
@@ -2151,7 +2018,6 @@ def parse_domains_file(filename):
     for line in file_lines:
         add_domain(line)
 
-
 def add_domain(line):
     global domains
 
@@ -2165,10 +2031,8 @@ def add_domain(line):
 
     logger.debug('Parsed domain(s) \'%s\'' % ', '.join([domain for domain in local_domains]))
 
-
 def set_domains():
     global domains
-    global conf
 
     logger.info('Loading domains')
 
@@ -2181,7 +2045,6 @@ def set_domains():
         parse_domains_file(conf.domainsfile)
 
     domains = list(set(domains))
-
 
 def parse_credentials_file(filename):
     try:
@@ -2198,12 +2061,14 @@ def parse_credentials_file(filename):
     for line in file_lines:
         add_credentials(line=line)
 
-
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
 
     fgdumpmatch = re.compile('^(\S*?):.*?:(\S*?):(\S*?):.*?:.*?:')
     fgdump = fgdumpmatch.match(credentials_line)
+
+    wcematch = re.compile('^(\S*?):.*?:(\S*?):(\S*?)$')
+    wce = wcematch.match(credentials_line)
 
     cainmatch = re.compile('^(\S*?):.*?:.*?:(\S*?):(\S*?)$')
     cain = cainmatch.match(credentials_line)
@@ -2218,6 +2083,16 @@ def parse_credentials(credentials_line):
             binascii.a2b_hex(fgdump.group(3))
 
             return fgdump.group(1), '', fgdump.group(2), fgdump.group(3)
+        except:
+            raise credentialsError, 'credentials error'
+
+    # Credentials with hashes (wce output format)
+    elif wce:
+        try:
+            binascii.a2b_hex(wce.group(2))
+            binascii.a2b_hex(wce.group(3))
+
+            return wce.group(1), '', wce.group(2), wce.group(3)
         except:
             raise credentialsError, 'credentials error'
 
@@ -2237,7 +2112,6 @@ def parse_credentials(credentials_line):
 
     else:
         raise credentialsError, 'credentials error'
-
 
 def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
     global added_credentials
@@ -2260,10 +2134,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
 
         logger.debug('Parsed credentials \'%s\'' % credential.getIdentity())
 
-
 def set_credentials():
-    global conf
-
     logger.info('Loading credentials')
 
     if conf.user is not None:
@@ -2273,7 +2144,6 @@ def set_credentials():
     if conf.credsfile is not None:
         logger.debug('Loading credentials from file \'%s\'' % conf.credsfile)
         parse_credentials_file(conf.credsfile)
-
 
 def parse_targets_file(filename):
     try:
@@ -2289,7 +2159,6 @@ def parse_targets_file(filename):
 
     for line in file_lines:
         add_target(line)
-
 
 def parse_target(target_line):
     targetmatch = re.compile('^([A-z0-9\.]+)(:(\d+))?')
@@ -2312,7 +2181,6 @@ def parse_target(target_line):
     else:
         raise targetError, 'target error'
 
-
 def add_target(line):
     global added_targets
     global targets
@@ -2333,11 +2201,7 @@ def add_target(line):
 
         logger.debug('Parsed target \'%s\'' % target.getIdentity())
 
-
 def set_targets():
-    global conf
-    global targets
-
     logger.info('Loading targets')
 
     if conf.target is not None:
@@ -2347,7 +2211,6 @@ def set_targets():
     if conf.list is not None:
         logger.debug('Loading targets from file \'%s\'' % conf.list)
         parse_targets_file(conf.list)
-
 
 def set_verbosity(level=None):
     if level is not None:
@@ -2364,10 +2227,7 @@ def set_verbosity(level=None):
         conf.verbose = 2
         logger.setLevel(logging.DEBUG)
 
-
 def check_conf():
-    global conf
-
     set_verbosity()
 
     if conf.name is None:
@@ -2387,7 +2247,6 @@ def check_conf():
     set_targets()
     set_credentials()
     set_domains()
-
 
 def cmdline_parser():
     '''
@@ -2447,21 +2306,18 @@ def cmdline_parser():
     debugMsg = 'Parsing command line'
     logger.debug(debugMsg)
 
-
 def banner():
     print '''
     keimpx %s
     by %s
     ''' % (__version__, __author__)
 
-
 def main():
-    global credentials
     global conf
+    global credentials
     global domains
-    global pool_thread
-    global targets
     global have_readline
+    global pool_thread
 
     banner()
     conf = cmdline_parser()
@@ -2582,7 +2438,7 @@ def main():
     msg += '\n> '
 
     choice = read_input(msg, counter)
-    credentials = credentials_dict[int(choice)]
+    user_credentials = credentials_dict[int(choice)]
 
     if mswindows is True and have_readline:
         try:
@@ -2599,7 +2455,7 @@ def main():
     if sys.platform.lower() == 'darwin' and have_readline:
         import commands
 
-        (status, result) = commands.getstatusoutput( 'otool -L %s | grep libedit' % _rl.__file__ )
+        (status, result) = commands.getstatusoutput('otool -L %s | grep libedit' % _rl.__file__)
 
         if status == 0 and len(result) > 0:
             _rl.parse_and_bind('bind ^I rl_complete')
@@ -2622,11 +2478,10 @@ def main():
     autoCompletion()
 
     try:
-        shell = SMBShell(target, credentials)
+        shell = SMBShell(target, user_credentials)
         shell.run()
     except RuntimeError:
         sys.exit(255)
-
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
