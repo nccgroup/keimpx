@@ -1729,24 +1729,25 @@ class test_login(Thread):
 
                 for domain in domains:
                     status = False
+                    target_str = '%s:%s' % (self.__dstip, self.__dstport)
 
                     if domain:
-                        target_str = '%s:%s@%s' % (self.__dstip, self.__dstport, domain)
+                        user_str = '%s\%s' % (domain, user)
                     else:
-                        target_str = '%s:%s' % (self.__dstip, self.__dstport)
+                        user_str = user
 
                     try:
                         self.connect()
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
 
-                        logger.info('Valid credentials on %s: %s/%s' % (target_str, user, password_str))
+                        logger.info('Successful login for %s with %s on %s' % (user_str, password_str, target_str))
 
                         status = True
                         successes += 1
 
                     except smb.SessionError, e:
-                        logger.debug('Wrong credentials on %s: %s/%s (%s)' % (target_str, user, password_str, str(e).split('code: ')[1]))
+                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, target_str, str(e).split('code: ')[1]))
 
                         status = str(e.get_error_code())
                     except smb.UnsupportedFeature, e:
@@ -2220,11 +2221,11 @@ def check_conf():
     if conf.port is None:
         conf.port = 445
 
-    logger.debug('Using \'%s\' as local hostname' % conf.name)
+    logger.debug('Using \'%s\' as local NetBIOS hostname' % conf.name)
 
     if conf.threads < 3:
         conf.threads = 3
-        logger.warn('Forcing number of threads to 3')
+        logger.info('Forcing number of threads to 3')
 
     set_targets()
     set_credentials()
@@ -2263,12 +2264,12 @@ def cmdline_parser():
         parser.add_option('-p', dest='port', type='int', default=445,
                            help='SMB port: 139 or 445 (default: 445)')
 
-        parser.add_option('-n', dest='name', help='Local hostname')
+        parser.add_option('-n', dest='name', help='Local NetBIOS hostname')
 
         parser.add_option('-T', dest='threads', type='int', default=10,
                           help='Maximum simultaneous connections (default: 10)')
 
-        parser.add_option('-b', dest='batch', action="store_true", default=False,
+        parser.add_option('-b', '--batch', dest='batch', action="store_true", default=False,
                           help='Batch mode: do not ask to get an interactive SMB shell')
 
         parser.add_option('-x', dest='executelist', help='Execute a list of '

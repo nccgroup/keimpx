@@ -74,7 +74,7 @@ The `Apache Software License' is an Open Source Initiative Approved License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009-2012 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2013 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
 This product includes software developed by CORE Security Technologies
