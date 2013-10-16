@@ -2034,16 +2034,16 @@ def parse_credentials_file(filename):
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
 
-    fgdumpmatch = re.compile('^(\S*?):.*?:(\S*?):(\S*?):.*?:.*?:')
+    fgdumpmatch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
     fgdump = fgdumpmatch.match(credentials_line)
 
-    wcematch = re.compile('^(\S*?):.*?:(\S*?):(\S*?)$')
+    wcematch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     wce = wcematch.match(credentials_line)
 
-    cainmatch = re.compile('^(\S*?):.*?:.*?:(\S*?):(\S*?)$')
+    cainmatch = re.compile('^(\S+?):.*?:.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     cain = cainmatch.match(credentials_line)
 
-    plaintextpassmatch = re.compile('^(\S+?)\s(\S*?)$')
+    plaintextpassmatch = re.compile('^(\S+?)\s+(\S*?)$')
     plain = plaintextpassmatch.match(credentials_line)
 
     # Credentials with hashes (pwdump/pwdumpx/fgdump/pass-the-hash output format)
