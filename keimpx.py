@@ -57,6 +57,7 @@ __version__ = '0.3-dev'
 import binascii
 import logging
 import os
+import ntpath
 import random
 import re
 import rlcompleter
@@ -94,14 +95,19 @@ except ImportError:
 
 try:
     from impacket import smb
+    from impacket import smb3
     from impacket import ImpactPacket
     from impacket.nmb import NetBIOSTimeout
+    from impacket.nt_errors import *
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
     from impacket.dcerpc import srvsvc
     from impacket.dcerpc import svcctl
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
+    from impacket.smb3structs import SMB2_DIALECT_002, SMB2_DIALECT_21
+    from impacket.smbconnection import SMB_DIALECT
+    from impacket.smbconnection import SMBConnection
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository, https://code.google.com/p/impacket/source/checkout')
     sys.exit(255)
@@ -496,7 +502,7 @@ class SMBShell:
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
 
-        self.__smb = None
+        self.smb = None
         self.__user = credential.getUser()
         self.__password = credential.getPassword()
         self.__lmhash = credential.getLMhash()
@@ -530,9 +536,10 @@ class SMBShell:
     def __replace(self, value):
         return value.replace('/', '\\')
 
-    def __check_share(self):
-        if self.share is None or self.tid is None:
-            raise missingShare, 'Share has not been specified'
+    def __check_share(self, share):
+        if share is None and (self.share is None or self.tid is None):
+            logger.warn('Share has not been specified, select one:')
+            self.shares()
 
     def eval(self, cmd=None):
         '''
@@ -563,7 +570,7 @@ class SMBShell:
             logger.error(e)
             sys.exit(1)
 
-        except smb.SessionError, e:
+        except (smb.SessionError, smb3.SessionError), e:
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
 
         except smb.UnsupportedFeature, e:
@@ -623,8 +630,8 @@ cd {path} - changes the current directory to {path}
 pwd - shows current remote directory
 ls {path} - lists all the files in the current directory
 cat {file} - display content of the selected file
-download {filename} - downloads the filename from the current path
-upload {filename} - uploads the filename into the current path
+download {filename} [destfile] - downloads the filename from the current path
+upload {filename} [destfile] [share] - uploads the filename into a remote share (or current path)
 mkdir {dirname} - creates the directory under the current path
 rm {file} - removes the selected file
 rmdir {dirname} - removes the directory under the current path
@@ -664,7 +671,7 @@ regdelete {registry key} - delete a registry key
         Connect the SMB session
         '''
 
-        self.__smb = smb.SMB(remote_name=self.__dstname, remote_host=self.__dstip, my_name=self.__srcname, sess_port=self.__dstport, timeout=self.__timeout)
+        self.smb = SMBConnection(self.__dstname, self.__dstip, self.__srcname, self.__dstport, self.__timeout)
 
     def login(self):
         '''
@@ -672,13 +679,12 @@ regdelete {registry key} - delete a registry key
         '''
 
         try:
-            self.__smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
-
+            self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
         except socket.error, e:
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
 
-        except smb.SessionError, e:
+        except (smb.SessionError, smb3.SessionError), e:
             logger.error('SMB exception: %s' % str(e).split('code: ')[1])
             raise RuntimeError
 
@@ -687,7 +693,7 @@ regdelete {registry key} - delete a registry key
         Disconnect the SMB session
         '''
 
-        self.__smb.logoff()
+        self.smb.logoff()
         sys.exit(0)
 
     def info(self):
@@ -695,10 +701,28 @@ regdelete {registry key} - delete a registry key
         Display system information like operating system
         '''
 
-        print 'Operating system: %s' % self.__smb.get_server_os()
-        print 'Netbios name: %s' % self.__smb.get_server_name()
-        print 'Domain: %s' % self.__smb.get_server_domain()
-        print 'Time: %s' % self.__smb.get_server_time()
+        self.__smb_transport('\srvsvc')
+
+        logger.debug('Binding on Server Service (SRVSVC) interface')
+        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
+        self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
+        self.__dce.disconnect()
+
+        print 'Operating system: %s' % self.smb.getServerOS()
+        print 'Netbios name: %s' % self.smb.getServerName()
+        print 'Domain: %s' % self.smb.getServerDomain()
+        print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
+        print 'UserPath: %s' % self.__resp['UserPath']
+        print 'Simultaneous users: %d' % self.__resp['Users']
+        print "Version major: %d" % self.__resp['VersionMajor']
+        print "Version minor: %d" % self.__resp['VersionMinor']
+        print 'Comment: %s' % self.__resp['Comment'] or "None"
+
+        # TODO: uncomment when SMBConnection will have a wrapper
+        # getServerTime() method for both SMBv1,2,3
+        #print 'Time: %s' % self.smb.get_server_time()
 
     def shares(self):
         '''
@@ -706,17 +730,16 @@ regdelete {registry key} - delete a registry key
         connect to
         '''
 
-        self.__shares_connect()
-
-        count = 1
+        self.__resp = self.smb.listShares()
+        count = 0
 
         for i in range(len(self.__resp)):
             name = self.__resp[i]['NetName'].decode('utf-16')
             comment = self.__resp[i]['Remark'].decode('utf-16')
-            print '[%d] %s (comment: %s)' % (count, name, comment)
-
-            self.sharesList.append(name)
             count += 1
+            self.sharesList.append(name)
+
+            print '[%d] %s (comment: %s)' % (count, name, comment)
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.sharesList)
@@ -732,9 +755,9 @@ regdelete {registry key} - delete a registry key
         if sharename is None:
             raise missingShare, 'Share has not been specified'
 
-        self.share = sharename.strip("\x00")
-        self.tid = self.__smb.tree_connect(self.share)
-        self.pwd = ''
+        self.share = sharename.strip('\x00')
+        self.tid = self.smb.connectTree(self.share)
+        self.pwd = '\\'
 
     def cd(self, path=None):
         '''
@@ -742,25 +765,36 @@ regdelete {registry key} - delete a registry key
         '''
 
         if path is None:
-            self.pwd = ''
             return
 
-        elif path == '.':
-            return
+        p = self.__replace(path)
+        oldpwd = self.pwd
 
+        if path == '.':
+            return
         elif path == '..':
             sep = self.pwd.split('\\')
             self.pwd = '\\'.join(s for s in sep[:-1])
-
             return
 
-        path = self.__replace(path)
-
-        if path[0] == '\\':
+        if p[0] == '\\':
            self.pwd = path
-
         else:
-           self.pwd += '\\%s' % path
+           self.pwd = ntpath.join(self.pwd, path)
+
+        self.pwd = ntpath.normpath(self.pwd)
+
+        # Let's try to open the directory to see if it's valid
+        try:
+            fid = self.smb.openFile(self.tid, self.pwd)
+            self.smb.closeFile(self.tid,fid)
+            self.pwd = oldpwd
+        except Exception, e:
+            if (e.get_error_code() & 0xff) == (STATUS_FILE_IS_A_DIRECTORY & 0xff):
+               pass
+            else:
+               self.pwd = oldpwd
+               raise
 
     def pwd(self):
         '''
@@ -781,24 +815,24 @@ regdelete {registry key} - delete a registry key
         List files from the current/provided path
         '''
 
-        self.__check_share()
+        self.__check_share(share)
 
         if path is None:
-            pwd = '%s\\*' % self.pwd
-
+            pwd = ntpath.join(self.pwd, '*')
         else:
-            pwd = '%s\\%s\\*' % (self.pwd, self.__replace(path))
+           pwd = ntpath.join(self.pwd, path)
 
-        for f in self.__smb.list_path(self.share, pwd):
+        pwd = self.__replace(pwd)
+        pwd = ntpath.normpath(pwd)
+
+        for f in self.smb.listPath(self.share, pwd):
             if f.is_directory() == 16:
                 is_dir = '<DIR>'
-
             else:
                 is_dir = '     '
 
             if f.get_filesize() == 0:
                 filesize = '   '
-
             else:
                 filesize = f.get_filesize()
 
@@ -809,16 +843,13 @@ regdelete {registry key} - delete a registry key
         Display a file content from the current path
         '''
 
-        self.__check_share()
-
-        filename = '%s\\%s' % (self.pwd, self.__replace(filename))
-        self.fid = self.__smb.open(self.tid, filename, smb.SMB_O_OPEN, smb.SMB_ACCESS_READ)[0]
-
+        self.__check_share(share)
+        filename = ntpath.join(self.pwd, self.__replace(filename))
+        self.fid = self.smb.openFile(self.tid, filename)
         offset = 0
 
         while 1:
-            data = self.__smb.read(self.tid, self.fid, offset, 40000)
-
+            data = self.smb.readFile(self.tid, self.fid, offset)
             print data
 
             if len(data) == 0:
@@ -826,95 +857,84 @@ regdelete {registry key} - delete a registry key
 
             offset += len(data)
 
-        self.__smb.close(self.tid, self.fid)
+        self.smb.closeFile(self.tid, self.fid)
 
     def get(self, filename):
         '''
         Alias to download
         '''
-
         self.download(filename)
 
-    def download(self, filename):
+    def download(self, filename, destfile=None):
         '''
         Download a file from the current path
         '''
+        self.__check_share(share)
+        filename = os.path.basename(filename)
 
-        self.__check_share()
+        if destfile:
+            destfile
+        else:
+            destfile = filename
 
-        fh = open(filename, 'wb')
-        filename = '%s\\%s' % (self.pwd, self.__replace(filename))
-
-        self.__smb.retr_file(self.share, filename, fh.write)
+        fh = open(destfile, 'wb')
+        filename = ntpath.join(self.pwd, self.__replace(filename))
+        self.smb.getFile(self.share, filename, fh.write)
         fh.close()
 
-    def put(self, filename, share=None, destfile=None):
+    def put(self, filename, destfile=None, share=None):
         '''
         Alias to upload
         '''
+        self.upload(filename, destfile, share)
 
-        self.upload(filename, share=None, destfile=None)
-
-    def upload(self, filename, share=None, destfile=None):
+    def upload(self, pathname, destfile=None, share=None):
         '''
         Upload a file in the current path
         '''
-
         try:
-            fp = open(filename, 'rb')
+            fp = open(pathname, 'rb')
         except IOError:
-            logger.error('Unable to open file %s' % filename)
+            logger.error('Unable to open file %s' % pathname)
             sys.exit(1)
 
-        if share is None:
-            self.__check_share()
-            share = self.share
+        self.__check_share(share)
 
         if destfile is None:
-            destfile = '%s\\%s' % (self.pwd, self.__replace(filename))
+            destfile = os.path.basename(pathname)
+            destfile = ntpath.join(self.pwd, self.__replace(destfile))
 
-        self.__smb.stor_file(share, destfile, fp.read)
+        self.smb.putFile(self.share, destfile, fp.read)
         fp.close()
 
-    def mkdir(self, path):
+    def mkdir(self, path, share=None):
         '''
         Create a directory in the current share
         '''
-
-        self.__check_share()
-
-        path = '%s\\%s' % (self.pwd, self.__replace(path))
-        self.__smb.mkdir(self.share, path)
+        self.__check_share(share)
+        path = ntpath.join(self.pwd, self.__replace(path))
+        self.smb.createDirectory(self.share, path)
 
     def rm(self, filename, share=None):
         '''
         Remove a file in the current share
         '''
+        self.__check_share(share)
+        filename = ntpath.join(self.pwd, self.__replace(filename))
+        self.smb.deleteFile(self.share, filename)
 
-        filename = '%s\\%s' % (self.pwd, self.__replace(filename))
-
-        if share is None:
-            self.__check_share()
-            share = self.share
-
-        self.__smb.remove(share, filename)
-
- 
     def rmdir(self, path):
         '''
         Remove a directory in the current share
         '''
-
-        self.__check_share()
-
-        path = '%s\\%s' % (self.pwd, self.__replace(path))
-        self.__smb.rmdir(self.share, path)
+        self.__check_share(share)
+        path = ntpath.join(self.pwd, self.__replace(path))
+        self.smb.deleteDirectory(self.share, path)
 
     def start(self, srvname=None, srvargs=None):
         '''
         Start a service.
         '''
-
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
@@ -927,7 +947,6 @@ regdelete {registry key} - delete a registry key
         '''
         Stop a service.
         '''
-
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
@@ -941,7 +960,6 @@ regdelete {registry key} - delete a registry key
         Deploy a Windows service: upload the service executable to the
         file system, create a service as 'Automatic' and start it
         '''
-
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
@@ -966,7 +984,6 @@ regdelete {registry key} - delete a registry key
         services, removes it and removes the executable from the file
         system
         '''
-
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
@@ -1037,7 +1054,6 @@ regdelete {registry key} - delete a registry key
 
                 connected = True
                 tn.interact()
-
             except (socket.error, socket.herror, socket.gaierror, socket.timeout), e:
                 if connected is False:
                     warn_msg = 'Connection to backdoor on port %d failed (%s)' % (int(port), e[1])
@@ -1046,7 +1062,6 @@ regdelete {registry key} - delete a registry key
                         warn_msg += ', retrying..'
 
                     logger.warn(warn_msg)
-
             except Exception, e:
                 if e is not None:
                     logger.error('Exception: %s' % e)
@@ -1061,7 +1076,6 @@ regdelete {registry key} - delete a registry key
         '''
         List users, optionally for a specific domain
         '''
-
         self.__samr_connect()
         self.__samr_users(usrdomain)
         self.__samr_disconnect()
@@ -1070,7 +1084,6 @@ regdelete {registry key} - delete a registry key
         '''
         List password policy, optionally for a specific domain
         '''
-
         self.__samr_connect()
         self.__samr_pswpolicy(usrdomain)
         self.__samr_disconnect()
@@ -1079,7 +1092,6 @@ regdelete {registry key} - delete a registry key
         '''
         List domains to which the system is part of
         '''
-
         self.__samr_connect()
         self.__samr_domains()
         self.__samr_disconnect()
@@ -1088,7 +1100,6 @@ regdelete {registry key} - delete a registry key
         '''
         Read a Windows registry key
         '''
-
         if reg_key is None:
             logger.warn('No registry hive provided, going to read %s' % default_reg_key)
             self.__winreg_key = default_reg_key
@@ -1104,7 +1115,6 @@ regdelete {registry key} - delete a registry key
         '''
         Write a value on a Windows registry key
         '''
-
         self.__winreg_key = reg_key
         self.__winreg_value = reg_value
 
@@ -1117,7 +1127,6 @@ regdelete {registry key} - delete a registry key
         '''
         Delete a Windows registry key
         '''
-
         self.__winreg_key = reg_key
 
         self.__winreg_connect()
@@ -1129,35 +1138,16 @@ regdelete {registry key} - delete a registry key
         '''
         Initiate a SMB connection on a specific named pipe
         '''
-
-        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe)
-        self.trans.set_credentials(username=self.__user, password=self.__password, domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash)
+        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe, smb_connection=self.smb)
 
         try:
             self.trans.connect()
-
         except socket.error, e:
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
-
-        except smb.SessionError, e:
+        except (smb.SessionError, smb3.SessionError), e:
             logger.warn('SMB exception: %s' % str(e).split('code: ')[1])
             raise RuntimeError
-
-    def __shares_connect(self):
-        '''
-        Connect to the srvsvc named pipe
-        '''
-
-        logger.info('Connecting to the SRVSVC named pipe')
-
-        self.__smb_transport('srvsvc')
-
-        logger.debug('Binding on Server Service (SRVSVC) interface')
-        self.__dce = dcerpc.DCERPC_v5(self.trans)
-        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
-        self.__resp = self.__svc.get_share_enum_1(self.trans.get_dip())
 
     def __svcctl_srv_manager(self, srvname):
         self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
@@ -1167,9 +1157,7 @@ regdelete {registry key} - delete a registry key
         '''
         Connect to svcctl named pipe
         '''
-
         logger.info('Connecting to the SVCCTL named pipe')
-
         self.__smb_transport('svcctl')
 
         logger.debug('Binding on Services Control Manager (SCM) interface')
@@ -1183,7 +1171,6 @@ regdelete {registry key} - delete a registry key
         '''
         Disconnect from svcctl named pipe
         '''
-
         logger.debug('Disconneting from the SVCCTL named pipe')
 
         if srvname is not None:
@@ -1198,39 +1185,30 @@ regdelete {registry key} - delete a registry key
         '''
         Upload the service executable
         '''
-
         logger.info('Uploading the service executable to %s\\%s' % (share, remote_file))
-
-        self.upload(local_file, share, remote_file)
+        self.upload(local_file, remote_file, share)
 
     def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
-
         logger.info('Removing the service executable %s\\%s' % (share, remote_file))
-
         self.rm(remote_file, share)
 
     def __svcctl_create(self, srvname, remote_file):
         '''
         Create the service
         '''
-
         logger.info('Creating the service %s' % srvname)
-
         self.__pathname = '%%SystemRoot%%\\%s' % remote_file
         self.__pathname = self.__pathname.encode('utf-16le')
-
         self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), srvname.encode('utf-16le'), self.__pathname)
 
     def __svcctl_delete(self, srvname):
         '''
         Delete the service
         '''
-
         logger.info('Deleting the service %s' % srvname)
-
         self.__svc.DeleteService(self.__svc_handle)
 
     def __svcctl_parse_info(self, resp):
@@ -1692,6 +1670,16 @@ regdelete {registry key} - delete a registry key
 
         #logger.debug('RPC code returned: %d' % code)
 
+def check_dialect(dialect):
+    if dialect == SMB_DIALECT:
+        return 'SMBv1'
+    elif dialect == SMB2_DIALECT_002:
+        return 'SMBv2.0'
+    elif dialect == SMB2_DIALECT_21:
+        return 'SMBv2.1'
+    else:
+        return 'SMBv3.0'
+
 class test_login(Thread):
     def __init__(self, target):
         Thread.__init__(self)
@@ -1705,13 +1693,13 @@ class test_login(Thread):
         self.__timeout = 3
 
     def connect(self):
-        self.__smb = smb.SMB(remote_name=self.__dstname, remote_host=self.__dstip, my_name=self.__srcname, sess_port=self.__dstport, timeout=self.__timeout)
+        self.smb = SMBConnection(self.__dstname, self.__dstip, self.__srcname, self.__dstport, self.__timeout)
 
     def login(self, user, password, lmhash, nthash, domain):
-        self.__smb.login(user=user, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
+        self.smb.login(user, password, domain, lmhash, nthash)
 
     def logoff(self):
-        self.__smb.logoff()
+        self.smb.logoff()
 
     def test_bogus_domain(self, user, password, lmhash, nthash, domain):
         try:
@@ -1721,20 +1709,7 @@ class test_login(Thread):
 
             logger.debug('%s accepts bogus domain for user %s with provided credentials' % (self.__target_id, user))
             return True
-        except smb.SessionError, e:
-            return False
-
-    def test_guest_user(self):
-        try:
-            user = ''.join(random.choice(string.ascii_letters) for _ in range(8))
-            password = ''.join(random.choice(string.ascii_letters) for _ in range(8))
-            self.connect()
-            self.login(user, password, '', '', '')
-            self.logoff()
-
-            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
-            return True
-        except smb.SessionError, e:
+        except (smb.SessionError, smb3.SessionError), e:
             return False
 
     def run(self):
@@ -1743,10 +1718,6 @@ class test_login(Thread):
 
         try:
             logger.info('Attacking host %s' % self.__target_id)
-
-            if self.test_guest_user():
-                pool_thread.release()
-                return
 
             for credential in credentials:
                 user, password, lmhash, nthash = credential.getCredentials()
@@ -1776,12 +1747,16 @@ class test_login(Thread):
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
 
-                        logger.info('Successful login for %s with %s on %s' % (user_str, password_str, self.__target_id))
+                        if self.smb.isGuestSession() > 0:
+                            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
+                            return
+                        else:
+                            logger.info('Successful login for %s with %s on %s' % (user_str, password_str, self.__target_id))
 
                         status = True
                         successes += 1
-                    except smb.SessionError, e:
-                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, self.__target_id, str(e).split('code: ')[1]))
+                    except (smb.SessionError, smb3.SessionError), e:
+                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, self.__target_id, str(e).split('STATUS_')[1]))
                         error_code = str(e.get_error_code())
                     except smb.UnsupportedFeature, e:
                         logger.warn(str(e))
@@ -1796,7 +1771,7 @@ class test_login(Thread):
             logger.info('Attack on host %s finished' % self.__target.getIdentity())
 
         except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), e))
+            logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
 
         pool_thread.release()
 
