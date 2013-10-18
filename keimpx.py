@@ -487,7 +487,7 @@ class DCERPCSamr:
 ########################################################################
 
 class SMBShell:
-    def __init__(self, target, credentials):
+    def __init__(self, target, credential):
         '''
         Initialize the object variables
         '''
@@ -497,11 +497,11 @@ class SMBShell:
         self.__dstport = self.__target.getPort()
 
         self.__smb = None
-        self.__user = credentials.getUser()
-        self.__password = credentials.getPassword()
-        self.__lmhash = credentials.getlmhash()
-        self.__nthash = credentials.getnthash()
-        self.__domain = credentials.getDomain()
+        self.__user = credential.getUser()
+        self.__password = credential.getPassword()
+        self.__lmhash = credential.getLMhash()
+        self.__nthash = credential.getNThash()
+        self.__domain = credential.getDomain()
 
         self.__dstname = '*SMBSERVER'
         self.__srcname = conf.name
@@ -595,7 +595,7 @@ class SMBShell:
         self.connect()
         logger.debug('Connection to host %s established' % self.__target.getIdentity())
         self.login()
-        logger.debug('Logged in as %s' % self.__user)
+        logger.debug('Logged in as %s' % (self.__user if not self.__domain else "%s\%s" % (self.__domain, self.__user)))
 
         if cmds is None or len(cmds) == 0:
             self.interactive()
@@ -1699,9 +1699,10 @@ class test_login(Thread):
         self.__target = target
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
+        self.__target_id = self.__target.getIdentity()
         self.__dstname = '*SMBSERVER'
         self.__srcname = conf.name
-        self.__timeout = 10
+        self.__timeout = 3
 
     def connect(self):
         self.__smb = smb.SMB(remote_name=self.__dstname, remote_host=self.__dstip, my_name=self.__srcname, sess_port=self.__dstport, timeout=self.__timeout)
@@ -1717,7 +1718,7 @@ class test_login(Thread):
         global successes
 
         try:
-            logger.info('Attacking host %s' % self.__target.getIdentity())
+            logger.info('Attacking host %s' % self.__target_id)
 
             for credential in credentials:
                 user, password, lmhash, nthash = credential.getCredentials()
@@ -1729,7 +1730,6 @@ class test_login(Thread):
 
                 for domain in domains:
                     status = False
-                    target_str = '%s:%s' % (self.__dstip, self.__dstport)
 
                     if domain:
                         user_str = '%s\%s' % (domain, user)
@@ -1741,65 +1741,32 @@ class test_login(Thread):
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
 
-                        logger.info('Successful login for %s with %s on %s' % (user_str, password_str, target_str))
+                        logger.info('Successful login for %s with %s on %s' % (user_str, password_str, self.__target_id))
 
                         status = True
                         successes += 1
 
                     except smb.SessionError, e:
-                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, target_str, str(e).split('code: ')[1]))
+                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, self.__target_id, str(e).split('code: ')[1]))
 
                         status = str(e.get_error_code())
                     except smb.UnsupportedFeature, e:
                         logger.warn(str(e))
 
-                    credential.addAnswer(self.__dstip, self.__dstport, domain, status)
-                    self.__target.addAnswer(user, password, lmhash, nthash, domain, status)
+                    credential.addTarget(self.__dstip, self.__dstport, domain, status)
+                    self.__target.addCredential(user, password, lmhash, nthash, domain, status)
 
                     if status is True:
                         break
 
             logger.info('Attack on host %s finished' % self.__target.getIdentity())
 
-        except (socket.error, NetBIOSTimeout), e:
+        except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
             logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), e))
 
         pool_thread.release()
 
-class CredentialsStatus:
-    def __init__(self, user, password, lmhash, nthash, domain, status):
-        self.user = user
-        self.password = password
-        self.lmhash = lmhash
-        self.nthash = nthash
-        self.domain = domain
-        self.status = status
-
-    def getUser(self):
-        return self.user
-
-    def getPassword(self):
-        return self.password
-
-    def getlmhash(self):
-        return self.lmhash
-
-    def getnthash(self):
-        return self.nthash    
-
-    def getDomain(self):
-        return self.domain
-
-    def getStatus(self):
-        return self.status
-
-    def getIdentity(self):
-        if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
-        elif self.user not in ( None, '' ):
-            return '%s/%s' % (self.user, self.password or 'BLANK')
-
-class TargetStatus:
+class CredentialsTarget:
     def __init__(self, host, port, domain, status):
         self.host = host
         self.port = port
@@ -1811,9 +1778,6 @@ class TargetStatus:
 
     def getPort(self):
         return self.port
-
-    def getDomain(self):
-        return self.domain
 
     def getStatus(self):
         return self.status
@@ -1831,53 +1795,96 @@ class Credentials:
         self.lmhash = lmhash
         self.nthash = nthash
 
-        # Targets where these credentials have been tested
-        self.targets = []
+        # All targets where these credentials pair have been tested
+        # List of CredentialsTarget() objects
+        self.tested_targets = []
 
-        
     def getUser(self):
         return self.user
 
     def getPassword(self):
         return self.password
 
-    def getlmhash(self):
+    def getLMhash(self):
         return self.lmhash
 
-    def getnthash(self):
+    def getNThash(self):
         return self.nthash
 
     def getIdentity(self):
         if self.lmhash != '' and self.nthash != '':
             return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
-        elif self.user not in ( None, '' ):
+        else:
             return '%s/%s' % (self.user, self.password or 'BLANK')
 
     def getCredentials(self):
-        if self.password != '' or ( self.password == '' and self.lmhash == '' and self.nthash == ''):
+        if self.lmhash != '' and self.nthash != '':
+            return self.user, self.password, self.lmhash, self.nthash
+        else:
             return self.user, self.password, '', ''
-        elif self.lmhash != '' and self.nthash != '':
-            return self.user, '', self.lmhash, self.nthash
 
-    def addAnswer(self, host, port, domain, status):
-        self.targets.append(TargetStatus(host, port, domain, status))
+    def addTarget(self, host, port, domain, status):
+        self.tested_targets.append(CredentialsTarget(host, port, domain, status))
 
-    def getResults(self, status=True):
-        return_targets = []
+    def getTargets(self, valid_only=False):
+        _ = []
 
-        for target in self.targets:
-            if target.getStatus() == status or status == '*':
-                return_targets.append(target)
+        for tested_target in self.tested_targets:
+            if (valid_only and tested_target.getStatus() is True) \
+                or not valid_only:
+                _.append(tested_target)
 
-        return return_targets
+        return _
+
+    def getValidTargets(self):
+        return self.getTargets(True)
+
+class TargetCredentials:
+    def __init__(self, user, password, lmhash, nthash, domain, status):
+        self.user = user
+        self.password = password
+        self.lmhash = lmhash
+        self.nthash = nthash
+        self.domain = domain
+        self.status = status
+
+    def getUser(self):
+        return self.user
+
+    def getPassword(self):
+        return self.password
+
+    def getLMhash(self):
+        return self.lmhash
+
+    def getNThash(self):
+        return self.nthash    
+
+    def getDomain(self):
+        return self.domain
+
+    def getStatus(self):
+        return self.status
+
+    def getIdentity(self):
+        if self.domain:
+            _ = "%s\%s" % (self.domain, self.user)
+        else:
+            _ = self.user
+
+        if self.lmhash != '' and self.nthash != '':
+            return '%s/%s:%s' % (_, self.lmhash, self.nthash)
+        else:
+            return '%s/%s' % (_, self.password or 'BLANK')
 
 class Target:
     def __init__(self, target, port):
         self.target = target
-        self.port = port
+        self.port = int(port)
 
-        # Credentials tested on this target
-        self.credentials = []
+        # All credentials tested on this target
+        # List of TargetCredentials() objects
+        self.tested_credentials = []
 
     def getHost(self):
         return self.target
@@ -1886,19 +1893,23 @@ class Target:
         return self.port
 
     def getIdentity(self):
-        return '%s:%s' % (self.target, self.port)
+        return '%s:%d' % (self.target, self.port)
 
-    def addAnswer(self, user, password, lmhash, nthash, domain, status):
-        self.credentials.append(CredentialsStatus(user, password, lmhash, nthash, domain, status))
+    def addCredential(self, user, password, lmhash, nthash, domain, status):
+        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status))
 
-    def getResults(self, status=True):
-        return_credentials = []
+    def getCredentials(self, valid_only=False):
+        _ = []
 
-        for credentials in self.credentials:
-            if credentials.getStatus() == status or status == '*':
-                return_credentials.append(credentials)
+        for tested_credential in self.tested_credentials:
+            if (valid_only and tested_credential.getStatus() is True) \
+                or not valid_only:
+                _.append(tested_credential)
 
-        return return_credentials
+        return _
+
+    def getValidCredentials(self):
+        return self.getCredentials(True)
 
 def read_input(msg, counter):
     while True:
@@ -1955,12 +1966,12 @@ def executelist():
     targets_tuple = ()
 
     for target in targets:
-        results = target.getResults()
+        valid_credentials = target.getValidCredentials()
 
         logger.info('Executing commands on %s' % target.getIdentity())
 
-        if len(results):
-            first_credentials = results[0]
+        if len(valid_credentials):
+            first_credentials = valid_credentials[0]
 
         try:
             shell = SMBShell(target, first_credentials)
@@ -2168,7 +2179,7 @@ def add_target(line):
     try:
         host, port = parse_target(line)
     except targetError, _:
-        logger.warn('Bad line in l file %s: %s' % (conf.list, line))
+        logger.warn('Bad line in targets file %s: %s' % (conf.list, line))
         return
 
     if (host, port) in added_targets:
@@ -2340,26 +2351,26 @@ def main():
     print 'TARGET SORTED RESULTS:\n'
 
     for target in targets:
-        results = target.getResults()
+        valid_credentials = target.getValidCredentials()
 
-        if len(results):
+        if len(valid_credentials) > 0:
             print target.getIdentity()
 
-            for result in results:
-                print '  %s' % result.getIdentity()
+            for valid_credential in valid_credentials:
+                print '  %s' % valid_credential.getIdentity()
 
             print
 
     print '\nUSER SORTED RESULTS:\n'
 
     for credential in credentials:
-        results = credential.getResults()
+        valid_credentials = credential.getValidTargets()
 
-        if len(results):
+        if len(valid_credentials) > 0:
             print credential.getIdentity()
 
-            for result in results:
-                print '  %s' % result.getIdentity()
+            for valid_credential in valid_credentials:
+                print '  %s' % valid_credential.getIdentity()
 
             print
 
@@ -2377,24 +2388,22 @@ def main():
 
     counter = 0
     targets_dict = {}
-
     msg = 'Which target do you want to connect to?'
 
     for target in targets:
-        results = target.getResults()
+        valid_credentials = target.getValidCredentials()
 
-        if len(results):
+        if len(valid_credentials):
             counter += 1
             msg += '\n[%d] %s%s' % (counter, target.getIdentity(), " (default)" if counter == 1 else "")
-            targets_dict[counter] = (target, results)
+            targets_dict[counter] = (target, valid_credentials)
 
     msg += '\n> '
-
     choice = read_input(msg, counter)
-    target, credentials = targets_dict[int(choice)]
+    user_target, credentials = targets_dict[int(choice)]
+
     counter = 0
     credentials_dict = {}
-
     msg = 'Which credentials do you want to use to connect?'
 
     for credential in credentials:
@@ -2403,7 +2412,6 @@ def main():
         credentials_dict[counter] = credential
 
     msg += '\n> '
-
     choice = read_input(msg, counter)
     user_credentials = credentials_dict[int(choice)]
 
@@ -2445,7 +2453,7 @@ def main():
     autoCompletion()
 
     try:
-        shell = SMBShell(target, user_credentials)
+        shell = SMBShell(user_target, user_credentials)
         shell.run()
     except RuntimeError:
         sys.exit(255)
