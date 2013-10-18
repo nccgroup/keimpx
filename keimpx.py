@@ -1724,12 +1724,29 @@ class test_login(Thread):
         except smb.SessionError, e:
             return False
 
+    def test_guest_user(self):
+        try:
+            user = ''.join(random.choice(string.ascii_letters) for _ in range(8))
+            password = ''.join(random.choice(string.ascii_letters) for _ in range(8))
+            self.connect()
+            self.login(user, password, '', '', '')
+            self.logoff()
+
+            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
+            return True
+        except smb.SessionError, e:
+            return False
+
     def run(self):
         global pool_thread
         global successes
 
         try:
             logger.info('Attacking host %s' % self.__target_id)
+
+            if self.test_guest_user():
+                pool_thread.release()
+                return
 
             for credential in credentials:
                 user, password, lmhash, nthash = credential.getCredentials()
