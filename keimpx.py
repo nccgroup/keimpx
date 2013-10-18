@@ -2396,20 +2396,20 @@ def main():
     for target in targets:
         valid_credentials = target.getValidCredentials()
 
-        if len(valid_credentials):
+        if len(valid_credentials) > 0:
             counter += 1
             msg += '\n[%d] %s%s' % (counter, target.getIdentity(), " (default)" if counter == 1 else "")
             targets_dict[counter] = (target, valid_credentials)
 
     msg += '\n> '
     choice = read_input(msg, counter)
-    user_target, credentials = targets_dict[int(choice)]
+    user_target, valid_credentials = targets_dict[int(choice)]
 
     counter = 0
     credentials_dict = {}
     msg = 'Which credentials do you want to use to connect?'
 
-    for credential in credentials:
+    for credential in valid_credentials:
         counter += 1
         msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), " (default)" if counter == 1 else "")
         credentials_dict[counter] = credential
