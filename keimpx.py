@@ -1713,6 +1713,17 @@ class test_login(Thread):
     def logoff(self):
         self.__smb.logoff()
 
+    def test_bogus_domain(self, user, password, lmhash, nthash, domain):
+        try:
+            self.connect()
+            self.login(user, password, lmhash, nthash, ''.join(random.choice(string.ascii_letters) for _ in range(8)))
+            self.logoff()
+
+            logger.debug('%s accepts bogus domain for user %s with provided credentials' % (self.__target_id, user))
+            return True
+        except smb.SessionError, e:
+            return False
+
     def run(self):
         global pool_thread
         global successes
@@ -1730,6 +1741,7 @@ class test_login(Thread):
 
                 for domain in domains:
                     status = False
+                    error_code = None
 
                     if domain:
                         user_str = '%s\%s' % (domain, user)
@@ -1737,6 +1749,12 @@ class test_login(Thread):
                         user_str = user
 
                     try:
+                        accepts_bogus_domain = self.test_bogus_domain(user, password, lmhash, nthash, domain)
+
+                        if accepts_bogus_domain:
+                            domain = ''
+                            user_str = user
+
                         self.connect()
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
@@ -1745,18 +1763,17 @@ class test_login(Thread):
 
                         status = True
                         successes += 1
-
                     except smb.SessionError, e:
                         logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, self.__target_id, str(e).split('code: ')[1]))
-
-                        status = str(e.get_error_code())
+                        error_code = str(e.get_error_code())
                     except smb.UnsupportedFeature, e:
                         logger.warn(str(e))
+                        error_code = str(e.get_error_code())
 
-                    credential.addTarget(self.__dstip, self.__dstport, domain, status)
-                    self.__target.addCredential(user, password, lmhash, nthash, domain, status)
+                    credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code)
+                    self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code)
 
-                    if status is True:
+                    if status is True or accepts_bogus_domain:
                         break
 
             logger.info('Attack on host %s finished' % self.__target.getIdentity())
@@ -1767,10 +1784,12 @@ class test_login(Thread):
         pool_thread.release()
 
 class CredentialsTarget:
-    def __init__(self, host, port, status):
+    def __init__(self, host, port, domain, status, error_code):
         self.host = host
         self.port = port
+        self.domain = domain
         self.status = status
+        self.error_code = error_code
 
     def getHost(self):
         return self.host
@@ -1782,7 +1801,10 @@ class CredentialsTarget:
         return self.status
 
     def getIdentity(self):
-        return '%s:%s' % (self.host, self.port)
+        if self.domain:
+            return '%s:%s@%s' % (self.host, self.port, self.domain)
+        else:
+            return '%s:%s' % (self.host, self.port)
 
 class Credentials:
     def __init__(self, user, password='', lmhash='', nthash=''):
@@ -1790,7 +1812,6 @@ class Credentials:
         self.password = password
         self.lmhash = lmhash
         self.nthash = nthash
-        self.domain = None
 
         # All targets where these credentials pair have been tested
         # List of CredentialsTarget() objects
@@ -1809,15 +1830,10 @@ class Credentials:
         return self.nthash
 
     def getIdentity(self):
-        if self.domain:
-            _ = "%s\%s" % (self.domain, self.user)
-        else:
-            _ = self.user
-
         if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (_, self.lmhash, self.nthash)
+            return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
         else:
-            return '%s/%s' % (_, self.password or 'BLANK')
+            return '%s/%s' % (self.user, self.password or 'BLANK')
 
     def getCredentials(self):
         if self.lmhash != '' and self.nthash != '':
@@ -1825,9 +1841,8 @@ class Credentials:
         else:
             return self.user, self.password, '', ''
 
-    def addTarget(self, host, port, domain, status):
-        self.domain = domain
-        self.tested_targets.append(CredentialsTarget(host, port, status))
+    def addTarget(self, host, port, domain, status, error_code):
+        self.tested_targets.append(CredentialsTarget(host, port, domain, status, error_code))
 
     def getTargets(self, valid_only=False):
         _ = []
@@ -1843,13 +1858,14 @@ class Credentials:
         return self.getTargets(True)
 
 class TargetCredentials:
-    def __init__(self, user, password, lmhash, nthash, domain, status):
+    def __init__(self, user, password, lmhash, nthash, domain, status, error_code):
         self.user = user
         self.password = password
         self.lmhash = lmhash
         self.nthash = nthash
         self.domain = domain
         self.status = status
+        self.error_code = error_code
 
     def getUser(self):
         return self.user
@@ -1898,8 +1914,8 @@ class Target:
     def getIdentity(self):
         return '%s:%d' % (self.target, self.port)
 
-    def addCredential(self, user, password, lmhash, nthash, domain, status):
-        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status))
+    def addCredential(self, user, password, lmhash, nthash, domain, status, error_code):
+        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status, error_code))
 
     def getCredentials(self, valid_only=False):
         _ = []
@@ -2027,6 +2043,8 @@ def set_domains():
         logger.info('No domains specified, using a blank domain')
         domains.append('')
     elif len(domains) > 0:
+        if '' not in domains:
+            domains.append('')
         logger.info('Loaded %s unique domain%s' % (len(domains), "s" if len(domains) > 1 else ""))
 
 ###################
