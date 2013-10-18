@@ -1767,10 +1767,9 @@ class test_login(Thread):
         pool_thread.release()
 
 class CredentialsTarget:
-    def __init__(self, host, port, domain, status):
+    def __init__(self, host, port, status):
         self.host = host
         self.port = port
-        self.domain = domain
         self.status = status
 
     def getHost(self):
@@ -1783,10 +1782,7 @@ class CredentialsTarget:
         return self.status
 
     def getIdentity(self):
-        if self.domain:
-            return '%s:%s@%s' % (self.host, self.port, self.domain)
-        else:
-            return '%s:%s' % (self.host, self.port)
+        return '%s:%s' % (self.host, self.port)
 
 class Credentials:
     def __init__(self, user, password='', lmhash='', nthash=''):
@@ -1794,6 +1790,7 @@ class Credentials:
         self.password = password
         self.lmhash = lmhash
         self.nthash = nthash
+        self.domain = None
 
         # All targets where these credentials pair have been tested
         # List of CredentialsTarget() objects
@@ -1812,10 +1809,15 @@ class Credentials:
         return self.nthash
 
     def getIdentity(self):
-        if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
+        if self.domain:
+            _ = "%s\%s" % (self.domain, self.user)
         else:
-            return '%s/%s' % (self.user, self.password or 'BLANK')
+            _ = self.user
+
+        if self.lmhash != '' and self.nthash != '':
+            return '%s/%s:%s' % (_, self.lmhash, self.nthash)
+        else:
+            return '%s/%s' % (_, self.password or 'BLANK')
 
     def getCredentials(self):
         if self.lmhash != '' and self.nthash != '':
@@ -1824,7 +1826,8 @@ class Credentials:
             return self.user, self.password, '', ''
 
     def addTarget(self, host, port, domain, status):
-        self.tested_targets.append(CredentialsTarget(host, port, domain, status))
+        self.domain = domain
+        self.tested_targets.append(CredentialsTarget(host, port, status))
 
     def getTargets(self, valid_only=False):
         _ = []
