@@ -580,6 +580,8 @@ class SMBShell:
             self.eval(cmd)
 
         except Exception, e:
+            #import traceback
+            #traceback.print_exc()
             if e is not None:
                 logger.error('Exception: %s' % e)
 
@@ -826,6 +828,7 @@ regdelete {registry key} - delete a registry key
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(self.share, pwd):
+            # TODO: is_directory() always returns 0 for SMB dialect >= 2.0
             if f.is_directory() == 16:
                 is_dir = '<DIR>'
             else:
@@ -836,7 +839,14 @@ regdelete {registry key} - delete a registry key
             else:
                 filesize = f.get_filesize()
 
-            print '%s\t%s\t%s\t%s' % (time.ctime(float(f.get_mtime_epoch())), is_dir, filesize, f.get_longname())
+            # TODO: temporary work-around because this does not work yet on
+            # SMB dialect >= 2.0
+            try:
+                filetime = time.ctime(float(f.get_mtime_epoch()))
+            except ValueError, _:
+                filetime = float(f.get_mtime_epoch())
+
+            print '%s\t%s\t%s\t%s' % (filetime, is_dir, filesize, f.get_longname())
 
     def cat(self, filename):
         '''
@@ -1063,6 +1073,8 @@ regdelete {registry key} - delete a registry key
 
                     logger.warn(warn_msg)
             except Exception, e:
+                #import traceback
+                #traceback.print_exc()
                 if e is not None:
                     logger.error('Exception: %s' % e)
 
