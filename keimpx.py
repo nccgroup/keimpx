@@ -122,7 +122,7 @@ pool_thread = None
 successes = 0
 targets = []
 execute_commands = []
-share = 'ADMIN$'
+default_share = 'ADMIN$'
 default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
 logger = logging.getLogger('logger')
 logger_handler = logging.StreamHandler(sys.stdout)
@@ -571,7 +571,7 @@ class SMBShell:
             sys.exit(1)
 
         except (smb.SessionError, smb3.SessionError), e:
-            logger.error('SMB exception: %s' % str(e).split('code: ')[1])
+            logger.error('SMB exception: %s' % str(e))
 
         except smb.UnsupportedFeature, e:
             logger.error('SMB exception: %s. Retrying..' % str(e))
@@ -580,8 +580,8 @@ class SMBShell:
             self.eval(cmd)
 
         except Exception, e:
-            #import traceback
-            #traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             if e is not None:
                 logger.error('Exception: %s' % e)
 
@@ -687,7 +687,7 @@ regdelete {registry key} - delete a registry key
             raise RuntimeError
 
         except (smb.SessionError, smb3.SessionError), e:
-            logger.error('SMB exception: %s' % str(e).split('code: ')[1])
+            logger.error('SMB exception: %s' % str(e))
             raise RuntimeError
 
     def exit(self):
@@ -812,11 +812,10 @@ regdelete {registry key} - delete a registry key
 
         self.ls(path)
 
-    def ls(self, path=None):
+    def ls(self, path=None, share=None):
         '''
         List files from the current/provided path
         '''
-
         self.__check_share(share)
 
         if path is None:
@@ -827,7 +826,7 @@ regdelete {registry key} - delete a registry key
         pwd = self.__replace(pwd)
         pwd = ntpath.normpath(pwd)
 
-        for f in self.smb.listPath(self.share, pwd):
+        for f in self.smb.listPath(share or self.share, pwd):
             # TODO: is_directory() always returns 0 for SMB dialect >= 2.0
             if f.is_directory() == 16:
                 is_dir = '<DIR>'
@@ -852,7 +851,6 @@ regdelete {registry key} - delete a registry key
         '''
         Display a file content from the current path
         '''
-
         self.__check_share(share)
         filename = ntpath.join(self.pwd, self.__replace(filename))
         self.fid = self.smb.openFile(self.tid, filename)
@@ -896,7 +894,8 @@ regdelete {registry key} - delete a registry key
         '''
         Alias to upload
         '''
-        self.upload(filename, destfile, share)
+        self.__check_share(share)
+        self.upload(filename, destfile, share or self.share)
 
     def upload(self, pathname, destfile=None, share=None):
         '''
@@ -914,7 +913,7 @@ regdelete {registry key} - delete a registry key
             destfile = os.path.basename(pathname)
             destfile = ntpath.join(self.pwd, self.__replace(destfile))
 
-        self.smb.putFile(self.share, destfile, fp.read)
+        self.smb.putFile(share or self.share, destfile, fp.read)
         fp.close()
 
     def mkdir(self, path, share=None):
@@ -923,7 +922,7 @@ regdelete {registry key} - delete a registry key
         '''
         self.__check_share(share)
         path = ntpath.join(self.pwd, self.__replace(path))
-        self.smb.createDirectory(self.share, path)
+        self.smb.createDirectory(share or self.share, path)
 
     def rm(self, filename, share=None):
         '''
@@ -931,15 +930,15 @@ regdelete {registry key} - delete a registry key
         '''
         self.__check_share(share)
         filename = ntpath.join(self.pwd, self.__replace(filename))
-        self.smb.deleteFile(self.share, filename)
+        self.smb.deleteFile(share or self.share, filename)
 
-    def rmdir(self, path):
+    def rmdir(self, path, share=None):
         '''
         Remove a directory in the current share
         '''
         self.__check_share(share)
         path = ntpath.join(self.pwd, self.__replace(path))
-        self.smb.deleteDirectory(self.share, path)
+        self.smb.deleteDirectory(share or self.share, path)
 
     def start(self, srvname=None, srvargs=None):
         '''
@@ -1073,8 +1072,8 @@ regdelete {registry key} - delete a registry key
 
                     logger.warn(warn_msg)
             except Exception, e:
-                #import traceback
-                #traceback.print_exc()
+                import traceback
+                traceback.print_exc()
                 if e is not None:
                     logger.error('Exception: %s' % e)
 
@@ -1158,7 +1157,7 @@ regdelete {registry key} - delete a registry key
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
         except (smb.SessionError, smb3.SessionError), e:
-            logger.warn('SMB exception: %s' % str(e).split('code: ')[1])
+            logger.warn('SMB exception: %s' % str(e))
             raise RuntimeError
 
     def __svcctl_srv_manager(self, srvname):
@@ -1197,15 +1196,15 @@ regdelete {registry key} - delete a registry key
         '''
         Upload the service executable
         '''
-        logger.info('Uploading the service executable to %s\\%s' % (share, remote_file))
-        self.upload(local_file, remote_file, share)
+        logger.info('Uploading the service executable to %s\\%s' % (default_share, remote_file))
+        self.upload(local_file, remote_file, default_share)
 
     def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
-        logger.info('Removing the service executable %s\\%s' % (share, remote_file))
-        self.rm(remote_file, share)
+        logger.info('Removing the service executable %s\\%s' % (default_share, remote_file))
+        self.rm(remote_file, default_share)
 
     def __svcctl_create(self, srvname, remote_file):
         '''
