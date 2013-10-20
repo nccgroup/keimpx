@@ -94,11 +94,9 @@ except ImportError:
         have_readline = False
 
 try:
-    from impacket import smb
-    from impacket import smb3
+    from impacket import nt_errors
     from impacket import ImpactPacket
     from impacket.nmb import NetBIOSTimeout
-    from impacket.nt_errors import *
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
     from impacket.dcerpc import srvsvc
@@ -106,6 +104,7 @@ try:
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
     from impacket.smb3structs import SMB2_DIALECT_002, SMB2_DIALECT_21
+    from impacket.smbconnection import SessionError
     from impacket.smbconnection import SMB_DIALECT
     from impacket.smbconnection import SMBConnection
 except ImportError:
@@ -190,6 +189,7 @@ def autoCompletion():
                               'cat':        None,
                               'download':   None,
                               'upload':     None,
+                              'rename':     None,
                               'mkdir':      None,
                               'rm':         None,
                               'rmdir':      None,
@@ -509,8 +509,8 @@ class SMBShell:
         self.__nthash = credential.getNThash()
         self.__domain = credential.getDomain()
 
-        self.__dstname = '*SMBSERVER'
-        self.__srcname = conf.name
+        self.__destfile = '*SMBSERVER'
+        self.__srcfile = conf.name
 
         self.__timeout = 3
 
@@ -562,26 +562,16 @@ class SMBShell:
             f = SMBShell.__dict__[cmd]
             l[0] = self
             f(*l)
-
         except (missingShare, missingService, missingFile), e:
             logger.error(e)
-
         except registryKey, e:
             logger.error(e)
             sys.exit(1)
-
-        except (smb.SessionError, smb3.SessionError), e:
-            logger.error('SMB exception: %s' % str(e))
-
-        except smb.UnsupportedFeature, e:
-            logger.error('SMB exception: %s. Retrying..' % str(e))
-
-            time.sleep(1)
-            self.eval(cmd)
-
+        except SessionError, e:
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
         except Exception, e:
-            import traceback
-            traceback.print_exc()
+            #import traceback
+            #traceback.print_exc()
             if e is not None:
                 logger.error('Exception: %s' % e)
 
@@ -627,13 +617,14 @@ exit - terminates the SMB session and exit from the tool
 Shares options
 ==============
 shares - list available shares
-use {sharename} - connect to an specific share
+use {share} - connect to an specific share
 cd {path} - changes the current directory to {path}
 pwd - shows current remote directory
 ls {path} - lists all the files in the current directory
 cat {file} - display content of the selected file
 download {filename} [destfile] - downloads the filename from the current path
 upload {filename} [destfile] [share] - uploads the filename into a remote share (or current path)
+rename {srcfile} {destfile} - rename a file
 mkdir {dirname} - creates the directory under the current path
 rm {file} - removes the selected file
 rmdir {dirname} - removes the directory under the current path
@@ -673,7 +664,7 @@ regdelete {registry key} - delete a registry key
         Connect the SMB session
         '''
 
-        self.smb = SMBConnection(self.__dstname, self.__dstip, self.__srcname, self.__dstport, self.__timeout)
+        self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
 
     def login(self):
         '''
@@ -686,8 +677,8 @@ regdelete {registry key} - delete a registry key
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
 
-        except (smb.SessionError, smb3.SessionError), e:
-            logger.error('SMB exception: %s' % str(e))
+        except SessionError, e:
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
             raise RuntimeError
 
     def exit(self):
@@ -749,15 +740,18 @@ regdelete {registry key} - delete a registry key
 
         self.use(self.sharesList[choice-1])
 
-    def use(self, sharename=None):
+    def use(self, share=None):
         '''
         Select the share to connect to
         '''
 
-        if sharename is None:
+        if share is None:
             raise missingShare, 'Share has not been specified'
 
-        self.share = sharename.strip('\x00')
+        if self.tid:
+            self.smb.disconnectTree(self.tid)
+
+        self.share = share.strip('\x00')
         self.tid = self.smb.connectTree(self.share)
         self.pwd = '\\'
 
@@ -776,7 +770,7 @@ regdelete {registry key} - delete a registry key
             return
         elif path == '..':
             sep = self.pwd.split('\\')
-            self.pwd = '\\'.join(s for s in sep[:-1])
+            self.pwd = ''.join('\\%s' % s for s in sep[:-1])
             return
 
         if p[0] == '\\':
@@ -789,14 +783,20 @@ regdelete {registry key} - delete a registry key
         # Let's try to open the directory to see if it's valid
         try:
             fid = self.smb.openFile(self.tid, self.pwd)
-            self.smb.closeFile(self.tid,fid)
+            self.smb.closeFile(self.tid, fid)
             self.pwd = oldpwd
-        except Exception, e:
-            if (e.get_error_code() & 0xff) == (STATUS_FILE_IS_A_DIRECTORY & 0xff):
+        except SessionError, e:
+            if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
                pass
+            elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                logger.warn('Access denied')
+                self.pwd = oldpwd
+            elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
+                logger.warn('File not found')
+                self.pwd = oldpwd
             else:
-               self.pwd = oldpwd
-               raise
+                logger.warn('SMB error: %s' % (e.getErrorString(), ))
+                self.pwd = oldpwd
 
     def pwd(self):
         '''
@@ -805,12 +805,12 @@ regdelete {registry key} - delete a registry key
 
         print self.pwd
 
-    def dir(self, path=None):
+    def dir(self, path=None, share=None):
         '''
         Alias to ls
         '''
 
-        self.ls(path)
+        self.ls(path, share)
 
     def ls(self, path=None, share=None):
         '''
@@ -827,27 +827,9 @@ regdelete {registry key} - delete a registry key
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(share or self.share, pwd):
-            # TODO: is_directory() always returns 0 for SMB dialect >= 2.0
-            if f.is_directory() == 16:
-                is_dir = '<DIR>'
-            else:
-                is_dir = '     '
+           print "%s %8s %10d %s" % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
-            if f.get_filesize() == 0:
-                filesize = '   '
-            else:
-                filesize = f.get_filesize()
-
-            # TODO: temporary work-around because this does not work yet on
-            # SMB dialect >= 2.0
-            try:
-                filetime = time.ctime(float(f.get_mtime_epoch()))
-            except ValueError, _:
-                filetime = float(f.get_mtime_epoch())
-
-            print '%s\t%s\t%s\t%s' % (filetime, is_dir, filesize, f.get_longname())
-
-    def cat(self, filename):
+    def cat(self, filename, share=None):
         '''
         Display a file content from the current path
         '''
@@ -867,13 +849,13 @@ regdelete {registry key} - delete a registry key
 
         self.smb.closeFile(self.tid, self.fid)
 
-    def get(self, filename):
+    def get(self, filename, destfile=None, share=None):
         '''
         Alias to download
         '''
-        self.download(filename)
+        self.download(filename, destfile, share)
 
-    def download(self, filename, destfile=None):
+    def download(self, filename, destfile=None, share=None):
         '''
         Download a file from the current path
         '''
@@ -894,8 +876,7 @@ regdelete {registry key} - delete a registry key
         '''
         Alias to upload
         '''
-        self.__check_share(share)
-        self.upload(filename, destfile, share or self.share)
+        self.upload(filename, destfile, share)
 
     def upload(self, pathname, destfile=None, share=None):
         '''
@@ -915,6 +896,21 @@ regdelete {registry key} - delete a registry key
 
         self.smb.putFile(share or self.share, destfile, fp.read)
         fp.close()
+
+    def mv(self, srcfile, destfile, share=None):
+        '''
+        Alias to rename
+        '''
+        self.rename(srcfile, destfile, share)
+
+    def rename(self, srcfile, destfile, share=None):
+        '''
+        Rename a file
+        '''
+        self.__check_share(share)
+        srcfile = ntpath.join(self.pwd, self.__replace(srcfile))
+        destfile = ntpath.join(self.pwd, self.__replace(destfile))
+        self.smb.rename(self.share, srcfile, destfile)
 
     def mkdir(self, path, share=None):
         '''
@@ -1156,8 +1152,8 @@ regdelete {registry key} - delete a registry key
         except socket.error, e:
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
-        except (smb.SessionError, smb3.SessionError), e:
-            logger.warn('SMB exception: %s' % str(e))
+        except SessionError, e:
+            logger.warn('SMB error: %s' % (e.getErrorString(), ))
             raise RuntimeError
 
     def __svcctl_srv_manager(self, srvname):
@@ -1699,12 +1695,12 @@ class test_login(Thread):
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
         self.__target_id = self.__target.getIdentity()
-        self.__dstname = '*SMBSERVER'
-        self.__srcname = conf.name
+        self.__destfile = '*SMBSERVER'
+        self.__srcfile = conf.name
         self.__timeout = 3
 
     def connect(self):
-        self.smb = SMBConnection(self.__dstname, self.__dstip, self.__srcname, self.__dstport, self.__timeout)
+        self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
 
     def login(self, user, password, lmhash, nthash, domain):
         self.smb.login(user, password, domain, lmhash, nthash)
@@ -1720,7 +1716,7 @@ class test_login(Thread):
 
             logger.debug('%s accepts bogus domain for user %s with provided credentials' % (self.__target_id, user))
             return True
-        except (smb.SessionError, smb3.SessionError), e:
+        except SessionError, e:
             return False
 
     def run(self):
@@ -1766,12 +1762,9 @@ class test_login(Thread):
 
                         status = True
                         successes += 1
-                    except (smb.SessionError, smb3.SessionError), e:
-                        logger.debug('Failed login for %s with %s on %s (%s)' % (user_str, password_str, self.__target_id, str(e).split('STATUS_')[1]))
-                        error_code = str(e.get_error_code())
-                    except smb.UnsupportedFeature, e:
-                        logger.warn(str(e))
-                        error_code = str(e.get_error_code())
+                    except SessionError, e:
+                        logger.debug('Failed login for %s with %s on %s %s' % (user_str, password_str, self.__target_id, e.getErrorString()))
+                        error_code = e.getErrorCode()
 
                     credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code)
                     self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code)
