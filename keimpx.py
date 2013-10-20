@@ -90,7 +90,7 @@ except ImportError:
         import pyreadline as _rl
 
         have_readline = True
-    except ImportError:    
+    except ImportError:
         have_readline = False
 
 try:
@@ -108,9 +108,8 @@ try:
     from impacket.smbconnection import SMB_DIALECT
     from impacket.smbconnection import SMBConnection
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository, https://code.google.com/p/impacket/source/checkout')
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n\n\tsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n\tcd impacket\n\tpython setup.py build\n\tsudo python setup.py install')
     sys.exit(255)
-
 
 added_credentials = set()
 added_targets = set()
@@ -538,7 +537,7 @@ class SMBShell:
 
     def __check_share(self, share):
         if share is None and (self.share is None or self.tid is None):
-            logger.warn('Share has not been specified, select one:')
+            logger.warn('Share has not been specified, select one')
             self.shares()
 
     def eval(self, cmd=None):
@@ -676,7 +675,6 @@ regdelete {registry key} - delete a registry key
         except socket.error, e:
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
-
         except SessionError, e:
             logger.error('SMB error: %s' % (e.getErrorString(), ))
             raise RuntimeError
