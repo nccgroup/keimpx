@@ -68,6 +68,7 @@ import string
 import sys
 import threading
 import time
+import traceback
 import warnings
 
 from optparse import OptionError
@@ -151,6 +152,9 @@ class targetError(keimpxError):
 class threadError(keimpxError):
     pass
 
+class missingOption(keimpxError):
+    pass
+
 class missingService(keimpxError):
     pass
 
@@ -162,16 +166,6 @@ class missingFile(keimpxError):
 
 class registryKey(keimpxError):
     pass
-
-def split(f):
-    def g(self, line):
-        argvalues = shlex.split(line)
-        argnames = inspect.getargspec(f).args
-        argcount = len(argnames) - 1
-
-        return f(self, *argvalues)
-
-    return g
 
 ########################################################################
 # Code ripped with permission from deanx's polenum tool,               #
@@ -597,14 +591,15 @@ class SMBShell(cmd.Cmd, object):
             try:
                 cmd.Cmd.cmdloop(self)
             except SessionError, e:
+                #traceback.print_exc()
                 logger.error('SMB error: %s' % (e.getErrorString(), ))
             except keimpxError, e:
                 logger.error(e)
             except KeyboardInterrupt, _:
+                print
                 self.do_exit('')
             except Exception, e:
-                import traceback
-                traceback.print_exc()
+                #traceback.print_exc()
                 logger.error(str(e))
 
     def __connect(self):
@@ -659,7 +654,7 @@ pwd - shows current remote directory
 ls {path} - lists all the files in the current directory
 cat {file} - display content of the selected file
 download {filename} [destfile] - downloads the filename from the current path
-upload {filename} [destfile] [share] - uploads the filename into a remote share (or current path)
+upload {filename} [destfile] - uploads the filename into a remote share (or current path)
 rename {srcfile} {destfile} - rename a file
 mkdir {dirname} - creates the directory under the current path
 rm {file} - removes the selected file
@@ -695,6 +690,13 @@ bindshell [port] - spawn a shell listening on a TCP port on the target
       If the target is behind a strict firewall it may not work.
 svcshell [mode] [share] - semi-interactive shell
       TODO: add description.
+atexec {command} - executes a command through the Task Scheduler service
+      Returns the output of such command. No interactive shell, one command
+      at a time.
+psexec [command] - executes a command through SMB named pipes
+      Same technique employed by Sysinternal's PsExec. The default command
+      is cmd.exe therefore an interactive shell is established. It employs
+      RemComSvc.
 '''
 
     def emptyline(self):
@@ -705,7 +707,6 @@ svcshell [mode] [share] - semi-interactive shell
         Execute a local command if the provided command is preceed by an
         exclamation mark
         '''
-
         process = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
         stdout, _ = process.communicate()
 
@@ -716,7 +717,6 @@ svcshell [mode] [share] - semi-interactive shell
         '''
         Disconnect the SMB session
         '''
-
         self.smb.logoff()
         sys.exit(0)
 
@@ -900,12 +900,20 @@ svcshell [mode] [share] - semi-interactive shell
         '''
         Download a file from the current path
         '''
-        self.__check_share()
-        filename = os.path.basename(filename)
+        if not destfile:
+            argvalues = shlex.split(filename)
 
-        if destfile:
-            destfile
-        else:
+            if len(argvalues) < 1:
+                raise missingOption, 'You have to specify at least the remote file name'
+            elif len(argvalues) > 1:
+                destfile = argvalues[1]
+
+            filename = argvalues[0]
+
+        filename = os.path.basename(filename)
+        self.__check_share()
+
+        if not destfile:
             destfile = filename
 
         fh = open(destfile, 'wb')
@@ -913,16 +921,26 @@ svcshell [mode] [share] - semi-interactive shell
         self.smb.getFile(self.share, filename, fh.write)
         fh.close()
 
-    def do_put(self, filename, destfile=None):
+    def do_put(self, pathname, destfile=None):
         '''
         Alias to upload
         '''
-        self.do_upload(filename, destfile)
+        self.do_upload(pathname, destfile)
 
     def do_upload(self, pathname, destfile=None):
         '''
         Upload a file in the current path
         '''
+        if not destfile:
+            argvalues = shlex.split(pathname)
+
+            if len(argvalues) < 1:
+                raise missingOption, 'You have to specify at least the local file name'
+            elif len(argvalues) > 1:
+                destfile = argvalues[1]
+
+            pathname = argvalues[0]
+
         try:
             fp = open(pathname, 'rb')
         except IOError:
@@ -931,25 +949,31 @@ svcshell [mode] [share] - semi-interactive shell
 
         self.__check_share()
 
-        if destfile is None:
+        if not destfile:
             destfile = os.path.basename(pathname)
             destfile = ntpath.join(self.pwd, self.__replace(destfile))
 
         self.smb.putFile(self.share, destfile, fp.read)
         fp.close()
 
-    @split
-    def do_mv(self, srcfile, destfile):
+    def do_mv(self, srcfile, destfile=None):
         '''
         Alias to rename
         '''
         self.do_rename(srcfile, destfile)
 
-    @split
-    def do_rename(self, srcfile, destfile):
+    def do_rename(self, srcfile, destfile=None):
         '''
         Rename a file
         '''
+        if not destfile:
+            argvalues = shlex.split(srcfile)
+
+            if len(argvalues) != 2:
+                raise missingOption, 'You have to specify source and destination file names'
+            else:
+                srcfile, destfile = argvalues
+                
         self.__check_share()
         srcfile = ntpath.join(self.pwd, self.__replace(srcfile))
         destfile = ntpath.join(self.pwd, self.__replace(destfile))
@@ -984,8 +1008,15 @@ svcshell [mode] [share] - semi-interactive shell
         '''
         Start a service.
         '''
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
+        if not srvargs:
+            argvalues = shlex.split(srvname)
+
+            if len(argvalues) < 1:
+                raise missingService, 'Service name has not been specified'
+            elif len(argvalues) > 1:
+                srvargs = argvalues[1]
+
+            srvname = argvalues[0]
 
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
@@ -1131,7 +1162,7 @@ svcshell [mode] [share] - semi-interactive shell
         self.__winreg_read()
         self.__winreg_disconnect()
 
-    def do_regwrite(self, reg_key, reg_value):
+    def do_regwrite(self, reg_key, reg_value=None):
         '''
         Write a value on a Windows registry key
         '''
@@ -2567,6 +2598,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print '\nBye bye!'
+        logger.info('User aborted')
+        sys.exit(1)
 
     sys.exit(0)
