@@ -571,10 +571,10 @@ class SMBShell(cmd.Cmd, object):
 
         self.tid = None
         self.pwd = '\\'
-        self.share = None
-        self.sharesList = []
-        self.domainsDict = {}
-        self.usersList = set()
+        self.share = ''
+        self.shares_list = []
+        self.domains_dict = {}
+        self.users_list = set()
 
         self.__connect()
         logger.debug('Connection to host %s established' % self.__target.getIdentity())
@@ -765,15 +765,15 @@ psexec [command] - executes a command through SMB named pipes
             name = self.__resp[i]['NetName'].decode('utf-16')
             comment = self.__resp[i]['Remark'].decode('utf-16')
             count += 1
-            self.sharesList.append(name)
+            self.shares_list.append(name)
 
             print '[%d] %s (comment: %s)' % (count, name, comment)
 
         msg = 'Which share do you want to connect to? (default: 1) '
-        limit = len(self.sharesList)
+        limit = len(self.shares_list)
         choice = read_input(msg, limit)
 
-        self.do_use(self.sharesList[choice-1])
+        self.do_use(self.shares_list[choice-1])
 
     def do_use(self, share):
         '''
@@ -839,7 +839,7 @@ psexec [command] - executes a command through SMB named pipes
         Display the current path
         '''
 
-        print self.pwd
+        print ntpath.join(self.share, self.pwd)
 
     def do_dir(self, path):
         '''
@@ -849,7 +849,7 @@ psexec [command] - executes a command through SMB named pipes
 
     def do_ls(self, path):
         '''
-        List files from the current/provided path
+        List files from the current path
         '''
         self.__check_share()
 
@@ -1543,7 +1543,7 @@ psexec [command] - executes a command through SMB named pipes
 
         encoding = sys.getdefaultencoding()
 
-        for domain_name, domain in self.domainsDict.items():
+        for domain_name, domain in self.domains_dict.items():
             if usrdomain and usrdomain.upper() != domain_name.upper():
                 continue
 
@@ -1573,7 +1573,7 @@ psexec [command] - executes a command through SMB named pipes
                     if r.get_return_code() == 0:
                         info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
                         entry = (uname, uid, info)
-                        self.usersList.add(entry)
+                        self.users_list.add(entry)
                         c = self.__samr.closerequest(r.get_context_handle())
 
                 # Do we have more users?
@@ -1582,13 +1582,13 @@ psexec [command] - executes a command through SMB named pipes
                 else:
                     done = True
 
-            if self.usersList:
-                num = len(self.usersList)
+            if self.users_list:
+                num = len(self.users_list)
                 logger.info('Retrieved %d user%s' % (num, 's' if num > 1 else ''))
             else:
                 logger.info('No users enumerated')
 
-            for entry in self.usersList:
+            for entry in self.users_list:
                 user, uid, info = entry
 
                 print user
@@ -1645,7 +1645,7 @@ psexec [command] - executes a command through SMB named pipes
                     if name:
                         print '  %s: %s' % (i, name)
 
-            self.usersList = set()
+            self.users_list = set()
 
     def __samr_pswpolicy(self, usrdomain=None):
         '''
@@ -1655,7 +1655,7 @@ psexec [command] - executes a command through SMB named pipes
 
         encoding = sys.getdefaultencoding()
 
-        for domain_name, domain in self.domainsDict.items():
+        for domain_name, domain in self.domains_dict.items():
             if usrdomain and usrdomain.upper() != domain_name.upper():
                 continue
 
@@ -1689,8 +1689,8 @@ psexec [command] - executes a command through SMB named pipes
             domain = domains[domain]
             domain_name = domain.get_name()
 
-            if domain_name not in self.domainsDict:
-                self.domainsDict[domain_name] = domain
+            if domain_name not in self.domains_dict:
+                self.domains_dict[domain_name] = domain
 
             if display is True:
                 print '  %s' % domain_name
