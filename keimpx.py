@@ -632,9 +632,6 @@ class SMBShell(cmd.Cmd, object):
         return value.replace('/', '\\')
 
     def __check_share(self, share=None):
-        print "self.tid:", self.tid
-        print "self.share:", self.share
-        print "share:", share
         if share:
             self.do_use(share)
         elif not share and (self.share is None or self.tid is None):
