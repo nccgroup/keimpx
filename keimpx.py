@@ -1324,7 +1324,6 @@ psexec [command] - executes a command through SMB named pipes
         self.__check_share(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
-        print "remote_file:", remote_file
         self.do_rm(remote_file)
 
     def __svcctl_create(self, srvname, remote_file, displayname=None):
