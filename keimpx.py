@@ -992,7 +992,6 @@ psexec [command] - executes a command through SMB named pipes
         Remove a file in the current share
         '''
         self.__check_share()
-
         filename = ntpath.join(self.pwd, self.__replace(filename))
         self.smb.deleteFile(self.share, filename)
 
@@ -1035,16 +1034,32 @@ psexec [command] - executes a command through SMB named pipes
         self.__svcctl_stop(srvname)
         self.__svcctl_disconnect(srvname)
 
-    def do_deploy(self, srvname, local_file, srvargs='', remote_file=None, displayname=None):
+    def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
         '''
         Deploy a Windows service: upload the service executable to the
         file system, create a service as 'Automatic' and start it
+
+        Sample command:
+        deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe 'long name'
         '''
-        if not srvname:
+        argvalues = shlex.split(srvname)
+
+        if len(argvalues) < 1:
             raise missingService, 'Service name has not been specified'
 
+        srvname = argvalues[0]
+
         if not local_file:
-            raise missingFile, 'Service file %s has not been specified' % local_file
+            if len(argvalues) < 2:
+                raise missingFile, 'Service file %s has not been specified' % local_file
+            if len(argvalues) >= 5:
+                displayname = argvalues[4]
+            if len(argvalues) >= 4:
+                remote_file = argvalues[3]
+            if len(argvalues) >= 3:
+                srvargs = argvalues[2]
+            if len(argvalues) >= 2:
+                local_file = argvalues[1]
 
         if not os.path.exists(local_file):
             raise missingFile, 'Service file %s does not exist' % local_file
@@ -1309,6 +1324,7 @@ psexec [command] - executes a command through SMB named pipes
         self.__check_share(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
+        print "remote_file:", remote_file
         self.do_rm(remote_file)
 
     def __svcctl_create(self, srvname, remote_file, displayname=None):
