@@ -107,7 +107,7 @@ try:
     from impacket.smbconnection import SMB_DIALECT
     from impacket.smbconnection import SMBConnection
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n\n\tsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n\tcd impacket\n\tpython setup.py build\n\tsudo python setup.py install')
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n$ svn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n$ cd impacket\n$ python setup.py build\n$ sudo python setup.py install\n')
     sys.exit(255)
 
 added_credentials = set()
@@ -1063,7 +1063,7 @@ regdelete {registry key} - delete a registry key
 
         self.deploy(srvname, local_file, port, remote_file)
 
-        logger.debug('Connecting to backdoor on port %d, wait..' % port)
+        logger.info('Connecting to backdoor on port %d, wait..' % port)
 
         for counter in xrange(0, 3):
             try:
@@ -1091,7 +1091,7 @@ regdelete {registry key} - delete a registry key
                 break
 
         time.sleep(1)
-        self.undeploy(srvname, remote_file)
+        self.undeploy(srvname)
 
     def users(self, usrdomain=None):
         '''
@@ -1242,30 +1242,30 @@ regdelete {registry key} - delete a registry key
         print 'TYPE              : %2d - ' % resp['QueryConfig']['ServiceType'],
 
         if resp['QueryConfig']['ServiceType'] & 0x1:
-            print "SERVICE_KERNLE_DRIVER"
+            print 'SERVICE_KERNLE_DRIVER'
         if resp['QueryConfig']['ServiceType'] & 0x2:
-            print "SERVICE_FILE_SYSTEM_DRIVER"
+            print 'SERVICE_FILE_SYSTEM_DRIVER'
         if resp['QueryConfig']['ServiceType'] & 0x10:
-            print "SERVICE_WIN32_OWN_PROCESS"
+            print 'SERVICE_WIN32_OWN_PROCESS'
         if resp['QueryConfig']['ServiceType'] & 0x20:
-            print "SERVICE_WIN32_SHARE_PROCESS"
+            print 'SERVICE_WIN32_SHARE_PROCESS'
         if resp['QueryConfig']['ServiceType'] & 0x100:
-            print "SERVICE_INTERACTIVE_PROCESS"
+            print 'SERVICE_INTERACTIVE_PROCESS'
 
         print 'START_TYPE        : %2d - ' % resp['QueryConfig']['StartType'],
 
         if resp['QueryConfig']['StartType'] == 0x0:
-            print "BOOT START"
+            print 'BOOT START'
         elif resp['QueryConfig']['StartType'] == 0x1:
-            print "SYSTEM START"
+            print 'SYSTEM START'
         elif resp['QueryConfig']['StartType'] == 0x2:
-            print "AUTO START"
+            print 'AUTO START'
         elif resp['QueryConfig']['StartType'] == 0x3:
-            print "DEMAND START"
+            print 'DEMAND START'
         elif resp['QueryConfig']['StartType'] == 0x4:
-            print "DISABLED"
+            print 'DISABLED'
         else:
-            print "UNKOWN"
+            print 'UNKOWN'
 
         print 'ERROR_CONTROL     : %2d - ' % resp['QueryConfig']['ErrorControl'],
 
@@ -1280,12 +1280,12 @@ regdelete {registry key} - delete a registry key
         else:
             print 'UNKOWN'
 
-        print "BINARY_PATH_NAME  : %s" % resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
-        print "LOAD_ORDER_GROUP  : %s" % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
-        print "TAG               : %d" % resp['QueryConfig']['TagID']
-        print "DISPLAY_NAME      : %s" % resp['QueryConfig']['DisplayName'].decode('utf-16le')
-        print "DEPENDENCIES      : %s" % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/',' - ')
-        print "SERVICE_START_NAME: %s" % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
+        print 'BINARY_PATH_NAME  : %s' % resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
+        print 'LOAD_ORDER_GROUP  : %s' % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
+        print 'TAG               : %d' % resp['QueryConfig']['TagID']
+        print 'DISPLAY_NAME      : %s' % resp['QueryConfig']['DisplayName'].decode('utf-16le')
+        print 'DEPENDENCIES      : %s' % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/',' - ')
+        print 'SERVICE_START_NAME: %s' % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
 
     def __svcctl_parse_status(self, status):
         if status == svcctl.SERVICE_CONTINUE_PENDING:
@@ -1405,24 +1405,20 @@ regdelete {registry key} - delete a registry key
         Connect to samr named pipe
         '''
         logger.debug('Connecting to the SAMR named pipe')
-
         self.__smb_transport('samr')
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
         self.__dce = dcerpc.DCERPC_v5(self.trans)
         self.__dce.bind(MSRPC_UUID_SAMR)
         self.__samr = DCERPCSamr(self.__dce)
-
-        resp = self.__samr.connect()
-        self.__rpcerror(resp.get_return_code())
-
-        self.__mgr_handle = resp.get_context_handle()
+        self.__resp = self.__samr.connect()
+        self.__rpcerror(self.__resp.get_return_code())
+        self.__mgr_handle = self.__resp.get_context_handle()
 
     def __samr_disconnect(self):
         '''
         Disconnect from samr named pipe
         '''
-
         logger.debug('Disconneting from the SAMR named pipe')
 
         if self.__mgr_handle:
@@ -1435,7 +1431,6 @@ regdelete {registry key} - delete a registry key
         '''
         Enumerate users on the system
         '''
-
         self.__samr_domains(False)
 
         encoding = sys.getdefaultencoding()
@@ -1457,26 +1452,31 @@ regdelete {registry key} - delete a registry key
             resp = self.__samr.enumusers(self.__domain_context_handle)
             self.__rpcerror(resp.get_return_code())
 
-            for user in resp.get_users().elements():
-                uname = user.get_name().encode(encoding, 'replace')
-                uid = user.get_id()
+            done = False
 
-                r = self.__samr.openuser(self.__domain_context_handle, uid)
-                logger.debug('Found user %s (UID: %d)' % (uname, uid))
+            while done is False:
+                for user in resp.get_users().elements():
+                    uname = user.get_name().encode(encoding, 'replace')
+                    uid = user.get_id()
 
-                if r.get_return_code() == 0:
-                    info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
-                    entry = (uname, uid, info)
-                    self.usersList.add(entry)
-                    c = self.__samr.closerequest(r.get_context_handle())
+                    r = self.__samr.openuser(self.__domain_context_handle, uid)
+                    logger.debug('Found user %s (UID: %d)' % (uname, uid))
+
+                    if r.get_return_code() == 0:
+                        info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
+                        entry = (uname, uid, info)
+                        self.usersList.add(entry)
+                        c = self.__samr.closerequest(r.get_context_handle())
+
+                # Do we have more users?
+                if resp.get_return_code() == 0x105:
+                    resp = self.__samr.enumusers(self.__domain_context_handle, resp.get_resume_handle())
+                else:
+                    done = True
 
             if self.usersList:
                 num = len(self.usersList)
-
-                if num == 1:
-                    logger.info('Enumerated one user')
-                else:
-                    logger.info('Enumerated %d user' % num)
+                logger.info('Retrieved %d user%s' % (num, 's' if num > 1 else ''))
             else:
                 logger.info('No users enumerated')
 
@@ -1543,7 +1543,6 @@ regdelete {registry key} - delete a registry key
         '''
         Enumerate password policy on the system
         '''
-
         self.__samr_domains(False)
 
         encoding = sys.getdefaultencoding()
@@ -1569,12 +1568,10 @@ regdelete {registry key} - delete a registry key
         '''
         Enumerate domains to which the system is part of
         '''
-
         logger.info('Enumerating domains')
 
         resp = self.__samr.enumdomains(self.__mgr_handle)
         self.__rpcerror(resp.get_return_code())
-
         domains = resp.get_domains().elements()
 
         if display is True:
