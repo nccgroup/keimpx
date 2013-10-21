@@ -461,10 +461,10 @@ class SvcShell(cmd.Cmd):
         self.__outputBuffer = ''
         self.__command = ''
         self.__shell = '%COMSPEC% /Q /c'
-        self.__serviceName = ''.join([random.choice(string.letters) for _ in range(8)]).encode('utf-16le')
+        self.__service_name = ''.join([random.choice(string.letters) for _ in range(8)]).encode('utf-16le')
 
         logger.info('Launching semi-interactive shell')
-        logger.debug('Going to use temporary service %s' % self.__serviceName)
+        logger.debug('Going to use temporary service %s' % self.__service_name)
 
         s = rpc.get_smb_connection()
 
@@ -525,7 +525,7 @@ class SvcShell(cmd.Cmd):
 
         logger.debug('Creating service with executable path: %s' % command)
 
-        resp = self.__svc.CreateServiceW(self.__mgr_handle, self.__serviceName, self.__serviceName, command.encode('utf-16le'))
+        resp = self.__svc.CreateServiceW(self.__mgr_handle, self.__service_name, self.__service_name, command.encode('utf-16le'))
         service = resp['ContextHandle']
 
         try:
@@ -597,6 +597,7 @@ class SMBShell(cmd.Cmd, object):
                 logger.error(e)
             except KeyboardInterrupt, _:
                 print
+                logger.info('User aborted')
                 self.do_exit('')
             except Exception, e:
                 #traceback.print_exc()
@@ -862,7 +863,7 @@ psexec [command] - executes a command through SMB named pipes
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(self.share, pwd):
-           print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
+            print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
     def do_cat(self, filename):
         '''
@@ -1240,12 +1241,21 @@ psexec [command] - executes a command through SMB named pipes
 
                     if counter < 2:
                         warn_msg += ', retrying..'
-
-                    logger.warn(warn_msg)
+                        logger.warn(warn_msg)
+                    else:
+                        logger.error(warn_msg)
+            except SessionError, e:
+                #traceback.print_exc()
+                logger.error('SMB error: %s' % (e.getErrorString(), ))
+            except KeyboardInterrupt, _:
+                print
+                logger.info('User aborted')
             except Exception, e:
                 logger.error(str(e))
 
             if connected is True:
+                tn.close()
+                sys.stdout.flush()
                 break
 
         time.sleep(1)
@@ -1257,8 +1267,20 @@ psexec [command] - executes a command through SMB named pipes
         '''
 
         self.__svcctl_connect()
-        self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, 'SHARE')
-        self.shell.cmdloop()
+
+        try:
+            self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, 'SHARE')
+            self.shell.cmdloop()
+        except SessionError, e:
+            #traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+        except KeyboardInterrupt, _:
+            print
+            logger.info('User aborted')
+        except Exception, e:
+            logger.error(str(e))
+
+        sys.stdout.flush()
         self.__svcctl_disconnect()
 
     def __smb_transport(self, named_pipe):
@@ -1488,7 +1510,7 @@ psexec [command] - executes a command through SMB named pipes
         services.sort()
 
         for service in services:
-            print '%s (%s): %-80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
+            print '%s (%s): %80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
 
         return len(services)
 
@@ -2361,15 +2383,11 @@ def set_targets():
     logger.info('Loaded %s unique target%s' % (len(targets), 's' if len(targets) > 1 else ''))
 
 def set_verbosity(level=None):
-    if level is not None:
+    if isinstance(level, (int, float)):
         conf.verbose = int(level)
-
-    if conf.verbose is None:
-        conf.verbose = 0
-
-    conf.verbose = int(conf.verbose)
-
-    if conf.verbose == 1:
+    elif level and level.isdigit():
+        conf.verbose = int(level)
+    elif conf.verbose == 1:
         logger.setLevel(logging.INFO)
     elif conf.verbose > 1:
         conf.verbose = 2
@@ -2483,14 +2501,15 @@ def main():
             pass
 
     except KeyboardInterrupt:
+        print
         try:
             logger.warn('Test interrupted, waiting for threads to finish')
 
             while (threading.activeCount() > 1):
                 a = 'Caughtit'
                 pass
-
         except KeyboardInterrupt:
+            print
             logger.info('User aborted')
             sys.exit(1)
 
@@ -2613,6 +2632,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
+        print
         logger.info('User aborted')
         sys.exit(1)
 
