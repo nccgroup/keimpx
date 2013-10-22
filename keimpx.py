@@ -606,14 +606,12 @@ class SMBShell(cmd.Cmd, object):
         '''
         Connect the SMB session
         '''
-
         self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
 
     def __login(self):
         '''
         Login over the SMB session
         '''
-
         try:
             self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
         except socket.error, e:
@@ -1278,6 +1276,7 @@ psexec [command] - executes a command through SMB named pipes
             print
             logger.info('User aborted')
         except Exception, e:
+            #traceback.print_exc()
             logger.error(str(e))
 
         sys.stdout.flush()
