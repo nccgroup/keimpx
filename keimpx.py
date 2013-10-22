@@ -1522,7 +1522,7 @@ psexec [command] - executes a command through SMB named pipes
         services.sort()
 
         for service in services:
-            print '%s (%s): %80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
+            print '%s (%s): %-80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
 
         return len(services)
 
@@ -1876,17 +1876,6 @@ class test_login(Thread):
     def logoff(self):
         self.smb.logoff()
 
-    def test_bogus_domain(self, user, password, lmhash, nthash, domain):
-        try:
-            self.connect()
-            self.login(user, password, lmhash, nthash, ''.join(random.choice(string.ascii_letters) for _ in range(8)))
-            self.logoff()
-
-            logger.debug('%s accepts bogus domain for user %s with provided credentials' % (self.__target_id, user))
-            return True
-        except SessionError, _:
-            return False
-
     def run(self):
         global pool_thread
         global successes
@@ -1912,12 +1901,6 @@ class test_login(Thread):
                         user_str = user
 
                     try:
-                        accepts_bogus_domain = self.test_bogus_domain(user, password, lmhash, nthash, domain)
-
-                        if accepts_bogus_domain:
-                            domain = ''
-                            user_str = user
-
                         self.connect()
                         self.login(user, password, lmhash, nthash, domain)
                         self.logoff()
@@ -1926,6 +1909,10 @@ class test_login(Thread):
                             logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
                             return
                         else:
+                            if self.smb.getServerDomain().upper() != domain.upper() and self.smb.getServerName().upper() != domain.upper():
+                                domain = ''
+                                user_str = user
+
                             logger.info('Successful login for %s with %s on %s' % (user_str, password_str, self.__target_id))
 
                         status = True
@@ -1937,7 +1924,7 @@ class test_login(Thread):
                     credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code)
                     self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code)
 
-                    if status is True or accepts_bogus_domain:
+                    if status is True:
                         break
 
             logger.info('Assessment on host %s finished' % self.__target.getIdentity())
