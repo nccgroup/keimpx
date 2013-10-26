@@ -55,6 +55,7 @@ __version__ = '0.3-dev'
 
 import binascii
 import cmd
+import ConfigParser
 import inspect
 import logging
 import os
@@ -96,8 +97,9 @@ except ImportError:
         have_readline = False
 
 try:
-    from impacket import nt_errors
     from impacket import ImpactPacket
+    from impacket import nt_errors
+    from impacket import smbserver
     from impacket.nmb import NetBIOSTimeout
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import transport
@@ -445,6 +447,66 @@ class DCERPCSamr:
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
+class SMBServer(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.__smbserver_dir = 'svcshell'
+        self.__smbserver_share = 'KEIMPX'
+
+    def cleanup_server(self):
+        logger.debug('Cleaning up local SMB server..')
+        os.unlink(self.__smbserver_dir + '/smb.log')
+        os.rmdir(self.__smbserver_dir)
+
+    def run(self):
+        # Here we write a mini config for the server
+        smbConfig = ConfigParser.ConfigParser()
+        smbConfig.add_section('global')
+        smbConfig.set('global','server_name','server_name')
+        smbConfig.set('global','server_os','UNIX')
+        smbConfig.set('global','server_domain','WORKGROUP')
+        smbConfig.set('global','log_file',self.__smbserver_dir + '/smb.log')
+        smbConfig.set('global','credentials_file','')
+
+        # Let's add a dummy share
+        smbConfig.add_section(self.__smbserver_share)
+        smbConfig.set(self.__smbserver_share,'comment','')
+        smbConfig.set(self.__smbserver_share,'read only','no')
+        smbConfig.set(self.__smbserver_share,'share type','0')
+        smbConfig.set(self.__smbserver_share,'path',self.__smbserver_dir)
+
+        # IPC always needed
+        smbConfig.add_section('IPC$')
+        smbConfig.set('IPC$','comment','')
+        smbConfig.set('IPC$','read only','yes')
+        smbConfig.set('IPC$','share type','3')
+        smbConfig.set('IPC$','path')
+
+        self.smb = smbserver.SMBSERVER(('0.0.0.0', 445), config_parser = smbConfig)
+
+        logger.debug('Creating tmp directory')
+
+        try:
+            os.mkdir(self.__smbserver_dir)
+        except Exception, e:
+            print e
+            pass
+
+        logger.info('Setting up SMB Server')
+        self.smb.processConfigFile()
+        logger.debug('Ready to listen...')
+
+        try:
+            self.smb.serve_forever()
+        except:
+            pass
+
+    def stop(self):
+        self.cleanup_server()
+        self.smb.socket.close()
+        self.smb.server_close()
+        self._Thread__stop()
+
 class SvcShell(cmd.Cmd):
     def __init__(self, svc, mgr_handle, rpc, mode):
         cmd.Cmd.__init__(self)
@@ -458,7 +520,7 @@ class SvcShell(cmd.Cmd):
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
         self.__batchFile = ntpath.join('%TEMP%', self.__batch_filename)
         self.__smbserver_dir = 'svcshell'
-        self.__smbserver_share = 'tmp'
+        self.__smbserver_share = 'KEIMPX'
         self.__outputBuffer = ''
         self.__command = ''
         self.__shell = '%COMSPEC% /Q /c'
@@ -472,7 +534,7 @@ class SvcShell(cmd.Cmd):
         # We don't wanna deal with timeouts from now on
         s.setTimeout(100000)
 
-        if mode == 'SERVER':
+        if self.__mode == 'SERVER':
             myIPaddr = s.getSMBServer().get_socket().getsockname()[0]
             self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output, myIPaddr, self.__smbserver_share)
 
@@ -563,7 +625,7 @@ class SMBShell(cmd.Cmd, object):
         self.__nthash = credential.getNThash()
         self.__domain = credential.getDomain()
 
-        self.__destfile = '*SMBSERVER'
+        self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = conf.name
 
         self.__timeout = 3
@@ -1267,8 +1329,17 @@ psexec [command] - executes a command through SMB named pipes
         self.__svcctl_connect()
 
         try:
+            if mode == 'SERVER':
+                serverThread = SMBServer()
+                serverThread.daemon = True
+                serverThread.start()
+
             self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
             self.shell.cmdloop()
+
+            if mode == 'SERVER':
+                serverThread.stop()
+
         except SessionError, e:
             #traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
@@ -1862,7 +1933,7 @@ class test_login(Thread):
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
         self.__target_id = self.__target.getIdentity()
-        self.__destfile = '*SMBSERVER'
+        self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = conf.name
         self.__timeout = 3
 
