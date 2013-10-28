@@ -83,15 +83,11 @@ from telnetlib import Telnet
 from threading import Thread
 
 try:
-    from readline import *
-    import readline as _rl
-
+    import pyreadline as readline
     have_readline = True
 except ImportError:
     try:
-        from pyreadline import *
-        import pyreadline as _rl
-
+        import readline
         have_readline = True
     except ImportError:
         have_readline = False
@@ -636,6 +632,7 @@ class SMBShell(cmd.Cmd, object):
         self.shares_list = []
         self.domains_dict = {}
         self.users_list = set()
+        self.completion = []
 
         self.__connect()
         logger.debug('Connection to host %s established' % self.__target.getIdentity())
@@ -855,6 +852,10 @@ psexec [command] - executes a command through SMB named pipes
         self.share = share.strip('\x00')
         self.tid = self.smb.connectTree(self.share)
         self.pwd = '\\'
+        self.do_ls('', False)
+
+    def complete_cd(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=2)
 
     def do_cd(self, path):
         '''
@@ -913,7 +914,7 @@ psexec [command] - executes a command through SMB named pipes
         '''
         self.do_ls(path)
 
-    def do_ls(self, path):
+    def do_ls(self, path, display=True):
         '''
         List files from the current path
         '''
@@ -924,11 +925,18 @@ psexec [command] - executes a command through SMB named pipes
         else:
            pwd = ntpath.join(self.pwd, path)
 
+        self.completion = []
         pwd = self.__replace(pwd)
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(self.share, pwd):
-            print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
+            if display is True:
+                print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
+
+            self.completion.append((f.get_longname(),f.is_directory()))
+
+    def complete_cat(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
 
     def do_cat(self, filename):
         '''
@@ -956,11 +964,38 @@ psexec [command] - executes a command through SMB named pipes
 
         self.smb.closeFile(self.tid, self.fid)
 
+    def complete_get(self, text, line, begidx, endidx, include=1):
+        # include means
+        # 0 all files and directories
+        # 1 just files
+        # 2 just directories
+        p = string.replace(line, '/', '\\')
+
+        if p.find('\\') < 0:
+            items = []
+
+            if include == 1:
+                mask = 0
+            else:
+                mask = 0x010
+
+            for i in self.completion:
+                if i[1] == mask or include == 0:
+                    items.append(i[0])
+
+            if text:
+                return [item for item in items if item.upper().startswith(text.upper())]
+            else:
+                return items
+
     def do_get(self, filename, destfile=None):
         '''
         Alias to download
         '''
         self.do_download(filename, destfile)
+
+    def complete_download(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
 
     def do_download(self, filename, destfile=None):
         '''
@@ -1053,6 +1088,9 @@ psexec [command] - executes a command through SMB named pipes
         path = ntpath.join(self.pwd, self.__replace(path))
         self.smb.createDirectory(self.share, path)
 
+    def complete_rm(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
+
     def do_rm(self, filename):
         '''
         Remove a file in the current share
@@ -1060,6 +1098,9 @@ psexec [command] - executes a command through SMB named pipes
         self.__check_share()
         filename = ntpath.join(self.pwd, self.__replace(filename))
         self.smb.deleteFile(self.share, filename)
+
+    def complete_rmdir(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=2)
 
     def do_rmdir(self, path):
         '''
@@ -2656,12 +2697,9 @@ def main():
 
     if mswindows is True and have_readline:
         try:
-            _outputfile = _rl.GetOutputFile()
+            _outputfile = readline.GetOutputFile()
         except AttributeError:
-            debugMsg  = 'Failed GetOutputFile when using platform\'s '
-            debugMsg += 'readline library'
-            logger.debug(debugMsg)
-
+            logger.debug('Failed GetOutputFile when using platform\'s readline library')
             have_readline = False
 
     uses_libedit = False
@@ -2669,25 +2707,16 @@ def main():
     if sys.platform.lower() == 'darwin' and have_readline:
         import commands
 
-        (status, result) = commands.getstatusoutput('otool -L %s | grep libedit' % _rl.__file__)
+        (status, result) = commands.getstatusoutput('otool -L %s | grep libedit' % readline.__file__)
 
         if status == 0 and len(result) > 0:
-            _rl.parse_and_bind('bind ^I rl_complete')
+            readline.parse_and_bind('bind ^I rl_complete')
 
             debugMsg  = 'Leopard libedit detected when using platform\'s '
             debugMsg += 'readline library'
             logger.debug(debugMsg)
 
             uses_libedit = True
-
-    if have_readline:
-        try:
-            _rl.clear_history
-        except AttributeError:
-            def clear_history():
-                pass
-
-            _rl.clear_history = clear_history
 
     try:
         shell = SMBShell(user_target, user_credentials)
