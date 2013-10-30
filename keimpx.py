@@ -721,9 +721,10 @@ Services options
 ================
 services [service name] - list services
 status {service name} - query the status of a service
+query {service name} - list the configuration of a service
 start {service name} - start a service
 stop {service name} - stop a service
-query {service name} - display the information of a service
+change {service name} - change the configuration of a service (in progress)
 deploy {service name} {local file} [service args] [remote file] [displayname] - deploy remotely a service executable
 undeploy {service name} - undeploy remotely a service executable
 
@@ -753,10 +754,10 @@ svcshell [mode] - semi-interactive shell through a custom Windows Service
       SMB server is instantiated to receive the output of the commands. This
       is useful in the situation where the target machine does not have a
       writeable share available - no extra ports are required.
-atexec {command} - executes a command through the Task Scheduler service
+atexec {command} - executes a command through the Task Scheduler service (in progress)
       Returns the output of such command. No interactive shell, one command
       at a time - no extra ports are required.
-psexec [command] - executes a command through SMB named pipes
+psexec [command] - executes a command through SMB named pipes (in progress)
       Same technique employed by Sysinternal's PsExec. The default command
       is cmd.exe therefore an interactive shell is established. It employs
       RemComSvc - no extra ports are required.
@@ -794,7 +795,7 @@ psexec [command] - executes a command through SMB named pipes
         self.__smb_transport('srvsvc')
 
         logger.debug('Binding on Server Service (SRVSVC) interface')
-        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
         self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
         self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
@@ -1110,6 +1111,29 @@ psexec [command] - executes a command through SMB named pipes
         path = ntpath.join(self.pwd, self.__replace(path))
         self.smb.deleteDirectory(self.share, path)
 
+    def do_services(self, srvname):
+        self.__svcctl_connect()
+        self.__svcctl_list(srvname)
+        self.__svcctl_disconnect()
+
+    def do_status(self, srvname):
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_status(srvname)
+        self.__svcctl_disconnect()
+
+    def do_query(self, srvname):
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_config(srvname)
+        self.__svcctl_disconnect()
+
     def do_start(self, srvname, srvargs=''):
         '''
         Start a service.
@@ -1139,6 +1163,18 @@ psexec [command] - executes a command through SMB named pipes
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_stop(srvname)
+        self.__svcctl_disconnect(srvname)
+
+    def do_change(self, srvname):
+        '''
+        Change the configuration of a service.
+        '''
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.__svcctl_connect()
+        self.__svcctl_srv_manager(srvname)
+        self.__svcctl_change(srvname)
         self.__svcctl_disconnect(srvname)
 
     def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
@@ -1221,29 +1257,6 @@ psexec [command] - executes a command through SMB named pipes
         self.__svcctl_disconnect(srvname)
         self.__svcctl_bin_remove(remote_file)
         self.pwd = self.__oldpwd
-
-    def do_services(self, srvname):
-        self.__svcctl_connect()
-        self.__svcctl_list(srvname)
-        self.__svcctl_disconnect()
-
-    def do_status(self, srvname):
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_status(srvname)
-        self.__svcctl_disconnect()
-
-    def do_query(self, srvname):
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_config(srvname)
-        self.__svcctl_disconnect()
 
     def do_users(self, usrdomain):
         '''
@@ -1433,7 +1446,7 @@ psexec [command] - executes a command through SMB named pipes
         self.__smb_transport('svcctl')
 
         logger.debug('Binding on Services Control Manager (SCM) interface')
-        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(svcctl.MSRPC_UUID_SVCCTL)
         self.__svc = svcctl.DCERPCSvcCtl(self.__dce)
         self.__resp = self.__svc.OpenSCManagerW()
@@ -1611,6 +1624,14 @@ psexec [command] - executes a command through SMB named pipes
         self.__svc.StopService(self.__svc_handle)
         self.__svcctl_status(srvname)
 
+    def __svcctl_change(self, srvname):
+        '''
+        Change the configuration of a service
+        '''
+
+        # TODO
+        self.__svc.ChangeServiceConfigW(self.__svc_handle, display, path, service_type, start_type, start_name, password)
+
     def __svcctl_list_parse(self, srvname, resp):
         '''
         Parse list of services
@@ -1661,7 +1682,7 @@ psexec [command] - executes a command through SMB named pipes
         self.__smb_transport('samr')
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
-        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(MSRPC_UUID_SAMR)
         self.__samr = DCERPCSamr(self.__dce)
         self.__resp = self.__samr.connect()
@@ -1850,7 +1871,7 @@ psexec [command] - executes a command through SMB named pipes
         self.__smb_transport('winreg')
 
         logger.debug('Binding on Windows registry (WINREG) interface')
-        self.__dce = dcerpc.DCERPC_v5(self.trans)
+        self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(winreg.MSRPC_UUID_WINREG)
         self.__winreg = winreg.DCERPCWinReg(self.__dce)
 
