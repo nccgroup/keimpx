@@ -1506,6 +1506,30 @@ class InteractiveShell(cmd.Cmd):
     def emptyline(self):
         pass
 
+    def complete_files(self, text, line, begidx, endidx, include=1):
+        # include means
+        # 0 all files and directories
+        # 1 just files
+        # 2 just directories
+        p = string.replace(line, '/', '\\')
+
+        if p.find('\\') < 0:
+            items = []
+
+            if include == 1:
+                mask = 0
+            else:
+                mask = 0x010
+
+            for i in self.smb_shell.completion:
+                if i[1] == mask or include == 0:
+                    items.append(i[0])
+
+            if text:
+                return [item for item in items if item.upper().startswith(text.upper())]
+            else:
+                return items
+
     def do_shell(self, cmd):
         '''
         Execute a local command if the provided command is preceed by an
@@ -1627,7 +1651,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.smb_shell.use(share)
 
     def complete_cd(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=2)
+        return self.complete_files(text, line, begidx, endidx, include=2)
 
     def do_cd(self, path):
         '''
@@ -1654,7 +1678,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.smb_shell.ls(path, display)
 
     def complete_cat(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
+        return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_cat(self, filename):
         '''
@@ -1662,29 +1686,8 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         '''
         self.smb_shell.cat(filename)
 
-    def complete_get(self, text, line, begidx, endidx, include=1):
-        # include means
-        # 0 all files and directories
-        # 1 just files
-        # 2 just directories
-        p = string.replace(line, '/', '\\')
-
-        if p.find('\\') < 0:
-            items = []
-
-            if include == 1:
-                mask = 0
-            else:
-                mask = 0x010
-
-            for i in self.smb_shell.completion:
-                if i[1] == mask or include == 0:
-                    items.append(i[0])
-
-            if text:
-                return [item for item in items if item.upper().startswith(text.upper())]
-            else:
-                return items
+    def complete_get(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_get(self, filename, destfile=None):
         '''
@@ -1693,7 +1696,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.do_download(filename, destfile)
 
     def complete_download(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
+        return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_download(self, filename, destfile=None):
         '''
@@ -1760,7 +1763,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.smb_shell.mkdir(path)
 
     def complete_rm(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
+        return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_rm(self, filename):
         '''
@@ -1769,7 +1772,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.smb_shell.rm(filename)
 
     def complete_rmdir(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=2)
+        return self.complete_files(text, line, begidx, endidx, include=2)
 
     def do_rmdir(self, path):
         '''
