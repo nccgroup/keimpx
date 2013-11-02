@@ -1252,17 +1252,15 @@ class SMBShell(SvcCtl, Samr):
         resp = self.__svc.NetrSessionEnum()
 
         for session in resp:
-            print "host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['HostName'], session['UserName'], session['Active'], session['IDLE'], session['Type'],session['Transport'] )
+            print "host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['HostName'].decode('utf-16le')[:-1], session['UserName'].decode('utf-16le')[:-1], session['Active'], session['IDLE'], session['Type'].decode('utf-16le')[:-1],session['Transport'].decode('utf-16le')[:-1] )
 
     def shares(self):
         self.__resp = self.smb.listShares()
         count = 0
 
         for i in range(len(self.__resp)):
-            #name = self.__resp[i]['NetName'].decode('utf-16')
-            #comment = self.__resp[i]['Remark'].decode('utf-16')
-            name = self.__resp[i]['NetName']
-            comment = self.__resp[i]['Remark']
+            name = self.__resp[i]['NetName'].decode('utf-16')
+            comment = self.__resp[i]['Remark'].decode('utf-16')
             count += 1
             self.shares_list.append(name)
 
