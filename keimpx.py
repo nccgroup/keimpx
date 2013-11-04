@@ -560,6 +560,9 @@ class SvcShell(cmd.Cmd):
             self.prompt = string.replace(self.__outputBuffer, '\r\n', '') + '>'
             self.__outputBuffer = ''
 
+    def __output_callback(self, data):
+        self.__outputBuffer += data
+
     def emptyline(self):
         return False
 
@@ -578,16 +581,13 @@ class SvcShell(cmd.Cmd):
         return True
 
     def get_output(self):
-        def output_callback(data):
-            self.__outputBuffer += data
-
         if self.__mode == 'SERVER':
             fd = open(self.__smbserver_dir + '/' + self.__output_file,'r')
-            output_callback(fd.read())
+            self.__output_callback(fd.read())
             fd.close()
             os.unlink(self.__smbserver_dir + '/' + self.__output_file)
         else:
-            self.transferClient.getFile(self.__share, self.__output, output_callback)
+            self.transferClient.getFile(self.__share, self.__output, self.__output_callback)
             self.transferClient.deleteFile(self.__share, self.__output)
 
     def execute_remote(self, data):
