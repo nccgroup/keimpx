@@ -1351,6 +1351,8 @@ class SMBShell(SvcCtl, Samr, AtSvc):
         for session in resp:
             print "host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['HostName'].decode('utf-16le')[:-1], session['UserName'].decode('utf-16le')[:-1], session['Active'], session['IDLE'], session['Type'].decode('utf-16le')[:-1],session['Transport'].decode('utf-16le')[:-1] )
 
+        self.__dce.disconnect()
+
     def shares(self):
         self.__resp = self.smb.listShares()
         count = 0
