@@ -442,6 +442,19 @@ class DCERPCSamr:
 
         return retVal
 
+def check_dialect(dialect):
+    if dialect == SMB_DIALECT:
+        return 'SMBv1'
+    elif dialect == SMB2_DIALECT_002:
+        return 'SMBv2.0'
+    elif dialect == SMB2_DIALECT_21:
+        return 'SMBv2.1'
+    else:
+        return 'SMBv3.0'
+
+def replace(value):
+    return value.replace('/', '\\')
+
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
@@ -505,6 +518,9 @@ class SMBServer(Thread):
         self.smb.server_close()
         self._Thread__stop()
 
+################################################################
+# Code borrowed and adapted from Impacket's smbexec.py example #
+################################################################
 class SvcShell(cmd.Cmd):
     def __init__(self, svc, mgr_handle, rpc, mode):
         cmd.Cmd.__init__(self)
@@ -601,19 +617,9 @@ class SvcShell(cmd.Cmd):
         print self.__outputBuffer
         self.__outputBuffer = ''
 
-def check_dialect(dialect):
-    if dialect == SMB_DIALECT:
-        return 'SMBv1'
-    elif dialect == SMB2_DIALECT_002:
-        return 'SMBv2.0'
-    elif dialect == SMB2_DIALECT_21:
-        return 'SMBv2.1'
-    else:
-        return 'SMBv3.0'
-
-def replace(value):
-    return value.replace('/', '\\')
-
+###############################################################
+# Code borrowed and adapted from Impacket's atexec.py example #
+###############################################################
 class AtSvc(object):
     def __init__(self):
         pass
@@ -698,7 +704,9 @@ class AtSvc(object):
         logger.debug('Disconneting from the ATSVC named pipe')
         self.__dce.disconnect()
 
-
+#################################################################
+# Code borrowed and adapted from Impacket's samrdump.py example #
+#################################################################
 class Samr(object):
     def __init__(self):
         pass
@@ -891,6 +899,9 @@ class Samr(object):
             if display is True:
                 print '  %s' % domain_name
 
+#################################################################
+# Code borrowed and adapted from Impacket's services.py example #
+#################################################################
 class SvcCtl(object):
     def __init__(self):
         pass
@@ -1227,9 +1238,9 @@ class SvcCtl(object):
 
         print '\nTotal services: %d\n' % num
 
-#######################
-# SMBShell main class #
-#######################
+#######################################################
+# Enhanced version of Impacket's smbclient.py example #
+#######################################################
 class SMBShell(SvcCtl, Samr, AtSvc):
     def __init__(self, target, credential, execute_commands=None):
         self.__target = target
@@ -1589,6 +1600,9 @@ class SMBShell(SvcCtl, Samr, AtSvc):
         time.sleep(1)
         self.undeploy(srvname)
 
+###############
+# Own code :) #
+###############
 class InteractiveShell(cmd.Cmd):
     def __init__(self, target, credential, execute_commands=None):
         '''
