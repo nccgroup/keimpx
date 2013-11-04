@@ -97,10 +97,12 @@ try:
     from impacket import nt_errors
     from impacket import smbserver
     from impacket.nmb import NetBIOSTimeout
+    from impacket.dcerpc import atsvc
     from impacket.dcerpc import dcerpc
-    from impacket.dcerpc import transport
+    from impacket.dcerpc import ndrutils
     from impacket.dcerpc import srvsvc
     from impacket.dcerpc import svcctl
+    from impacket.dcerpc import transport
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
     from impacket.smb3structs import SMB2_DIALECT_002, SMB2_DIALECT_21
@@ -612,6 +614,91 @@ def check_dialect(dialect):
 def replace(value):
     return value.replace('/', '\\')
 
+class AtSvc(object):
+    def __init__(self):
+        pass
+
+    def __output_callback(self, data):
+        print data
+
+    def atexec(self, command):
+        self.__command = command
+        self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
+
+        self.__atsvc_connect()
+
+        command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (self.__command, self.__tmpFileName)
+
+        logger.debug('Creating scheduled task with command: %s' % command)
+
+        # Check [MS-TSCH] Section 2.3.4
+        self.__atInfo = atsvc.AT_INFO()
+        self.__atInfo['JobTime']         = 0
+        self.__atInfo['DaysOfMonth']     = 0
+        self.__atInfo['DaysOfWeek']      = 0
+        self.__atInfo['Flags']           = 0
+        self.__atInfo['Command']         = ndrutils.NDRUniqueStringW()
+        self.__atInfo['Command']['Data'] = (command).encode('utf-16le')
+
+        resp = self.__at.NetrJobAdd(('\\\\%s'% self.trans.get_dip()), self.__atInfo)
+        jobId = resp['JobID']
+
+        # Switching context to TSS
+        self.__dce2 = self.__dce.alter_ctx(atsvc.MSRPC_UUID_TSS)
+
+        # Now atsvc should use that new context
+        self.__at = atsvc.DCERPCAtSvc(self.__dce2)
+
+        resp = self.__at.SchRpcRun('\\At%d' % jobId)
+        # On the first run, it takes a while the remote target to start executing the job
+        # so I'm setting this sleep.. I don't like sleeps.. but this is just an example
+        # Best way would be to check the task status before attempting to read the file
+        logger.debug('Wait...')
+        time.sleep(3)
+
+        # Switching back to the old ctx_id
+        self.__at = atsvc.DCERPCAtSvc(self.__dce)
+        resp = self.__at.NetrJobDel('\\\\%s'% self.trans.get_dip(), jobId, jobId)
+        self.__tmpFilePath = ntpath.join('Temp', self.__tmpFileName)
+        self.transferClient = self.trans.get_smb_connection()
+
+        while True:
+            try:
+                self.transferClient.getFile(self.share, self.__tmpFilePath, self.__output_callback)
+                break
+            except Exception, e:
+                if str(e).find('SHARING') > 0:
+                    time.sleep(3)
+                else:
+                    raise
+
+        self.transferClient.deleteFile(self.share, self.__tmpFilePath)
+        self.__atsvc_disconnect()
+
+    def __atsvc_connect(self):
+        '''
+        Connect to atsvc named pipe
+        '''
+        self.check_share(default_share)
+
+        logger.debug('Connecting to the ATSVC named pipe')
+        self.smb_transport('atsvc')
+
+        logger.debug('Binding on Task Manager (ATSVC) interface')
+        self.__dce = self.trans.get_dce_rpc()
+        self.__dce.set_credentials(*self.trans.get_credentials())
+        self.__dce.connect()
+        self.__dce.bind(atsvc.MSRPC_UUID_ATSVC)
+        self.__at = atsvc.DCERPCAtSvc(self.__dce)
+
+    def __atsvc_disconnect(self):
+        '''
+        Disconnect from samr named pipe
+        '''
+        logger.debug('Disconneting from the ATSVC named pipe')
+        self.__dce.disconnect()
+
+
 class Samr(object):
     def __init__(self):
         pass
@@ -889,7 +976,7 @@ class SvcCtl(object):
             if mode == 'SERVER':
                 serverThread.stop()
         except SessionError, e:
-            ##traceback.print_exc()
+            #traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
         except KeyboardInterrupt, _:
             print
@@ -1143,7 +1230,7 @@ class SvcCtl(object):
 #######################
 # SMBShell main class #
 #######################
-class SMBShell(SvcCtl, Samr):
+class SMBShell(SvcCtl, Samr, AtSvc):
     def __init__(self, target, credential, execute_commands=None):
         self.__target = target
         self.__dstip = self.__target.getHost()
@@ -1398,7 +1485,6 @@ class SMBShell(SvcCtl, Samr):
             try:
                 fh = open(identified_file, 'wb')
                 identified_file = ntpath.join(self.pwd, replace(identified_file))
-
                 self.smb.getFile(self.share, identified_file, fh.write)
                 fh.close()
             except SessionError, e:
@@ -1492,6 +1578,7 @@ class SMBShell(SvcCtl, Samr):
                 print
                 logger.info('User aborted')
             except Exception, e:
+                #traceback.print_exc()
                 logger.error(str(e))
 
             if connected is True:
@@ -1643,7 +1730,7 @@ svcshell [mode] - semi-interactive shell through a custom Windows Service
       SMB server is instantiated to receive the output of the commands. This
       is useful in the situation where the target machine does not have a
       writeable share available - no extra ports are required.
-atexec {command} - executes a command through the Task Scheduler service (in progress)
+atexec {command} - executes a command through the Task Scheduler service
       Returns the output of such command. No interactive shell, one command
       at a time - no extra ports are required.
 psexec [command] - executes a command through SMB named pipes (in progress)
@@ -1939,7 +2026,10 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         '''
         Executes a command through the Task Scheduler service
         '''
-        logger.warn('Command not yet implemented')
+        if not command:
+            raise missingOption, 'Command has not been specified'
+
+        self.smb_shell.atexec(command)
 
     def do_psexec(self, command):
         '''
