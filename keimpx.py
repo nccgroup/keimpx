@@ -888,9 +888,8 @@ class SvcCtl(object):
 
             if mode == 'SERVER':
                 serverThread.stop()
-
         except SessionError, e:
-            #traceback.print_exc()
+            ##traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
         except KeyboardInterrupt, _:
             print
@@ -1324,7 +1323,7 @@ class SMBShell(SvcCtl, Samr):
                 logger.warn('SMB error: %s' % (e.getErrorString(), ))
                 self.pwd = self.__oldpwd
 
-    def pwd(self):
+    def get_pwd(self):
         print ntpath.join(self.share, self.pwd)
 
     def ls(self, path, display=True):
@@ -1348,37 +1347,68 @@ class SMBShell(SvcCtl, Samr):
     def cat(self, filename):
         self.check_share()
         filename = ntpath.join(self.pwd, replace(filename))
-        self.fid = self.smb.openFile(self.tid, filename)
-        offset = 0
+        self.ls(filename, display=False)
 
-        while 1:
+        for identified_file, is_directory in self.completion:
+            if is_directory > 0:
+                continue
+
+            logger.debug('Reading file %s...' % identified_file)
+
             try:
-                data = self.smb.readFile(self.tid, self.fid, offset)
-                print data
-
-                if len(data) == 0:
-                    break
-
-                offset += len(data)
+                self.fid = self.smb.openFile(self.tid, identified_file)
             except SessionError, e:
-                if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
-                    break
+                if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                    logger.warn('Access denied to %s' % identified_file)
                 else:
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
 
-        self.smb.closeFile(self.tid, self.fid)
+                continue
 
-    def download(self, filename, destfile=None):
-        filename = os.path.basename(filename)
+            offset = 0
+
+            while 1:
+                try:
+                    data = self.smb.readFile(self.tid, self.fid, offset)
+                    print data
+
+                    if len(data) == 0:
+                        break
+
+                    offset += len(data)
+                except SessionError, e:
+                    if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
+                        break
+                    else:
+                        logger.error('SMB error: %s' % (e.getErrorString(), ))
+
+            self.smb.closeFile(self.tid, self.fid)
+
+    def download(self, filename):
         self.check_share()
+        filename = os.path.basename(filename)
+        self.ls(filename, display=False)
 
-        if not destfile:
-            destfile = filename
+        for identified_file, is_directory in self.completion:
+            if is_directory > 0:
+                continue
 
-        fh = open(destfile, 'wb')
-        filename = ntpath.join(self.pwd, replace(filename))
-        self.smb.getFile(self.share, filename, fh.write)
-        fh.close()
+            logger.debug('Downloading file %s...' % identified_file)
+
+            try:
+                fh = open(identified_file, 'wb')
+                identified_file = ntpath.join(self.pwd, replace(identified_file))
+
+                self.smb.getFile(self.share, identified_file, fh.write)
+                fh.close()
+            except SessionError, e:
+                if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                    logger.warn('Access denied to %s' % identified_file)
+                elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
+                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                else:
+                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                continue
 
     def upload(self, pathname, destfile=None):
         try:
@@ -1569,7 +1599,7 @@ cd {path} - changes the current directory to {path}
 pwd - shows current remote directory
 ls {path} - lists all the files in the current directory
 cat {file} - display content of the selected file
-download {filename} [destfile] - downloads the filename from the current path
+download {filename} - downloads the filename from the current path
 upload {filename} [destfile] - uploads the filename into a remote share (or current path)
 rename {srcfile} {destfile} - rename a file
 mkdir {dirname} - creates the directory under the current path
@@ -1663,7 +1693,7 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         '''
         Display the current path
         '''
-        self.smb_shell.pwd()
+        self.smb_shell.get_pwd()
 
     def do_dir(self, path):
         '''
@@ -1689,30 +1719,20 @@ psexec [command] - executes a command through SMB named pipes (in progress)
     def complete_get(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
-    def do_get(self, filename, destfile=None):
+    def do_get(self, filename):
         '''
         Alias to download
         '''
-        self.do_download(filename, destfile)
+        self.do_download(filename)
 
     def complete_download(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
-    def do_download(self, filename, destfile=None):
+    def do_download(self, filename):
         '''
         Download a file from the current path
         '''
-        if not destfile:
-            argvalues = shlex.split(filename)
-
-            if len(argvalues) < 1:
-                raise missingOption, 'You have to specify at least the remote file name'
-            elif len(argvalues) > 1:
-                destfile = argvalues[1]
-
-            filename = argvalues[0]
-
-        self.smb_shell.download(filename, destfile)
+        self.smb_shell.download(filename)
 
     def do_put(self, pathname, destfile=None):
         '''
