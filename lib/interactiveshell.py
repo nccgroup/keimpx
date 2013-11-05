@@ -26,6 +26,8 @@ class InteractiveShell(cmd.Cmd):
             except SessionError, e:
                 #traceback.print_exc()
                 logger.error('SMB error: %s' % (e.getErrorString(), ))
+            except NetBIOSTimeout, e:
+                logger.error('SMB connection timed out')
             except keimpxError, e:
                 logger.error(e)
             except KeyboardInterrupt, _:
@@ -151,7 +153,7 @@ svcshell [mode] - semi-interactive shell through a custom Windows Service
 atexec {command} - executes a command through the Task Scheduler service
       Returns the output of such command. No interactive shell, one command
       at a time - no extra ports are required.
-psexec [command] - executes a command through SMB named pipes (in progress)
+psexec [command] - executes a command through SMB named pipes
       Same technique employed by Sysinternal's PsExec. The default command
       is cmd.exe therefore an interactive shell is established. It employs
       RemComSvc - no extra ports are required.
