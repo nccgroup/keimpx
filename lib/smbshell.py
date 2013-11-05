@@ -27,7 +27,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = local_name
-        self.__timeout = 3
+        self.__timeout = 60
 
         self.smb = None
         self.tid = None
@@ -233,7 +233,6 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
                     logger.warn('Access denied to %s' % identified_file)
                 else:
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
-
                 continue
 
             offset = 0
@@ -277,11 +276,13 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
-                continue
 
     def upload(self, pathname, destfile=None):
         try:
-            fp = open(pathname, 'rb')
+            if isinstance(pathname, basestring):
+                fp = open(pathname, 'rb')
+            else:
+                fp = pathname
         except IOError:
             logger.error('Unable to open file %s' % pathname)
             return False
@@ -308,7 +309,19 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
 
     def rm(self, filename):
         filename = ntpath.join(self.pwd, ntpath.normpath(filename))
-        self.smb.deleteFile(self.share, filename)
+        self.ls(filename, display=False)
+
+        for identified_file, is_directory, size in self.completion:
+            if is_directory > 0:
+                continue
+
+            logger.debug('Removing file %s (%d bytes)...' % (identified_file, size))
+
+            try:
+                self.smb.deleteFile(self.share, identified_file)
+            except SessionError, e:
+                if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                    logger.warn('Access denied to %s' % identified_file)
 
     def rmdir(self, path):
         self.check_share()
