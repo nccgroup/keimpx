@@ -208,8 +208,9 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
 
         self.completion = []
         pwd = ntpath.normpath(pwd)
+        files = self.smb.listPath(self.share, pwd)
 
-        for f in self.smb.listPath(self.share, pwd):
+        for f in files:
             if display is True:
                 print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
@@ -308,6 +309,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
         self.smb.createDirectory(self.share, path)
 
     def rm(self, filename):
+        self.check_share()
         filename = ntpath.join(self.pwd, ntpath.normpath(filename))
         self.ls(filename, display=False)
 
