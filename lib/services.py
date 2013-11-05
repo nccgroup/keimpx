@@ -127,7 +127,7 @@ class SvcCtl(object):
         '''
         Disconnect from svcctl named pipe
         '''
-        logger.debug('Disconneting from the SVCCTL named pipe')
+        logger.debug('Disconnecting from the SVCCTL named pipe')
 
         if srvname:
             self.__svc.CloseServiceHandle(self.__svc_handle)

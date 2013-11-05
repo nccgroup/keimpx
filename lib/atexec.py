@@ -88,5 +88,5 @@ class AtSvc(object):
         '''
         Disconnect from samr named pipe
         '''
-        logger.debug('Disconneting from the ATSVC named pipe')
+        logger.debug('Disconnecting from the ATSVC named pipe')
         self.__dce.disconnect()

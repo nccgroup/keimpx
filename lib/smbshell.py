@@ -224,7 +224,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Reading file %s (%d bytes)...' % (identified_file, size))
+            logger.debug('Reading file %s (%d bytes)..' % (identified_file, size))
 
             try:
                 cat_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
@@ -263,7 +263,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Downloading file %s (%d bytes)...' % (identified_file, size))
+            logger.debug('Downloading file %s (%d bytes)..' % (identified_file, size))
 
             try:
                 fh = open(identified_file, 'wb')
@@ -317,7 +317,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Removing file %s (%d bytes)...' % (identified_file, size))
+            logger.debug('Removing file %s (%d bytes)..' % (identified_file, size))
 
             try:
                 self.smb.deleteFile(self.share, identified_file)
@@ -334,7 +334,7 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
             if is_directory <= 0:
                 continue
 
-            logger.debug('Removing directory %s...' % identified_path)
+            logger.debug('Removing directory %s..' % identified_path)
 
             try:
                 self.smb.deleteDirectory(self.share, identified_path)

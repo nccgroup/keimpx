@@ -45,7 +45,7 @@ class Samr(object):
         '''
         Disconnect from samr named pipe
         '''
-        logger.debug('Disconneting from the SAMR named pipe')
+        logger.debug('Disconnecting from the SAMR named pipe')
 
         if self.__mgr_handle:
             data = self.__samr.closerequest(self.__mgr_handle)
