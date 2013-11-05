@@ -121,7 +121,7 @@ domains = []
 pool_thread = None
 successes = 0
 targets = []
-execute_commands = []
+commands = []
 default_share = 'ADMIN$'
 default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
 logger = logging.getLogger('logger')
@@ -451,9 +451,6 @@ def check_dialect(dialect):
         return 'SMBv2.1'
     else:
         return 'SMBv3.0'
-
-def replace(value):
-    return value.replace('/', '\\')
 
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
@@ -1035,7 +1032,7 @@ class SvcCtl(object):
         '''
         Upload the service executable
         '''
-        self.check_share(default_share)
+        self.use(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Uploading the service executable to %s' % self.__pathname)
         self.upload(local_file, remote_file)
@@ -1044,7 +1041,7 @@ class SvcCtl(object):
         '''
         Remove the service executable
         '''
-        self.check_share(default_share)
+        self.use(default_share)
         self.__pathname = ntpath.join(default_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
         self.rm(remote_file)
@@ -1115,7 +1112,7 @@ class SvcCtl(object):
         print 'LOAD_ORDER_GROUP  : %s' % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
         print 'TAG               : %d' % resp['QueryConfig']['TagID']
         print 'DISPLAY_NAME      : %s' % resp['QueryConfig']['DisplayName'].decode('utf-16le')
-        print 'DEPENDENCIES      : %s' % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/',' - ')
+        print 'DEPENDENCIES      : %s' % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/', ' - ')
         print 'SERVICE_START_NAME: %s' % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
 
     def __svcctl_parse_status(self, status):
@@ -1242,23 +1239,24 @@ class SvcCtl(object):
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
 class SMBShell(SvcCtl, Samr, AtSvc):
-    def __init__(self, target, credential, execute_commands=None):
+    def __init__(self, target, credential, commands=None):
         self.__target = target
         self.__dstip = self.__target.getHost()
         self.__dstport = self.__target.getPort()
 
-        self.smb = None
         self.__user = credential.getUser()
         self.__password = credential.getPassword()
         self.__lmhash = credential.getLMhash()
         self.__nthash = credential.getNThash()
         self.__domain = credential.getDomain()
 
+        self.__commands = commands
+
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = conf.name
-
         self.__timeout = 3
 
+        self.smb = None
         self.tid = None
         self.pwd = '\\'
         self.share = ''
@@ -1310,6 +1308,8 @@ class SMBShell(SvcCtl, Samr, AtSvc):
             raise RuntimeError
 
     def check_share(self, share=None):
+        #logger.debug("Into check_share with share: %s, self.share is: %s and self.tid is: %s" % (share, self.share, self.tid))
+
         if share:
             self.use(share)
         elif not share and (self.share is None or self.tid is None):
@@ -1387,7 +1387,8 @@ class SMBShell(SvcCtl, Samr, AtSvc):
         if not path:
             return
 
-        p = replace(path)
+        self.check_share()
+        path = ntpath.normpath(path)
         self.__oldpwd = self.pwd
 
         if path == '.':
@@ -1397,12 +1398,10 @@ class SMBShell(SvcCtl, Samr, AtSvc):
             self.pwd = ''.join('\\%s' % s for s in sep[:-1])
             return
 
-        if p[0] == '\\':
+        if path[0] == '\\':
            self.pwd = path
         else:
            self.pwd = ntpath.join(self.pwd, path)
-
-        self.pwd = ntpath.normpath(self.pwd)
 
         # Let's try to open the directory to see if it's valid
         try:
@@ -1432,31 +1431,30 @@ class SMBShell(SvcCtl, Samr, AtSvc):
         if not path:
             pwd = ntpath.join(self.pwd, '*')
         else:
-           pwd = ntpath.join(self.pwd, path)
+            pwd = ntpath.join(self.pwd, path)
 
         self.completion = []
-        pwd = replace(pwd)
         pwd = ntpath.normpath(pwd)
 
         for f in self.smb.listPath(self.share, pwd):
             if display is True:
                 print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
 
-            self.completion.append((f.get_longname(),f.is_directory()))
+            self.completion.append((f.get_longname(),f.is_directory(), f.get_filesize()))
 
     def cat(self, filename):
-        self.check_share()
-        filename = ntpath.join(self.pwd, replace(filename))
+        filename = os.path.basename(filename)
         self.ls(filename, display=False)
 
-        for identified_file, is_directory in self.completion:
+        for identified_file, is_directory, size in self.completion:
             if is_directory > 0:
                 continue
 
-            logger.debug('Reading file %s...' % identified_file)
+            logger.debug('Reading file %s (%d bytes)...' % (identified_file, size))
 
             try:
-                self.fid = self.smb.openFile(self.tid, identified_file)
+                cat_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
+                self.fid = self.smb.openFile(self.tid, cat_file)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to %s' % identified_file)
@@ -1485,20 +1483,19 @@ class SMBShell(SvcCtl, Samr, AtSvc):
             self.smb.closeFile(self.tid, self.fid)
 
     def download(self, filename):
-        self.check_share()
         filename = os.path.basename(filename)
         self.ls(filename, display=False)
 
-        for identified_file, is_directory in self.completion:
+        for identified_file, is_directory, size in self.completion:
             if is_directory > 0:
                 continue
 
-            logger.debug('Downloading file %s...' % identified_file)
+            logger.debug('Downloading file %s (%d bytes)...' % (identified_file, size))
 
             try:
                 fh = open(identified_file, 'wb')
-                identified_file = ntpath.join(self.pwd, replace(identified_file))
-                self.smb.getFile(self.share, identified_file, fh.write)
+                download_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
+                self.smb.getFile(self.share, download_file, fh.write)
                 fh.close()
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
@@ -1520,30 +1517,29 @@ class SMBShell(SvcCtl, Samr, AtSvc):
 
         if not destfile:
             destfile = os.path.basename(pathname)
-            destfile = ntpath.join(self.pwd, replace(destfile))
+            destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
 
         self.smb.putFile(self.share, destfile, fp.read)
         fp.close()
 
     def rename(self, srcfile, destfile=None):
         self.check_share()
-        srcfile = ntpath.join(self.pwd, replace(srcfile))
-        destfile = ntpath.join(self.pwd, replace(destfile))
+        srcfile = ntpath.join(self.pwd, ntpath.normpath(srcfile))
+        destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
         self.smb.rename(self.share, srcfile, destfile)
 
     def mkdir(self, path):
         self.check_share()
-        path = ntpath.join(self.pwd, replace(path))
+        path = ntpath.join(self.pwd, ntpath.normpath(path))
         self.smb.createDirectory(self.share, path)
 
     def rm(self, filename):
-        self.check_share()
-        filename = ntpath.join(self.pwd, replace(filename))
+        filename = ntpath.join(self.pwd, ntpath.normpath(filename))
         self.smb.deleteFile(self.share, filename)
 
     def rmdir(self, path):
         self.check_share()
-        path = ntpath.join(self.pwd, replace(path))
+        path = ntpath.join(self.pwd, ntpath.normpath(path))
         self.smb.deleteDirectory(self.share, path)
 
     def bindshell(self, port):
@@ -1606,14 +1602,14 @@ class SMBShell(SvcCtl, Samr, AtSvc):
 # Own code :) #
 ###############
 class InteractiveShell(cmd.Cmd):
-    def __init__(self, target, credential, execute_commands=None):
+    def __init__(self, target, credential, commands=None):
         '''
         Initialize the object variables
         '''
 
         cmd.Cmd.__init__(self)
 
-        self.smb_shell = SMBShell(target, credential, execute_commands)
+        self.smb_shell = SMBShell(target, credential, commands)
         logger.info('Launching interactive SMB shell')
         self.prompt = '# '
 
@@ -1640,11 +1636,13 @@ class InteractiveShell(cmd.Cmd):
         pass
 
     def complete_files(self, text, line, begidx, endidx, include=1):
-        # include means
-        # 0 all files and directories
-        # 1 just files
-        # 2 just directories
-        p = string.replace(line, '/', '\\')
+        '''
+        include means
+        * 0: all files and directories
+        * 1: just files
+        * 2: just directories
+        '''
+        p = ntpath.normpath(line)
 
         if p.find('\\') < 0:
             items = []
@@ -1884,6 +1882,15 @@ psexec [command] - executes a command through SMB named pipes (in progress)
         Create a directory in the current share
         '''
         self.smb_shell.mkdir(path)
+
+    def complete_del(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=1)
+
+    def do_del(self, filename):
+        '''
+        Alias to rm
+        '''
+        self.do_rm(filename)
 
     def complete_rm(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
@@ -2307,11 +2314,11 @@ def remove_comments(lines):
     return cleaned_lines
 
 def add_execute(cmd):
-    global execute_commands
+    global commands
 
-    #if cmd is not None and len(cmd) > 0 and cmd not in execute_commands:
+    #if cmd is not None and len(cmd) > 0 and cmd not in commands:
     if cmd is not None and len(cmd) > 0:
-        execute_commands.append(cmd)
+        commands.append(cmd)
 
 def parse_executelist_file():
     try:
@@ -2342,7 +2349,7 @@ def executelist():
             first_credentials = valid_credentials[0]
 
         try:
-            shell = InteractiveShell(target, first_credentials, execute_commands)
+            shell = InteractiveShell(target, first_credentials, commands)
             shell.cmdloop()
         except RuntimeError:
             sys.exit(255)
