@@ -568,23 +568,10 @@ def set_targets():
 
     logger.info('Loaded %s unique target%s' % (len(targets), 's' if len(targets) > 1 else ''))
 
-def set_verbosity(level=None):
-    global conf
-
-    if isinstance(level, (int, float)):
-        conf.verbose = int(level)
-    elif level and level.isdigit():
-        conf.verbose = int(level)
-    elif conf.verbose == 1:
-        logger.setLevel(logging.INFO)
-    elif conf.verbose > 1:
-        conf.verbose = 2
-        logger.setLevel(logging.DEBUG)
-
 def check_conf():
     global conf
 
-    set_verbosity()
+    set_verbosity(conf.verbose)
 
     if conf.name is None:
         conf.name = socket.gethostname()

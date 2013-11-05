@@ -106,3 +106,14 @@ def remove_comments(lines):
         cleaned_lines.append(line)
 
     return cleaned_lines
+
+def set_verbosity(level=0):
+    if isinstance(level, basestring) and level.isdigit():
+        level = int(level)
+
+    if level == 0:
+        logger.setLevel(logging.WARNING)
+    elif level == 1:
+        logger.setLevel(logging.INFO)
+    elif level > 1:
+        logger.setLevel(logging.DEBUG)
