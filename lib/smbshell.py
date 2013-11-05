@@ -328,7 +328,19 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
     def rmdir(self, path):
         self.check_share()
         path = ntpath.join(self.pwd, ntpath.normpath(path))
-        self.smb.deleteDirectory(self.share, path)
+        self.ls(path, display=False)
+
+        for identified_path, is_directory, _ in self.completion:
+            if is_directory <= 0:
+                continue
+
+            logger.debug('Removing directory %s...' % identified_path)
+
+            try:
+                self.smb.deleteDirectory(self.share, identified_path)
+            except SessionError, e:
+                if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                    logger.warn('Access denied to %s' % identified_file)
 
     def bindshell(self, port):
         connected = False
