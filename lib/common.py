@@ -29,6 +29,7 @@ from subprocess import PIPE
 from subprocess import Popen
 from subprocess import STDOUT
 from telnetlib import Telnet
+from threading import Lock
 from threading import Thread
 
 try:
@@ -54,11 +55,10 @@ try:
     from impacket.dcerpc import transport
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
+    from impacket.examples import remcomsvc, serviceinstall
     from impacket.smb3structs import SMB2_DIALECT_002
     from impacket.smb3structs import SMB2_DIALECT_21
-    from impacket.smbconnection import SessionError
-    from impacket.smbconnection import SMBConnection
-    from impacket.smbconnection import SMB_DIALECT
+    from impacket.smbconnection import *
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n$ svn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n$ cd impacket\n$ python setup.py build\n$ sudo python setup.py install\n')
     sys.exit(255)
