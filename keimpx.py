@@ -65,7 +65,6 @@ pool_thread = None
 successes = 0
 targets = []
 commands = []
-socket.setdefaulttimeout(3)
 
 if hasattr(sys, 'frozen'):
     keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
@@ -74,7 +73,6 @@ else:
 
 class test_login(Thread):
     def __init__(self, target):
-
         Thread.__init__(self)
 
         self.__target = target
