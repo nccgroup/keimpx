@@ -144,7 +144,6 @@ class test_login(Thread):
                         break
 
             logger.info('Assessment on host %s finished' % self.__target.getIdentity())
-
         except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
             logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
 
