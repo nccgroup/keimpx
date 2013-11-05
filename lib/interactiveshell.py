@@ -138,10 +138,11 @@ regdelete {registry key} - delete a registry key
 
 Take-over options
 =================
-bindshell [port] - spawn a shell listening on a TCP port on the target
+bindshell [port] - spawn an interactive shell on a TCP port on the target
       This works by upload a custom bind shell, executing it as a service
       and connecting to a TCP port where it listens, by default 4445/TCP.
-      If the target is behind a strict firewall it may not work.
+      If the target is behind a strict firewall it will not work, rely on
+      other techniques below instead.
 svcshell [mode] - semi-interactive shell through a custom Windows Service
       This works by creating a service to execute a command, redirect its
       output to a temporary file within a share and retrieving its content,
@@ -151,7 +152,7 @@ svcshell [mode] - semi-interactive shell through a custom Windows Service
       is useful in the situation where the target machine does not have a
       writeable share available - no extra ports are required.
 atexec {command} - executes a command through the Task Scheduler service
-      Returns the output of such command. No interactive shell, one command
+      Returns the output of such command. Non-interactive shell, one command
       at a time - no extra ports are required.
 psexec [command] - executes a command through SMB named pipes
       Same technique employed by Sysinternal's PsExec. The default command

@@ -337,6 +337,9 @@ class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
         if not os.path.exists(local_file):
             raise missingFile, 'srv_bindshell.exe not found in the contrib subfolder'
 
+        logger.info('Launching interactive shell')
+        logger.debug('Going to use temporary service %s' % srvname)
+
         if not port:
             port = 4445
         elif not isinstance(port, int):
