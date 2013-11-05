@@ -14,6 +14,17 @@ class InteractiveShell(cmd.Cmd):
         cmd.Cmd.__init__(self)
 
         self.smb_shell = SMBShell(target, credential, local_name, commands)
+
+        if isinstance(commands, (list, tuple, set)) and len(commands) > 0:
+            logger.info('Executing commands from provided file')
+
+            for command in commands:
+                logger.debug('%s output:' % command)
+                self.onecmd(command)
+                logger.debug('----------8<----------')
+
+            self.onecmd('exit')
+
         logger.info('Launching interactive SMB shell')
         self.prompt = '# '
 

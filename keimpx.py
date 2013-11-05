@@ -308,7 +308,6 @@ def parse_executelist_file():
         fp = open(conf.executelist, 'r')
         file_lines = fp.read().splitlines()
         fp.close()
-
     except IOError, e:
         logger.error('Could not open list of commands file %s' % conf.executelist)
         return
