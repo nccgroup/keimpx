@@ -275,15 +275,12 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 continue
 
             if is_directory > 0:
-                subdirlist.append(ntpath.join(path, identified_file))
+                self.lstree(ntpath.join(path, identified_file))
             else:
-                for x in range(0, path.count('\\')):
+                for x in range(0, path.count('\\') + 1):
                     print '|  ',
 
                 print '|-- %s' % identified_file
-
-        for subdir in subdirlist:
-            self.lstree(subdir)
 
     def cat(self, filename):
         filename = os.path.basename(filename)
