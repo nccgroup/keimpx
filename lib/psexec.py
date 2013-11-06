@@ -231,6 +231,10 @@ class RemoteShell(cmd.Cmd):
 
         self.send_data('\r\n')
 
+    def do_exit(self, line):
+        self.send_data('exit\r\n')
+        return
+
     def default(self, line=''):
         self.send_data('%s\r\n' % line)
 
@@ -249,5 +253,5 @@ class RemoteStdInPipe(Pipes):
 
     def run(self):
         self.connectPipe()
-        self.shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share)
-        self.shell.cmdloop()
+        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share)
+        self.remote_shell.cmdloop()
