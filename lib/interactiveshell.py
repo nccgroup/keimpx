@@ -6,23 +6,36 @@ from lib.common import *
 from lib.smbshell import SMBShell
 
 class InteractiveShell(cmd.Cmd):
-    def __init__(self, target, credential, local_name, commands=None):
+    def __init__(self, target, credential, local_name, smbcommands=None, oscommands=None):
         '''
         Initialize the object variables
         '''
 
         cmd.Cmd.__init__(self)
+        self.__exit = False
+        self.smb_shell = SMBShell(target, credential, local_name)
 
-        self.smb_shell = SMBShell(target, credential, local_name, commands)
+        if isinstance(smbcommands, (list, tuple, set)) and len(smbcommands) > 0:
+            logger.info('Executing SMB commands from provided file')
 
-        if isinstance(commands, (list, tuple, set)) and len(commands) > 0:
-            logger.info('Executing commands from provided file')
-
-            for command in commands:
-                logger.debug('%s output:' % command)
+            for command in smbcommands:
+                print 'SMB command \'%s\' output:' % command
                 self.onecmd(command)
-                logger.debug('----------8<----------')
+                print '----------8<----------'
 
+            self.__exit = True
+
+        if isinstance(oscommands, (list, tuple, set)) and len(oscommands) > 0:
+            logger.info('Executing OS commands from provided file')
+
+            for command in oscommands:
+                print 'OS command \'%s\' output:' % command
+                self.onecmd('svcexec \'%s\'' % command)
+                print '----------8<----------'
+
+            self.__exit = True
+
+        if self.__exit:
             self.onecmd('exit')
 
         logger.info('Launching interactive SMB shell')
@@ -166,6 +179,9 @@ svcshell [mode] - semi-interactive shell through a custom Windows Service
       SMB server is instantiated to receive the output of the commands. This
       is useful in the situation where the target machine does not have a
       writeable share available - no extra ports are required.
+svcexec {command} [mode] - executes a command through a custom Windows Service
+      Same technique as for svcshell. Non-interactive shell, one command
+      at a time - no extra ports required.
 atexec {command} - executes a command through the Task Scheduler service
       Returns the output of such command. Non-interactive shell, one command
       at a time - no extra ports are required.
@@ -466,6 +482,21 @@ psexec [command] - executes a command through SMB named pipes
         Spawn a shell listening on a TCP port on the target
         '''
         self.smb_shell.bindshell(port)
+
+    def do_svcexec(self, cmd, mode='SHARE'):
+        '''
+        Executes a command through a custom Windows Service
+        '''
+        argvalues = shlex.split(cmd)
+
+        if len(argvalues) < 1:
+            raise missingService, 'Command has not been specified'
+        elif len(argvalues) > 1:
+            mode = argvalues[1]
+
+        cmd = argvalues[0]
+
+        self.smb_shell.svcexec(cmd, mode)
 
     def do_svcshell(self, mode='SHARE'):
         '''

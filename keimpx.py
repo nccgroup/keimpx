@@ -296,44 +296,58 @@ class Target:
     def getValidCredentials(self):
         return self.getCredentials(True)
 
-def add_execute(cmd):
+def add_command(cmd):
     global commands
 
     #if cmd is not None and len(cmd) > 0 and cmd not in commands:
     if cmd is not None and len(cmd) > 0:
         commands.append(cmd)
 
-def parse_executelist_file():
+def parse_list_file(filename):
+    global commands
+
+    commands = []
+
     try:
-        fp = open(conf.executelist, 'r')
+        fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
         fp.close()
     except IOError, e:
-        logger.error('Could not open list of commands file %s' % conf.executelist)
+        logger.error('Could not open commands file %s' % filename)
         return
 
     file_lines = remove_comments(file_lines)
 
     for line in file_lines:
-        add_execute(line)
+        add_command(line)
 
-def executelist():
-    parse_executelist_file()
+def oscmdlist():
+    parse_list_file(conf.oscmdlist)
     targets_tuple = ()
 
     for target in targets:
         valid_credentials = target.getValidCredentials()
 
-        logger.info('Executing commands on %s' % target.getIdentity())
+        if len(valid_credentials):
+            first_credentials = valid_credentials[0]
+
+        logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
+        shell = InteractiveShell(target, first_credentials, conf.name, oscommands=commands)
+        shell.cmdloop()
+
+def smbcmdlist():
+    parse_list_file(conf.smbcmdlist)
+    targets_tuple = ()
+
+    for target in targets:
+        valid_credentials = target.getValidCredentials()
 
         if len(valid_credentials):
             first_credentials = valid_credentials[0]
 
-        try:
-            shell = InteractiveShell(target, first_credentials, conf.name, commands)
-            shell.cmdloop()
-        except RuntimeError:
-            sys.exit(255)
+        logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
+        shell = InteractiveShell(target, first_credentials, conf.name, smbcommands=commands)
+        shell.cmdloop()
 
 ###############
 # Set domains #
@@ -631,7 +645,10 @@ def cmdline_parser():
         parser.add_option('-b', '--batch', dest='batch', action='store_true', default=False,
                           help='Batch mode: do not prompt for an interactive SMB shell')
 
-        parser.add_option('-x', dest='executelist', help='Execute a list of SMB '
+        parser.add_option('-x', dest='smbcmdlist', help='Execute a list of SMB '
+                          'commands against all hosts')
+
+        parser.add_option('-X', dest='oscmdlist', help='Execute a list of OS '
                           'commands against all hosts')
 
         (args, _) = parser.parse_args()
@@ -722,8 +739,14 @@ def main():
 
     if conf.batch is True:
         return
-    elif conf.executelist is not None:
-        executelist()
+
+    if conf.smbcmdlist is not None:
+        smbcmdlist()
+
+    if conf.oscmdlist is not None:
+        oscmdlist()
+
+    if conf.smbcmdlist or conf.oscmdlist:
         return
 
     msg = 'Do you want to establish a SMB shell from any of the targets? [Y/n] '

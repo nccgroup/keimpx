@@ -78,6 +78,33 @@ class SvcCtl(object):
         self.__svcctl_bin_remove(remote_file)
         self.pwd = self.__oldpwd
 
+    def svcexec(self, cmd, mode='SHARE'):
+        self.__svcctl_connect()
+
+        try:
+            if mode == 'SERVER':
+                serverThread = SMBServer()
+                serverThread.daemon = True
+                serverThread.start()
+
+            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
+            self.svc_shell.onecmd(cmd)
+
+            if mode == 'SERVER':
+                serverThread.stop()
+        except SessionError, e:
+            #traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+        except KeyboardInterrupt, _:
+            print
+            logger.info('User aborted')
+        except Exception, e:
+            #traceback.print_exc()
+            logger.error(str(e))
+
+        sys.stdout.flush()
+        self.__svcctl_disconnect()
+
     def svcshell(self, mode='SHARE'):
         self.__svcctl_connect()
 
@@ -87,8 +114,8 @@ class SvcCtl(object):
                 serverThread.daemon = True
                 serverThread.start()
 
-            self.shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
-            self.shell.cmdloop()
+            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
+            self.svc_shell.cmdloop()
 
             if mode == 'SERVER':
                 serverThread.stop()

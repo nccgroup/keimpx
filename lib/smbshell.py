@@ -13,22 +13,18 @@ from lib.services import SvcCtl
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
 class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
-    def __init__(self, target, credential, local_name, commands=None):
-        self.__target = target
-        self.__dstip = self.__target.getHost()
-        self.__dstport = self.__target.getPort()
-
+    def __init__(self, target, credential, local_name):
+        self.__dstip = target.getHost()
+        self.__dstport = target.getPort()
         self.__user = credential.getUser()
         self.__password = credential.getPassword()
         self.__lmhash = credential.getLMhash()
         self.__nthash = credential.getNThash()
         self.__domain = credential.getDomain()
-
-        self.__commands = commands
+        self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
-        self.__srcfile = local_name
-        self.__timeout = 60
+        self.__timeout = 120
 
         self.smb = None
         self.tid = None
@@ -40,7 +36,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.completion = []
 
         self.connect()
-        logger.debug('Connection to host %s established' % self.__target.getIdentity())
+        logger.debug('Connection to host %s established' % target.getIdentity())
         self.login()
         logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
 
