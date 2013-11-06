@@ -276,10 +276,10 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
 
     def upload(self, pathname, destfile=None):
-        if not isinstance(pathname, basestring):
-            files = [pathname]
-        else:
+        if isinstance(pathname, basestring):
             files = glob.glob(pathname)
+        else:
+            files = [pathname]
 
         for filename in files:
             try:
