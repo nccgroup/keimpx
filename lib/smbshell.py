@@ -297,7 +297,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 destfile = os.path.basename(filename)
                 destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
 
-            logger.debug('Uploading file %s to %s\\%s..' % (filename, self.share, destfile))
+            if isinstance(filename, basestring):
+                logger.debug('Uploading file %s to %s\\%s..' % (filename, self.share, destfile))
 
             self.smb.putFile(self.share, destfile, fp.read)
             fp.close()
