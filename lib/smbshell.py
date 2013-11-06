@@ -126,17 +126,39 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         self.__dce.disconnect()
 
+    def __share_info(self, share):
+        logger.debug('Binding on Server Service (SRVSVC) interface')
+        self.smb_transport('srvsvc')
+        self.__dce = self.trans.get_dce_rpc()
+        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
+        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
+        resp = self.__svc.NetrShareGetInfo('', share)
+        self.__dce.disconnect()
+
+        return resp
+
     def shares(self):
         self.__resp = self.smb.listShares()
         count = 0
 
         for i in range(len(self.__resp)):
+            count += 1
             name = self.__resp[i]['NetName'].decode('utf-16')
             comment = self.__resp[i]['Remark'].decode('utf-16')
-            count += 1
+            _ = self.__share_info(self.__resp[i]['NetName'])
+            share_type = _['Type']
+            max_uses = _['MaxUses'] # 4294967295L is unlimited
+            current_uses = _['CurrentUses']
+            permissions = _['Permissions'] # impacket always returns always 0
+            path = _['Path']
+
             self.shares_list.append(name)
 
-            print '[%d] %s (comment: %s)' % (count, name, comment)
+            print '[%d] %s\n\tComment: %s' % (count, name, comment)
+            print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
+            print '\tType: %s' % share_type
+            #print '\tPermissions: %d' % permissions
+            print '\tPath: %s' % path
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.shares_list)
@@ -309,9 +331,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 self.smb.putFile(self.share, destfile, fp.read)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn('Access denied to upload %s' % destfile)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn('Access denied to upload %s due to share access flags' % destfile)
                 else:
                     logger.error('Unable to upload file: %s' % (e.getErrorString(), ))
 
@@ -364,9 +386,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 self.smb.deleteDirectory(self.share, identified_path)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn('Access denied to %s' % identified_path)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn('Access denied to %s due to share access flags' % identified_path)
                 else:
                     logger.error('Unable to remove directory: %s' % (e.getErrorString(), ))
 
