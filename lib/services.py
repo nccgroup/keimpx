@@ -94,7 +94,7 @@ class SvcCtl(object):
                 self.__serverThread.start()
 
             self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
-            self.svc_shell.onecmd(command)
+            self.svc_shell.onecmd(os.path.basename(command.replace('\\', '/')))
 
             if mode == 'SERVER':
                 self.__serverThread.stop()

@@ -61,7 +61,7 @@ class PsExec(object):
 
         packet = RemComMessage()
         packet['Machine'] = ''.join([random.choice(string.letters) for i in range(4)])
-        packet['Command'] = command
+        packet['Command'] = os.path.basename(command.replace('\\', '/'))
         packet['ProcessID'] = os.getpid()
 
         self.__smb.writeNamedPipe(self.__tid, self.__fid_main, str(packet))
@@ -84,7 +84,7 @@ class PsExec(object):
 
         if len(ans):
            retCode = RemComResponse(ans)
-           logger.info('Process %s finished with ErrorCode: %d, ReturnCode: %d' % (command, retCode['ErrorCode'], retCode['ReturnCode']))
+           logger.info('Process %s finished with ErrorCode: %d, ReturnCode: %d' % (os.path.basename(command.replace('\\', '/')), retCode['ErrorCode'], retCode['ReturnCode']))
 
         self.undeploy(srvname)
 

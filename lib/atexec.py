@@ -22,7 +22,7 @@ class AtSvc(object):
             self.upload(command_and_args[0])
 
         self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
-        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (command, self.__tmpFileName)
+        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
         self.__atsvc_connect()
 
         logger.debug('Creating scheduled task with command: %s' % self.__at_command)

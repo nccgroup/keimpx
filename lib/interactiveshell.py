@@ -466,10 +466,10 @@ psexec [command] - executes a command through SMB named pipes
 
         if len(argvalues) < 1:
             raise missingService, 'Command has not been specified'
-        elif len(argvalues) > 1:
+        elif len(argvalues) == 1:
+            command = argvalues[0]
+        elif len(argvalues) > 1 and argvalues[1] in ('SHARE', 'SERVER'):
             mode = argvalues[1]
-
-        command = argvalues[0]
 
         self.smb_shell.svcexec(command, mode)
 
