@@ -129,7 +129,8 @@ shares - list available shares
 use {share} - connect to an specific share
 cd {path} - changes the current directory to {path}
 pwd - shows current remote directory
-ls {path} - lists all the files in the current directory
+ls {path} - lists all the files in the given path or current directory
+lstree {path} - lists all files and directories in the given path or current directory recursively
 cat {file} - display content of the selected file
 download {filename} - downloads the filename from the current path
 upload {filename} [destfile] - uploads the filename into a remote share (or current path)
@@ -246,6 +247,18 @@ psexec [command] - executes a command through SMB named pipes
         List files from the current path
         '''
         self.smb_shell.ls(path, display)
+
+    def do_dirtree(self, path):
+        '''
+        Alias to lstree
+        '''
+        self.do_lstree(path)
+
+    def do_lstree(self, path, display=True):
+        '''
+        List files from the current path
+        '''
+        self.smb_shell.lstree(path, display)
 
     def complete_cat(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)

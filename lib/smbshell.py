@@ -254,6 +254,37 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             self.completion.append((f.get_longname(),f.is_directory(), f.get_filesize()))
 
+    def lstree(self, path, display=True):
+        if not path:
+            pwd = ntpath.join(self.pwd, '*')
+        else:
+            pwd = ntpath.join(self.pwd, path)
+
+        subdirlist = []
+        pwd = ntpath.normpath(pwd)
+
+        for x in range(0, path.count('\\')):
+            print '|  ',
+
+        print '|-- %s' % os.path.basename(path.replace('\\', '/'))
+
+        self.ls('%s\\*' % path, display=False)
+
+        for identified_file, is_directory, size in self.completion:
+            if identified_file in ('.', '..'):
+                continue
+
+            if is_directory > 0:
+                subdirlist.append(ntpath.join(path, identified_file))
+            else:
+                for x in range(0, path.count('\\')):
+                    print '|  ',
+
+                print '|-- %s' % identified_file
+
+        for subdir in subdirlist:
+            self.lstree(subdir)
+
     def cat(self, filename):
         filename = os.path.basename(filename)
         self.ls(filename, display=False)
