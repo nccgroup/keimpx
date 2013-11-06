@@ -40,16 +40,42 @@ class InteractiveShell(cmd.Cmd):
     def emptyline(self):
         pass
 
-    def complete_files(self, text, line, begidx, endidx, include=1):
+    def complete_local_files(self, text, line, begidx, endidx, include=0):
         '''
         include means
         * 0: all files and directories
         * 1: just files
         * 2: just directories
         '''
-        p = ntpath.normpath(line)
+        if text:
+            path = os.path.normpath(text)
+        else:
+            path = ''
 
-        if p.find('\\') < 0:
+        files = glob.glob('%s*' % path)
+        items = []
+
+        for filename in files:
+            if include == 0:
+                items.append(filename)
+            elif not os.path.isdir(filename) and include == 1:
+                items.append(filename)
+            elif os.path.isdir(filename) and include == 2:
+                items.append(filename)
+
+        return items
+
+    def complete_files(self, text, line, begidx, endidx, include=0):
+        '''
+        include means
+        * 0: all files and directories
+        * 1: just files
+        * 2: just directories
+        '''
+        self.smb_shell.ls(None, display=False)
+        path = ntpath.normpath(line)
+
+        if path.find('\\') < 0:
             items = []
 
             if include == 1:
@@ -248,11 +274,17 @@ psexec [command] - executes a command through SMB named pipes
         '''
         self.smb_shell.download(filename)
 
+    def complete_put(self, text, line, begidx, endidx):
+        return self.complete_local_files(text, line, begidx, endidx, include=1)
+
     def do_put(self, pathname, destfile=None):
         '''
         Alias to upload
         '''
         self.do_upload(pathname, destfile)
+
+    def complete_upload(self, text, line, begidx, endidx):
+        return self.complete_local_files(text, line, begidx, endidx, include=1)
 
     def do_upload(self, pathname, destfile=None):
         '''
