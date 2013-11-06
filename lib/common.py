@@ -5,6 +5,7 @@
 import binascii
 import cmd
 import ConfigParser
+import glob
 import inspect
 import logging
 import os

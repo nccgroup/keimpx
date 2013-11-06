@@ -221,7 +221,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Reading file %s (%d bytes)..' % (identified_file, size))
+            logger.debug('Reading file %s\\%s (%d bytes)..' % (self.share, identified_file, size))
 
             try:
                 cat_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
@@ -260,7 +260,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Downloading file %s (%d bytes)..' % (identified_file, size))
+            logger.debug('Downloading file %s\\%s (%d bytes)..' % (self.share, identified_file, size))
 
             try:
                 fh = open(identified_file, 'wb')
@@ -276,23 +276,31 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
 
     def upload(self, pathname, destfile=None):
-        try:
-            if isinstance(pathname, basestring):
-                fp = open(pathname, 'rb')
-            else:
-                fp = pathname
-        except IOError:
-            logger.error('Unable to open file %s' % pathname)
-            return False
+        if not isinstance(pathname, basestring):
+            files = [pathname]
+        else:
+            files = glob.glob(pathname)
 
-        self.check_share()
+        for filename in files:
+            try:
+                if isinstance(filename, basestring):
+                    fp = open(filename, 'rb')
+                else:
+                    fp = filename
+            except IOError:
+                logger.error('Unable to open file %s' % filename)
+                return False
 
-        if not destfile:
-            destfile = os.path.basename(pathname)
-            destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
+            self.check_share()
 
-        self.smb.putFile(self.share, destfile, fp.read)
-        fp.close()
+            if not destfile or len(files) > 1:
+                destfile = os.path.basename(filename)
+                destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
+
+            logger.debug('Uploading file %s to %s\\%s..' % (filename, self.share, destfile))
+
+            self.smb.putFile(self.share, destfile, fp.read)
+            fp.close()
 
     def rename(self, srcfile, destfile=None):
         self.check_share()
@@ -314,7 +322,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Removing file %s (%d bytes)..' % (identified_file, size))
+            logger.debug('Removing file %s\\%s (%d bytes)..' % (self.share, identified_file, size))
 
             try:
                 self.smb.deleteFile(self.share, identified_file)
@@ -331,7 +339,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory <= 0:
                 continue
 
-            logger.debug('Removing directory %s..' % identified_path)
+            logger.debug('Removing directory %s\\%s..' % (self.share, identified_path))
 
             try:
                 self.smb.deleteDirectory(self.share, identified_path)
