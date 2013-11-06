@@ -332,8 +332,15 @@ def oscmdlist():
             first_credentials = valid_credentials[0]
 
         logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        shell = InteractiveShell(target, first_credentials, conf.name, oscommands=commands)
-        shell.cmdloop()
+        smb_shell = InteractiveShell(target, first_credentials, conf.name)
+
+        if len(commands) > 0:
+            logger.info('Executing OS commands from provided file')
+
+            for command in commands:
+                print 'OS command \'%s\' output:' % command
+                smb_shell.do_svcexec('\'%s\'' % command, 'SHARE')
+                print '----------8<----------'
 
 def smbcmdlist():
     parse_list_file(conf.smbcmdlist)
@@ -346,8 +353,15 @@ def smbcmdlist():
             first_credentials = valid_credentials[0]
 
         logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        shell = InteractiveShell(target, first_credentials, conf.name, smbcommands=commands)
-        shell.cmdloop()
+        smb_shell = InteractiveShell(target, first_credentials, conf.name)
+
+        if len(commands) > 0:
+            logger.info('Executing SMB commands from provided file')
+
+            for command in commands:
+                print 'SMB command \'%s\' output:' % command
+                smb_shell.onecmd(command)
+                print '----------8<----------'
 
 ###############
 # Set domains #

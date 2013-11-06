@@ -98,6 +98,9 @@ class SvcShell(cmd.Cmd):
             myIPaddr = self.transferClient.getSMBServer().get_socket().getsockname()[0]
             self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output, myIPaddr, self.__smbserver_share)
 
+    def __output_callback(self, data):
+        self.__outputBuffer += data
+
     def cmdloop(self):
         logger.info('Launching semi-interactive shell')
         logger.debug('Going to use temporary service %s' % self.__service_name)
@@ -110,9 +113,6 @@ class SvcShell(cmd.Cmd):
             self.__outputBuffer = ''
 
         cmd.Cmd.cmdloop(self)
-
-    def __output_callback(self, data):
-        self.__outputBuffer += data
 
     def emptyline(self):
         return False

@@ -6,44 +6,19 @@ from lib.common import *
 from lib.smbshell import SMBShell
 
 class InteractiveShell(cmd.Cmd):
-    def __init__(self, target, credential, local_name, smbcommands=None, oscommands=None):
+    def __init__(self, target, credential, local_name):
         '''
         Initialize the object variables
         '''
 
         cmd.Cmd.__init__(self)
-        self.__exit = False
         self.smb_shell = SMBShell(target, credential, local_name)
-
-        if isinstance(smbcommands, (list, tuple, set)) and len(smbcommands) > 0:
-            logger.info('Executing SMB commands from provided file')
-
-            for command in smbcommands:
-                print 'SMB command \'%s\' output:' % command
-                self.onecmd(command)
-                print '----------8<----------'
-
-            self.__exit = True
-
-        if isinstance(oscommands, (list, tuple, set)) and len(oscommands) > 0:
-            logger.info('Executing OS commands from provided file')
-
-            for command in oscommands:
-                print 'OS command \'%s\' output:' % command
-                self.smb_shell.svcexec(command, 'SHARE')
-                print '----------8<----------'
-
-            self.__exit = True
-
-        if self.__exit:
-            self.onecmd('exit')
-
-        logger.info('Launching interactive SMB shell')
         self.prompt = '# '
 
+    def cmdloop(self):
+        logger.info('Launching interactive SMB shell')
         print 'Type help for list of commands'
 
-    def cmdloop(self):
         while True:
             try:
                 cmd.Cmd.cmdloop(self)
@@ -91,12 +66,12 @@ class InteractiveShell(cmd.Cmd):
             else:
                 return items
 
-    def do_shell(self, cmd):
+    def do_shell(self, command):
         '''
         Execute a local command if the provided command is preceed by an
         exclamation mark
         '''
-        process = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
+        process = Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
         stdout, _ = process.communicate()
 
         if stdout is not None:
@@ -483,20 +458,20 @@ psexec [command] - executes a command through SMB named pipes
         '''
         self.smb_shell.bindshell(port)
 
-    def do_svcexec(self, cmd, mode='SHARE'):
+    def do_svcexec(self, command, mode='SHARE'):
         '''
         Executes a command through a custom Windows Service
         '''
-        argvalues = shlex.split(cmd)
+        argvalues = shlex.split(command)
 
         if len(argvalues) < 1:
             raise missingService, 'Command has not been specified'
         elif len(argvalues) > 1:
             mode = argvalues[1]
 
-        cmd = argvalues[0]
+        command = argvalues[0]
 
-        self.smb_shell.svcexec(cmd, mode)
+        self.smb_shell.svcexec(command, mode)
 
     def do_svcshell(self, mode='SHARE'):
         '''

@@ -33,7 +33,7 @@ class PsExec(object):
     def __init__(self):
         pass
 
-    def psexec(self, command=''):
+    def psexec(self, command=None):
         srvname = ''.join([random.choice(string.letters) for _ in range(8)])
         remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
 
@@ -43,6 +43,12 @@ class PsExec(object):
 
         if command in ('cmd.exe', 'command.com'):
             logger.info('Launching interactive shell')
+
+        command_and_args = shlex.split(command)
+
+        if os.path.exists(command_and_args[0]):
+            self.use(default_share)
+            self.upload(command_and_args[0])
 
         logger.debug('Going to use temporary service %s' % srvname)
 
