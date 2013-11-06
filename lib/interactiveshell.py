@@ -30,7 +30,7 @@ class InteractiveShell(cmd.Cmd):
 
             for command in oscommands:
                 print 'OS command \'%s\' output:' % command
-                self.onecmd('svcexec \'%s\'' % command)
+                self.smb_shell.svcexec(command, 'SHARE')
                 print '----------8<----------'
 
             self.__exit = True

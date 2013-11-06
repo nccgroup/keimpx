@@ -89,16 +89,14 @@ class SvcShell(cmd.Cmd):
         self.__shell = '%COMSPEC% /Q /c'
         self.__service_name = ''.join([random.choice(string.letters) for _ in range(8)]).encode('utf-16le')
 
-        s = self.__rpc.get_smb_connection()
+        self.transferClient = self.__rpc.get_smb_connection()
 
         # We don't wanna deal with timeouts from now on
-        s.setTimeout(100000)
+        self.transferClient.setTimeout(100000)
 
         if self.__mode == 'SERVER':
-            myIPaddr = s.getSMBServer().get_socket().getsockname()[0]
+            myIPaddr = self.transferClient.getSMBServer().get_socket().getsockname()[0]
             self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output, myIPaddr, self.__smbserver_share)
-
-        self.transferClient = self.__rpc.get_smb_connection()
 
     def cmdloop(self):
         logger.info('Launching semi-interactive shell')
