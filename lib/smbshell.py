@@ -5,13 +5,14 @@
 from lib.atexec import AtSvc
 from lib.common import *
 from lib.psexec import PsExec
+from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
 from lib.services import SvcCtl
 
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
-class SMBShell(AtSvc, PsExec, Samr, SvcCtl):
+class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
     def __init__(self, target, credential, local_name, commands=None):
         self.__target = target
         self.__dstip = self.__target.getHost()

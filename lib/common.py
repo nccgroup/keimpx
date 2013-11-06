@@ -45,10 +45,13 @@ except ImportError:
 try:
     from impacket import ImpactPacket
     from impacket import nt_errors
+    from impacket import ntlm
     from impacket import smbserver
+    from impacket import uuid
     from impacket.nmb import NetBIOSTimeout
     from impacket.dcerpc import atsvc
     from impacket.dcerpc import dcerpc
+    from impacket.dcerpc import epm
     from impacket.dcerpc import ndrutils
     from impacket.dcerpc import srvsvc
     from impacket.dcerpc import svcctl

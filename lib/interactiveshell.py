@@ -141,6 +141,10 @@ users [domain] - list users, optionally for a specific domain
 pswpolicy [domain] - list password policy, optionally for a specific domain
 domains - list domains to which the system is part of
 
+RPC endpoints options
+=====================
+rpcdump - dump RPC endpoints
+
 Registry options (Soon)
 ================
 regread {registry key} - read a registry key
@@ -450,6 +454,12 @@ psexec [command] - executes a command through SMB named pipes
         List domains to which the system is part of
         '''
         self.smb_shell.domains()
+
+    def do_rpcdump(self, line):
+        '''
+        List RPC endpoints
+        '''
+        self.smb_shell.rpcdump()
 
     def do_bindshell(self, port):
         '''
