@@ -154,11 +154,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             self.shares_list.append(name)
 
-            print '[%d] %s\n\tComment: %s' % (count, name, comment)
-            print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
-            print '\tType: %s' % share_type
-            #print '\tPermissions: %d' % permissions
+            print '[%d] %s (comment: %s)' % (count, name, comment)
             print '\tPath: %s' % path
+            print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
+            #print '\tType: %s' % share_type
+            #print '\tPermissions: %d' % permissions
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.shares_list)
@@ -173,10 +173,18 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         if self.tid:
             self.smb.disconnectTree(self.tid)
 
-        self.share = share.strip('\x00')
-        self.tid = self.smb.connectTree(self.share)
-        self.pwd = '\\'
-        self.ls('', False)
+        try:
+            self.share = share.strip('\x00')
+            self.tid = self.smb.connectTree(self.share)
+            self.pwd = '\\'
+            self.ls('', False)
+        except SessionError, e:
+            if e.getErrorCode() == nt_errors.STATUS_BAD_NETWORK_NAME:
+                logger.warn('Invalid share name')
+            elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
+                logger.warn('Access denied')
+            else:
+                logger.warn('Unable to connect to share: %s' % (e.getErrorString(), ))
 
     def cd(self, path):
         if not path:
@@ -190,7 +198,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             return
         elif path == '..':
             sep = self.pwd.split('\\')
-            self.pwd = ''.join('\\%s' % s for s in sep[:-1])
+            self.pwd = ''.join('%s' % s for s in sep[:-1])
             return
 
         if path[0] == '\\':
@@ -229,7 +237,16 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         self.completion = []
         pwd = ntpath.normpath(pwd)
-        files = self.smb.listPath(self.share, pwd)
+
+        try:
+            files = self.smb.listPath(self.share, pwd)
+        except SessionError, e:
+            if e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
+                logger.warn('File not found')
+            else:
+                logger.warn('Unable to list file: %s' % (e.getErrorString(), ))
+
+            return
 
         for f in files:
             if display is True:
