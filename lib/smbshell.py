@@ -86,7 +86,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             logger.warn('Share has not been specified, select one')
             self.shares()
 
-    def info(self):
+    def info(self, display=True):
         logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
@@ -95,20 +95,23 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
         self.__dce.disconnect()
 
-        print 'Operating system: %s' % self.smb.getServerOS()
-        print 'Netbios name: %s' % self.smb.getServerName()
-        print 'Domain: %s' % self.smb.getServerDomain()
-        print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
-        print 'NTLMv2 support: %s' % self.smb.doesSupportNTLMv2()
-        print 'UserPath: %s' % self.__resp['UserPath']
-        print 'Simultaneous users: %d' % self.__resp['Users']
-        print 'Version major: %d' % self.__resp['VersionMajor']
-        print 'Version minor: %d' % self.__resp['VersionMinor']
-        print 'Comment: %s' % self.__resp['Comment'] or ''
+        if display:
+            print 'Operating system: %s' % self.smb.getServerOS()
+            print 'Netbios name: %s' % self.smb.getServerName()
+            print 'Domain: %s' % self.smb.getServerDomain()
+            print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
+            print 'NTLMv2 support: %s' % self.smb.doesSupportNTLMv2()
+            print 'UserPath: %s' % self.__resp['UserPath']
+            print 'Simultaneous users: %d' % self.__resp['Users']
+            print 'Version major: %d' % self.__resp['VersionMajor']
+            print 'Version minor: %d' % self.__resp['VersionMinor']
+            print 'Comment: %s' % self.__resp['Comment'] or ''
 
-        # TODO: uncomment when SMBConnection will have a wrapper
-        # getServerTime() method for both SMBv1,2,3
-        #print 'Time: %s' % self.smb.get_server_time()
+            # TODO: uncomment when SMBConnection will have a wrapper
+            # getServerTime() method for both SMBv1,2,3
+            #print 'Time: %s' % self.smb.get_server_time()
+
+        return self.__resp
 
     def who(self):
         logger.debug('Binding on Server Service (SRVSVC) interface')

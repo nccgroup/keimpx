@@ -15,6 +15,12 @@ class AtSvc(object):
         print data
 
     def atexec(self, command):
+        version_major = self.info(display=False)['VersionMajor']
+
+        if version_major < 6:
+            logger.warn('This command only works on Windows >= Vista')
+            return
+
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
