@@ -222,8 +222,8 @@ class RemoteShell(cmd.Cmd):
         self.send_data('\r\n')
         return
 
-    def do_shell(self, cmd):
-        process = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
+    def do_shell(self, command):
+        process = Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
         stdout, _ = process.communicate()
 
         if stdout is not None:
