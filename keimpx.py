@@ -629,9 +629,9 @@ def cmdline_parser():
                           help='Maximum simultaneous connections (default: 10)')
 
         parser.add_option('-b', '--batch', dest='batch', action='store_true', default=False,
-                          help='Batch mode: do not ask to get an interactive SMB shell')
+                          help='Batch mode: do not prompt for an interactive SMB shell')
 
-        parser.add_option('-x', dest='executelist', help='Execute a list of '
+        parser.add_option('-x', dest='executelist', help='Execute a list of SMB '
                           'commands against all hosts')
 
         (args, _) = parser.parse_args()
