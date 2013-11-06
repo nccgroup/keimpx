@@ -751,16 +751,13 @@ def main():
 
             print
 
-    if conf.batch is True:
-        return
-
     if conf.smbcmdlist is not None:
         smbcmdlist()
 
     if conf.oscmdlist is not None:
         oscmdlist()
 
-    if conf.smbcmdlist or conf.oscmdlist:
+    if conf.batch or conf.smbcmdlist or conf.oscmdlist:
         return
 
     msg = 'Do you want to establish a SMB shell from any of the targets? [Y/n] '
