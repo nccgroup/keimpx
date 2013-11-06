@@ -15,14 +15,17 @@ class AtSvc(object):
         print data
 
     def atexec(self, command):
-        self.__command = command
-        self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
+        command_and_args = shlex.split(command)
 
+        if os.path.exists(command_and_args[0]):
+            self.use(default_share)
+            self.upload(command_and_args[0])
+
+        self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
+        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (command, self.__tmpFileName)
         self.__atsvc_connect()
 
-        command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (self.__command, self.__tmpFileName)
-
-        logger.debug('Creating scheduled task with command: %s' % command)
+        logger.debug('Creating scheduled task with command: %s' % self.__at_command)
 
         # Check [MS-TSCH] Section 2.3.4
         self.__atInfo = atsvc.AT_INFO()
@@ -31,7 +34,7 @@ class AtSvc(object):
         self.__atInfo['DaysOfWeek']      = 0
         self.__atInfo['Flags']           = 0
         self.__atInfo['Command']         = ndrutils.NDRUniqueStringW()
-        self.__atInfo['Command']['Data'] = (command).encode('utf-16le')
+        self.__atInfo['Command']['Data'] = (self.__at_command).encode('utf-16le')
 
         resp = self.__at.NetrJobAdd(('\\\\%s'% self.trans.get_dip()), self.__atInfo)
         jobId = resp['JobID']

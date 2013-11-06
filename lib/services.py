@@ -78,20 +78,26 @@ class SvcCtl(object):
         self.__svcctl_bin_remove(remote_file)
         self.pwd = self.__oldpwd
 
-    def svcexec(self, cmd, mode='SHARE'):
+    def svcexec(self, command, mode='SHARE'):
+        command_and_args = shlex.split(command)
+
+        if os.path.exists(command_and_args[0]):
+            self.use(default_share)
+            self.upload(command_and_args[0])
+
         self.__svcctl_connect()
 
         try:
             if mode == 'SERVER':
-                serverThread = SMBServer()
-                serverThread.daemon = True
-                serverThread.start()
+                self.__serverThread = SMBServer()
+                self.__serverThread.daemon = True
+                self.__serverThread.start()
 
             self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
-            self.svc_shell.onecmd(cmd)
+            self.svc_shell.onecmd(command)
 
             if mode == 'SERVER':
-                serverThread.stop()
+                self.__serverThread.stop()
         except SessionError, e:
             #traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
@@ -110,15 +116,15 @@ class SvcCtl(object):
 
         try:
             if mode == 'SERVER':
-                serverThread = SMBServer()
-                serverThread.daemon = True
-                serverThread.start()
+                self.__serverThread = SMBServer()
+                self.__serverThread.daemon = True
+                self.__serverThread.start()
 
             self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
             self.svc_shell.cmdloop()
 
             if mode == 'SERVER':
-                serverThread.stop()
+                self.__serverThread.stop()
         except SessionError, e:
             #traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
