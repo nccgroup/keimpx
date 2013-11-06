@@ -13,7 +13,7 @@ class InteractiveShell(cmd.Cmd):
 
         cmd.Cmd.__init__(self)
         self.smb_shell = SMBShell(target, credential, local_name)
-        self.prompt = '# '
+        self.prompt = 'SMBShell(%s) > ' % target.getIdentity()
 
     def cmdloop(self):
         logger.info('Launching interactive SMB shell')
@@ -139,8 +139,8 @@ regread {registry key} - read a registry key
 regwrite {registry key} {registry value} - add a value to a registry key
 regdelete {registry key} - delete a registry key
 
-Take-over options
-=================
+Operating system interaction options
+====================================
 bindshell [port] - spawn an interactive shell on a TCP port on the target
       This works by upload a custom bind shell, executing it as a service
       and connecting to a TCP port where it listens, by default 4445/TCP.
