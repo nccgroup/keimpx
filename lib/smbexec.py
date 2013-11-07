@@ -102,7 +102,7 @@ class SvcShell(cmd.Cmd):
         self.__outputBuffer += data
 
     def cmdloop(self):
-        logger.info('Launching semi-interactive shell')
+        logger.info('Launching semi-interactive OS shell')
         logger.debug('Going to use temporary service %s' % self.__service_name)
 
         self.execute_command('cd ')

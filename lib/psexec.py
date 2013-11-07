@@ -42,7 +42,7 @@ class PsExec(object):
             command = 'cmd.exe'
 
         if command in ('cmd.exe', 'command.com'):
-            logger.info('Launching interactive shell')
+            logger.info('Launching interactive OS shell')
 
         command_and_args = shlex.split(command)
 
