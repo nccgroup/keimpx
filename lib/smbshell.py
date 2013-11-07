@@ -255,6 +255,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             self.completion.append((f.get_longname(),f.is_directory(), f.get_filesize()))
 
     def lstree(self, path, display=True):
+        self.check_share()
+
         if not path:
             pwd = ntpath.join(self.pwd, '*')
         else:
@@ -280,7 +282,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 for x in range(0, path.count('\\') + 1):
                     print '|  ',
 
-                print '|-- %s' % identified_file
+                print '|-- %s (%d bytes)' % (identified_file, size)
 
     def cat(self, filename):
         filename = os.path.basename(filename)
