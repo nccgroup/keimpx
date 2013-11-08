@@ -372,6 +372,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         # Check if the provided path is not a directory (if so, then the
         # working directory has not changed
         if self.pwd == self.oldpwd:
+            self.download(basename)
             return
 
         logger.debug('Downloading directory %s' % self.pwd)
