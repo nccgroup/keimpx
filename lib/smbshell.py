@@ -332,7 +332,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         if path is None:
             path = '.'
         else:
-            path = os.path.normpath(path)
+            path = path.replace('\\', '/')
 
         self.ls(basename, display=False)
 
@@ -365,7 +365,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             self.cd('..')
 
         basename = ntpath.basename(path)
-        normpath = os.path.normpath(path)
+        normpath = path.replace('\\', '/')
 
         self.cd(basename)
 
@@ -375,7 +375,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             self.download(basename)
             return
 
-        logger.debug('Downloading directory %s' % self.pwd)
+        logger.debug('Recreating directory %s' % self.pwd)
         self.ls(None, display=False)
 
         if not os.path.exists(normpath):
