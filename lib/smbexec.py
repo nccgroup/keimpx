@@ -136,7 +136,11 @@ class SvcShell(cmd.Cmd):
             fd = open(self.__smbserver_dir + '/' + self.__output_file,'r')
             self.__output_callback(fd.read())
             fd.close()
-            os.unlink(self.__smbserver_dir + '/' + self.__output_file)
+
+            try:
+                os.unlink(self.__smbserver_dir + '/' + self.__output_file)
+            except:
+                pass
         else:
             self.transferClient.getFile(self.__share, self.__output, self.__output_callback)
             self.transferClient.deleteFile(self.__share, self.__output)
