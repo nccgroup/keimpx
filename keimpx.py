@@ -339,7 +339,24 @@ def oscmdlist():
 
             for command in commands:
                 print 'OS command \'%s\' output:' % command
-                smb_shell.do_svcexec('\'%s\'' % command, 'SHARE')
+
+                try:
+                    smb_shell.do_svcexec('\'%s\'' % command, 'SHARE')
+                except SessionError, e:
+                    #traceback.print_exc()
+                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                except NetBIOSTimeout, e:
+                    logger.error('SMB connection timed out')
+                except keimpxError, e:
+                    logger.error(e)
+                except KeyboardInterrupt, _:
+                    print
+                    logger.info('User aborted')
+                    smb_shell.do_exit('')
+                except Exception, e:
+                    #traceback.print_exc()
+                    logger.error(str(e))
+
                 print '----------8<----------'
 
 def smbcmdlist():
@@ -360,7 +377,24 @@ def smbcmdlist():
 
             for command in commands:
                 print 'SMB command \'%s\' output:' % command
-                smb_shell.onecmd(command)
+
+                try:
+                    smb_shell.onecmd(command)
+                except SessionError, e:
+                    #traceback.print_exc()
+                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                except NetBIOSTimeout, e:
+                    logger.error('SMB connection timed out')
+                except keimpxError, e:
+                    logger.error(e)
+                except KeyboardInterrupt, _:
+                    print
+                    logger.info('User aborted')
+                    smb_shell.do_exit('')
+                except Exception, e:
+                    #traceback.print_exc()
+                    logger.error(str(e))
+
                 print '----------8<----------'
 
 ###############
