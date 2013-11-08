@@ -431,7 +431,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             fp.close()
 
-    def rename(self, srcfile, destfile=None):
+    def rename(self, srcfile, destfile):
         self.check_share()
         srcfile = ntpath.join(self.pwd, ntpath.normpath(srcfile))
         destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))

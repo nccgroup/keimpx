@@ -291,8 +291,14 @@ psexec [command] - executes a command through SMB named pipes
 
         self.smb_shell.upload(pathname, destfile)
 
+    def complete_mv(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=0)
+
     def do_mv(self, srcfile, destfile=None):
         self.do_rename(srcfile, destfile)
+
+    def complete_rename(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=0)
 
     def do_rename(self, srcfile, destfile=None):
         if not destfile:
@@ -319,6 +325,12 @@ psexec [command] - executes a command through SMB named pipes
 
     def do_rm(self, filename):
         self.smb_shell.rm(filename)
+
+    def complete_deldir(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=2)
+
+    def do_deldir(self, path):
+        self.do_rmdir(path)
 
     def complete_rmdir(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=2)
