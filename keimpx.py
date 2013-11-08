@@ -371,7 +371,7 @@ def smbcmdlist():
             first_credentials = valid_credentials[0]
 
         logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        smb_shell = InteractiveShell(target, first_credentials, conf.name)
+        shell = InteractiveShell(target, first_credentials, conf.name)
 
         if len(commands) > 0:
             logger.info('Executing SMB commands from provided file')
@@ -380,7 +380,7 @@ def smbcmdlist():
                 print 'SMB command \'%s\' output:' % command
 
                 try:
-                    smb_shell.onecmd(command)
+                    shell.onecmd(command)
                 except SessionError, e:
                     #traceback.print_exc()
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
