@@ -192,7 +192,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         self.check_share()
         path = ntpath.normpath(path)
-        self.__oldpwd = self.pwd
+        self.oldpwd = self.pwd
 
         if path == '.':
             return
@@ -211,7 +211,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             fid = self.smb.openFile(self.tid, self.pwd)
             self.smb.closeFile(self.tid, fid)
             logger.warn('File is not a directory')
-            self.pwd = self.__oldpwd
+            self.pwd = self.oldpwd
         except SessionError, e:
             if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
                return
@@ -222,7 +222,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             else:
                 logger.warn('Unable to change directory: %s' % (e.getErrorString(), ))
 
-            self.pwd = self.__oldpwd
+            self.pwd = self.oldpwd
 
     def get_pwd(self):
         print ntpath.join(self.share, self.pwd)
@@ -324,14 +324,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             self.smb.closeFile(self.tid, self.fid)
 
-    def download(self, filename, destpath=None):
+    def download(self, filename, path=None):
         self.check_share()
 
         basename = os.path.basename(filename)
-        self.ls(basename, display=False)
 
-        if destpath is None:
-            destpath = '.'
+        if path is None:
+            path = '.'
+        else:
+            path = os.path.normpath(path)
+
+        self.ls(basename, display=False)
 
         for identified_file, is_directory, size in self.completion:
             if is_directory > 0:
@@ -342,7 +345,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             logger.debug('Downloading file %s\%s (%d bytes)..' % (self.pwd, identified_file, size))
 
             try:
-                fh = open(os.path.join(destpath, identified_file), 'wb')
+                fh = open(os.path.join(path, identified_file), 'wb')
                 download_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
                 self.smb.getFile(self.share, download_file, fh.write)
                 fh.close()
@@ -362,21 +365,20 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             self.cd('..')
 
         basename = ntpath.basename(path)
-        unixpath = path.replace('\\', '/')
+        normpath = os.path.normpath(path)
 
-        self.__oldpwd = self.pwd
         self.cd(basename)
 
         # Check if the provided path is not a directory (if so, then the
         # working directory has not changed
-        if self.pwd == self.__oldpwd:
+        if self.pwd == self.oldpwd:
             return
 
         logger.debug('Downloading directory %s' % self.pwd)
         self.ls(None, display=False)
 
-        if not os.path.exists(unixpath):
-            os.makedirs(unixpath)
+        if not os.path.exists(normpath):
+            os.makedirs(normpath)
 
         for identified_file, is_directory, size in self.completion:
             if identified_file in ('.', '..'):
@@ -386,7 +388,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 self.downloadtree(ntpath.join(path, identified_file))
                 self.cd('..')
             else:
-                self.download(identified_file, destpath=unixpath)
+                self.download(identified_file, normpath)
 
     def upload(self, pathname, destfile=None):
         if isinstance(pathname, basestring):

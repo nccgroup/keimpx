@@ -48,7 +48,7 @@ class SvcCtl(object):
         self.__svcctl_disconnect(srvname)
 
     def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
-        self.__oldpwd = self.pwd
+        self.oldpwd = self.pwd
         self.pwd = '\\'
 
         self.__svcctl_bin_upload(local_file, remote_file)
@@ -58,10 +58,10 @@ class SvcCtl(object):
         self.__svcctl_start(srvname, srvargs)
         self.__svcctl_disconnect(srvname)
 
-        self.pwd = self.__oldpwd
+        self.pwd = self.oldpwd
 
     def undeploy(self, srvname):
-        self.__oldpwd = self.pwd
+        self.oldpwd = self.pwd
         self.pwd = '\\'
 
         self.__svcctl_connect()
@@ -76,7 +76,7 @@ class SvcCtl(object):
         self.__svcctl_delete(srvname)
         self.__svcctl_disconnect(srvname)
         self.__svcctl_bin_remove(remote_file)
-        self.pwd = self.__oldpwd
+        self.pwd = self.oldpwd
 
     def svcexec(self, command, mode='SHARE'):
         command_and_args = shlex.split(command)
