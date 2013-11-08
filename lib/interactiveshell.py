@@ -130,9 +130,10 @@ use {share} - connect to an specific share
 cd {path} - changes the current directory to {path}
 pwd - shows current remote directory
 ls {path} - lists all the files in the given path or current directory
-lstree {path} - lists all files and directories in the given path or current directory recursively
+lstree [path] - lists all files and directories in the given path or current directory recursively
 cat {file} - display content of the selected file
 download {filename} - downloads the filename from the current path
+downloadtree [path] - downloads all files and directories in the given path or current directory recursively
 upload {filename} [destfile] - uploads the filename into a remote share (or current path)
 rename {srcfile} {destfile} - rename a file
 mkdir {dirname} - creates the directory under the current path
@@ -197,112 +198,87 @@ psexec [command] - executes a command through SMB named pipes
         set_verbosity(level)
 
     def do_info(self, line):
-        '''
-        Display system information like operating system
-        '''
         self.smb_shell.info()
 
     def do_who(self, line):
-        '''
-        Display the sessions currently connected at the target host (admin required)
-        '''
         self.smb_shell.who()
 
     def do_shares(self, line):
-        '''
-        List available shares and display a menu to select which share to
-        connect to
-        '''
         self.smb_shell.shares()
 
     def do_use(self, share):
-        '''
-        Select the share to connect to
-        '''
         self.smb_shell.use(share)
 
     def complete_cd(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=2)
 
     def do_cd(self, path):
-        '''
-        Change the current path
-        '''
         self.smb_shell.cd(path)
 
     def do_pwd(self, line):
-        '''
-        Display the current path
-        '''
         self.smb_shell.get_pwd()
 
     def do_dir(self, path):
-        '''
-        Alias to ls
-        '''
         self.do_ls(path)
 
     def do_ls(self, path, display=True):
-        '''
-        List files from the current path
-        '''
         self.smb_shell.ls(path, display)
 
+    def complete_dirtree(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=2)
+
     def do_dirtree(self, path):
-        '''
-        Alias to lstree
-        '''
         self.do_lstree(path)
 
-    def do_lstree(self, path, display=True):
-        '''
-        List files from the current path
-        '''
-        self.smb_shell.lstree(path, display)
+    def complete_lstree(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=2)
+
+    def do_lstree(self, path):
+        self.smb_shell.lstree(path)
 
     def complete_cat(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_cat(self, filename):
-        '''
-        Display a file content from the current path
-        '''
         self.smb_shell.cat(filename)
 
     def complete_get(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_get(self, filename):
-        '''
-        Alias to download
-        '''
         self.do_download(filename)
 
     def complete_download(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_download(self, filename):
-        '''
-        Download a file from the current path
-        '''
+        if not filename:
+            raise missingOption, 'File name has not been specified'
+
         self.smb_shell.download(filename)
+
+    def complete_gettree(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=2)
+
+    def do_gettree(self, path):
+        self.do_downloadtree(path)
+
+    def complete_downloadtree(self, text, line, begidx, endidx):
+        return self.complete_files(text, line, begidx, endidx, include=2)
+
+    def do_downloadtree(self, path):
+        self.smb_shell.downloadtree(path)
 
     def complete_put(self, text, line, begidx, endidx):
         return self.complete_local_files(text, line, begidx, endidx, include=1)
 
     def do_put(self, pathname, destfile=None):
-        '''
-        Alias to upload
-        '''
         self.do_upload(pathname, destfile)
 
     def complete_upload(self, text, line, begidx, endidx):
         return self.complete_local_files(text, line, begidx, endidx, include=1)
 
     def do_upload(self, pathname, destfile=None):
-        '''
-        Upload a file in the current path
-        '''
         if not destfile:
             argvalues = shlex.split(pathname)
 
@@ -316,15 +292,9 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.upload(pathname, destfile)
 
     def do_mv(self, srcfile, destfile=None):
-        '''
-        Alias to rename
-        '''
         self.do_rename(srcfile, destfile)
 
     def do_rename(self, srcfile, destfile=None):
-        '''
-        Rename a file
-        '''
         if not destfile:
             argvalues = shlex.split(srcfile)
 
@@ -336,36 +306,24 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.rename(srcfile, destfile)
 
     def do_mkdir(self, path):
-        '''
-        Create a directory in the current share
-        '''
         self.smb_shell.mkdir(path)
 
     def complete_del(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_del(self, filename):
-        '''
-        Alias to rm
-        '''
         self.do_rm(filename)
 
     def complete_rm(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=1)
 
     def do_rm(self, filename):
-        '''
-        Remove a file in the current share
-        '''
         self.smb_shell.rm(filename)
 
     def complete_rmdir(self, text, line, begidx, endidx):
         return self.complete_files(text, line, begidx, endidx, include=2)
 
     def do_rmdir(self, path):
-        '''
-        Remove a directory in the current share
-        '''
         self.smb_shell.rmdir(path)
 
     def do_services(self, srvname):
@@ -384,9 +342,6 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.query(srvname)
 
     def do_start(self, srvname, srvargs=''):
-        '''
-        Start a service.
-        '''
         if not srvargs:
             argvalues = shlex.split(srvname)
 
@@ -400,18 +355,12 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.start(srvname, srvargs)
 
     def do_stop(self, srvname):
-        '''
-        Stop a service.
-        '''
         if not srvname:
             raise missingService, 'Service name has not been specified'
 
         self.smb_shell.stop(srvname)
 
     def do_change(self, srvname):
-        '''
-        Change the configuration of a service.
-        '''
         if not srvname:
             raise missingService, 'Service name has not been specified'
 
@@ -419,9 +368,6 @@ psexec [command] - executes a command through SMB named pipes
 
     def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
         '''
-        Deploy a Windows service: upload the service executable to the
-        file system, create a service as 'Automatic' and start it
-
         Sample command:
         deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe 'long name'
         '''
@@ -463,50 +409,27 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.deploy(srvname, local_file, srvargs, remote_file, displayname)
 
     def do_undeploy(self, srvname):
-        '''
-        Wrapper method to undeploy a Windows service. It stops the
-        services, removes it and removes the executable from the file
-        system
-        '''
         if not srvname:
             raise missingService, 'Service name has not been specified'
 
         self.smb_shell.undeploy(srvname)
 
     def do_users(self, usrdomain):
-        '''
-        List users, optionally for a specific domain
-        '''
         self.smb_shell.users(usrdomain)
 
     def do_pswpolicy(self, usrdomain):
-        '''
-        List password policy, optionally for a specific domain
-        '''
         self.smb_shell.pswpolicy(usrdomain)
 
     def do_domains(self, line):
-        '''
-        List domains to which the system is part of
-        '''
         self.smb_shell.domains()
 
     def do_rpcdump(self, line):
-        '''
-        List RPC endpoints
-        '''
         self.smb_shell.rpcdump()
 
     def do_bindshell(self, port):
-        '''
-        Spawn a shell listening on a TCP port on the target
-        '''
         self.smb_shell.bindshell(port)
 
     def do_svcexec(self, command, mode='SHARE'):
-        '''
-        Executes a command through a custom Windows Service
-        '''
         argvalues = shlex.split(command)
 
         if len(argvalues) < 1:
@@ -520,22 +443,13 @@ psexec [command] - executes a command through SMB named pipes
         self.smb_shell.svcexec(command, mode)
 
     def do_svcshell(self, mode='SHARE'):
-        '''
-        Semi-interactive shell through a custom Windows Service
-        '''
         self.smb_shell.svcshell(mode)
 
     def do_atexec(self, command):
-        '''
-        Executes a command through the Task Scheduler service
-        '''
         if not command:
             raise missingOption, 'Command has not been specified'
 
         self.smb_shell.atexec(command)
 
     def do_psexec(self, command):
-        '''
-        Executes a command through SMB named pipes
-        '''
         self.smb_shell.psexec(command)

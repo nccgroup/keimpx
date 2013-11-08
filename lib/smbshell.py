@@ -198,7 +198,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             return
         elif path == '..':
             sep = self.pwd.split('\\')
-            self.pwd = ''.join('%s' % s for s in sep[:-1])
+            self.pwd = '\\'.join('%s' % s for s in sep[:-1])
             return
 
         if path[0] == '\\':
@@ -254,21 +254,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             self.completion.append((f.get_longname(),f.is_directory(), f.get_filesize()))
 
-    def lstree(self, path, display=True):
+    def lstree(self, path):
         self.check_share()
 
         if not path:
-            pwd = ntpath.join(self.pwd, '*')
-        else:
-            pwd = ntpath.join(self.pwd, path)
-
-        subdirlist = []
-        pwd = ntpath.normpath(pwd)
+            path = ntpath.basename(self.pwd)
+            self.cd('..')
 
         for x in range(0, path.count('\\')):
             print '|  ',
 
-        print '|-- %s' % os.path.basename(path.replace('\\', '/'))
+        print '%s' % os.path.basename(path.replace('\\', '/'))
 
         self.ls('%s\\*' % path, display=False)
 
@@ -279,12 +275,14 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 self.lstree(ntpath.join(path, identified_file))
             else:
-                for x in range(0, path.count('\\') + 1):
+                for x in range(0, path.count('\\')):
                     print '|  ',
 
                 print '|-- %s (%d bytes)' % (identified_file, size)
 
     def cat(self, filename):
+        self.check_share()
+
         filename = os.path.basename(filename)
         self.ls(filename, display=False)
 
@@ -326,18 +324,25 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             self.smb.closeFile(self.tid, self.fid)
 
-    def download(self, filename):
-        filename = os.path.basename(filename)
-        self.ls(filename, display=False)
+    def download(self, filename, destpath=None):
+        self.check_share()
+
+        basename = os.path.basename(filename)
+        self.ls(basename, display=False)
+
+        if destpath is None:
+            destpath = '.'
 
         for identified_file, is_directory, size in self.completion:
             if is_directory > 0:
+                self.downloadtree(identified_file)
+                self.cd('..')
                 continue
 
-            logger.debug('Downloading file %s\%s (%d bytes)..' % (self.share, identified_file, size))
+            logger.debug('Downloading file %s\%s (%d bytes)..' % (self.pwd, identified_file, size))
 
             try:
-                fh = open(identified_file, 'wb')
+                fh = open(os.path.join(destpath, identified_file), 'wb')
                 download_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
                 self.smb.getFile(self.share, download_file, fh.write)
                 fh.close()
@@ -348,6 +353,40 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
                     logger.error('Unable to download file: %s' % (e.getErrorString(), ))
+
+    def downloadtree(self, path):
+        self.check_share()
+
+        if not path:
+            path = ntpath.basename(self.pwd)
+            self.cd('..')
+
+        basename = ntpath.basename(path)
+        unixpath = path.replace('\\', '/')
+
+        self.__oldpwd = self.pwd
+        self.cd(basename)
+
+        # Check if the provided path is not a directory (if so, then the
+        # working directory has not changed
+        if self.pwd == self.__oldpwd:
+            return
+
+        logger.debug('Downloading directory %s' % self.pwd)
+        self.ls(None, display=False)
+
+        if not os.path.exists(unixpath):
+            os.makedirs(unixpath)
+
+        for identified_file, is_directory, size in self.completion:
+            if identified_file in ('.', '..'):
+                continue
+
+            if is_directory > 0:
+                self.downloadtree(ntpath.join(path, identified_file))
+                self.cd('..')
+            else:
+                self.download(identified_file, destpath=unixpath)
 
     def upload(self, pathname, destfile=None):
         if isinstance(pathname, basestring):
@@ -372,7 +411,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
 
             if isinstance(filename, basestring):
-                logger.debug('Uploading file %s to %s\%s..' % (filename, self.share, destfile))
+                logger.debug('Uploading file %s to %s\%s..' % (filename, self.pwd, destfile))
 
             try:
                 self.smb.putFile(self.share, destfile, fp.read)
