@@ -290,11 +290,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Reading file %s\%s (%d bytes)..' % (self.share, identified_file, size))
+            filepath = ntpath.join(self.pwd, identified_file)
+            logger.debug('Reading file %s (%d bytes)..' % (filepath, size))
 
             try:
-                cat_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
-                self.fid = self.smb.openFile(self.tid, cat_file)
+                self.fid = self.smb.openFile(self.tid, filepath)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to %s' % identified_file)
@@ -342,12 +342,12 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 self.cd('..')
                 continue
 
-            logger.debug('Downloading file %s\%s (%d bytes)..' % (self.pwd, identified_file, size))
+            filepath = ntpath.join(self.pwd, identified_file)
+            logger.debug('Downloading file %s (%d bytes)..' % (filepath, size))
 
             try:
                 fh = open(os.path.join(path, identified_file), 'wb')
-                download_file = ntpath.join(self.pwd, ntpath.normpath(identified_file))
-                self.smb.getFile(self.share, download_file, fh.write)
+                self.smb.getFile(self.share, filepath, fh.write)
                 fh.close()
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
@@ -392,6 +392,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
                 self.download(identified_file, normpath)
 
     def upload(self, pathname, destfile=None):
+        self.check_share()
+
         if isinstance(pathname, basestring):
             files = glob.glob(pathname)
         else:
@@ -411,10 +413,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             if not destfile or len(files) > 1:
                 destfile = os.path.basename(filename)
-                destfile = ntpath.join(self.pwd, ntpath.normpath(destfile))
+
+            destfile = ntpath.join(self.pwd, destfile)
 
             if isinstance(filename, basestring):
-                logger.debug('Uploading file %s to %s\%s..' % (filename, self.pwd, destfile))
+                logger.debug('Uploading file %s to %s..' % (filename, destfile))
 
             try:
                 self.smb.putFile(self.share, destfile, fp.read)
@@ -441,6 +444,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
     def rm(self, filename):
         self.check_share()
+
         filename = ntpath.join(self.pwd, ntpath.normpath(filename))
         self.ls(filename, display=False)
 
@@ -448,10 +452,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if is_directory > 0:
                 continue
 
-            logger.debug('Removing file %s\%s (%d bytes)..' % (self.share, identified_file, size))
+            filepath = ntpath.join(self.pwd, identified_file)
+            logger.debug('Removing file %s (%d bytes)..' % (filepath, size))
 
             try:
-                self.smb.deleteFile(self.share, identified_file)
+                self.smb.deleteFile(self.share, filepath)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to %s' % identified_file)
@@ -462,22 +467,24 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
     def rmdir(self, path):
         self.check_share()
+
         path = ntpath.join(self.pwd, ntpath.normpath(path))
         self.ls(path, display=False)
 
-        for identified_path, is_directory, _ in self.completion:
+        for identified_file, is_directory, _ in self.completion:
             if is_directory <= 0:
                 continue
 
-            logger.debug('Removing directory %s\%s..' % (self.share, identified_path))
+            filepath = ntpath.join(self.pwd, identified_file)
+            logger.debug('Removing directory %s..' % filepath)
 
             try:
-                self.smb.deleteDirectory(self.share, identified_path)
+                self.smb.deleteDirectory(self.share, filepath)
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_path)
+                    logger.warn('Access denied to %s' % identified_file)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_path)
+                    logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
                     logger.error('Unable to remove directory: %s' % (e.getErrorString(), ))
 

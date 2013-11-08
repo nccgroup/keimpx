@@ -55,6 +55,7 @@ __version__ = '0.3-dev'
 
 from lib.common import *
 from lib.interactiveshell import InteractiveShell
+from lib.smbshell import SMBShell
 
 added_credentials = set()
 added_targets = set()
@@ -332,7 +333,7 @@ def oscmdlist():
             first_credentials = valid_credentials[0]
 
         logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        smb_shell = InteractiveShell(target, first_credentials, conf.name)
+        smb_shell = SMBShell(target, first_credentials, conf.name)
 
         if len(commands) > 0:
             logger.info('Executing OS commands from provided file')
@@ -341,7 +342,7 @@ def oscmdlist():
                 print 'OS command \'%s\' output:' % command
 
                 try:
-                    smb_shell.do_svcexec('\'%s\'' % command, 'SHARE')
+                    smb_shell.svcexec(command, 'SHARE')
                 except SessionError, e:
                     #traceback.print_exc()
                     logger.error('SMB error: %s' % (e.getErrorString(), ))
