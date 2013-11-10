@@ -861,7 +861,6 @@ def main():
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
-    socket.setdefaulttimeout(5)
 
     try:
         main()
