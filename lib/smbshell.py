@@ -35,8 +35,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.users_list = set()
         self.completion = []
 
-        socket.setdefaulttimeout(self.__timeout)
-
         self.connect()
         logger.debug('Connection to host %s established' % target.getIdentity())
 
