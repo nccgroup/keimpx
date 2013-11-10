@@ -327,10 +327,10 @@ def oscmdlist():
     targets_tuple = ()
 
     for target in targets:
-        valid_credentials = target.getValidCredentials()
-
-        if len(valid_credentials):
-            first_credentials = valid_credentials[0]
+        if len(target.getValidCredentials()) == 0:
+            continue
+        else:
+            first_credentials = target.getValidCredentials()[0]
 
         logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
         smb_shell = SMBShell(target, first_credentials, conf.name)
@@ -365,10 +365,10 @@ def smbcmdlist():
     targets_tuple = ()
 
     for target in targets:
-        valid_credentials = target.getValidCredentials()
-
-        if len(valid_credentials):
-            first_credentials = valid_credentials[0]
+        if len(target.getValidCredentials()) == 0:
+            continue
+        else:
+            first_credentials = target.getValidCredentials()[0]
 
         logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
         shell = InteractiveShell(target, first_credentials, conf.name)
@@ -391,7 +391,7 @@ def smbcmdlist():
                 except KeyboardInterrupt, _:
                     print
                     logger.info('User aborted')
-                    smb_shell.do_exit('')
+                    shell.do_exit('')
                 except Exception, e:
                     #traceback.print_exc()
                     logger.error(str(e))
@@ -861,6 +861,7 @@ def main():
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
+    socket.setdefaulttimeout(5)
 
     try:
         main()
