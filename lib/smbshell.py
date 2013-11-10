@@ -35,6 +35,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.users_list = set()
         self.completion = []
 
+        socket.setdefaulttimeout(self.__timeout)
+
         self.connect()
         logger.debug('Connection to host %s established' % target.getIdentity())
 
@@ -433,7 +435,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         if isinstance(pathname, basestring):
             files = glob.glob(pathname)
         else:
-            files = [pathname]
+            files = [ pathname ]
 
         for filename in files:
             try:
