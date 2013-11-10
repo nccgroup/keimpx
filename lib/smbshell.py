@@ -178,23 +178,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
             print '[%d] %s (comment: %s)' % (count, name, comment)
 
-            try:
-                _ = self.__share_info(shares[i]['NetName'])
-                share_type = _['Type']
-                max_uses = _['MaxUses'] # 4294967295L is unlimited
-                current_uses = _['CurrentUses']
-                permissions = _['Permissions'] # impacket always returns always 0
-                path = _['Path']
+            _ = self.__share_info(shares[i]['NetName'][:-2])
+            share_type = _['Type']
+            max_uses = _['MaxUses'] # 4294967295L is unlimited
+            current_uses = _['CurrentUses']
+            permissions = _['Permissions'] # impacket always returns always 0
+            path = _['Path']
 
-                print '\tPath: %s' % path
-                print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
-                #print '\tType: %s' % share_type
-                #print '\tPermissions: %d' % permissions
-            except:
-                # self.__share_info() fails against Windows XP, perhaps a
-                # bug in Impacket's NetrShareGetInfo()
-                #traceback.print_exc()
-                pass
+            print '\tPath: %s' % path
+            print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
+            #print '\tType: %s' % share_type
+            #print '\tPermissions: %d' % permissions
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.shares_list)
