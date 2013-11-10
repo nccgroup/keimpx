@@ -37,19 +37,23 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         self.connect()
         logger.debug('Connection to host %s established' % target.getIdentity())
+
         self.login()
         logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
 
+        logger.info('Looking for a writable share, wait..')
+        _ = self.get_writable_share()
+
+        if _:
+            self.default_share = _
+        else:
+            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % default_share)
+            self.default_share = default_share
+
     def connect(self):
-        '''
-        Connect the SMB session
-        '''
         self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
 
     def login(self):
-        '''
-        Login over the SMB session
-        '''
         try:
             self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
         except socket.error, e:
@@ -63,9 +67,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.smb.logoff()
 
     def smb_transport(self, named_pipe):
-        '''
-        Initiate a SMB connection on a specific named pipe
-        '''
         self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe, smb_connection=self.smb)
 
         try:
@@ -76,15 +77,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         except SessionError, e:
             logger.warn('SMB error: %s' % (e.getErrorString(), ))
             raise RuntimeError
-
-    def check_share(self, share=None):
-        #logger.debug("Into check_share with share: %s, self.share is: %s and self.tid is: %s" % (share, self.share, self.tid))
-
-        if share:
-            self.use(share)
-        elif not share and (self.share is None or self.tid is None):
-            logger.warn('Share has not been specified, select one')
-            self.shares()
 
     def info(self, display=True):
         logger.debug('Binding on Server Service (SRVSVC) interface')
@@ -137,28 +129,72 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         return resp
 
+    def check_share(self, share=None):
+        #logger.debug("Into check_share with share: %s, self.share is: %s and self.tid is: %s" % (share, self.share, self.tid))
+
+        if share:
+            self.use(share)
+        elif not share and (self.share is None or self.tid is None):
+            logger.warn('Share has not been specified, select one')
+            self.shares()
+
+    def is_writable_share(self, share):
+        _ = ''.join([random.choice(string.letters) for _ in range(8)])
+
+        try:
+            self.use(share)
+            self.mkdir(_)
+        except:
+            pass
+        else:
+            self.rmdir(_)
+            return True
+
+        return False
+
+    def get_writable_share(self):
+        # Check we can write a directory on the shares, return the first writable one
+        for _ in self.smb.listShares():
+            share = _['NetName'].decode('utf-16')
+
+            if self.is_writable_share(share):
+                logger.info('Share %s is writable' % share)
+                return share
+            else:
+                logger.debug('Share %s is not writable' % share)
+
+        return None
+
     def shares(self):
-        self.__resp = self.smb.listShares()
+        shares = self.smb.listShares()
         count = 0
 
-        for i in range(len(self.__resp)):
+        for i in range(len(shares)):
             count += 1
-            name = self.__resp[i]['NetName'].decode('utf-16')
-            comment = self.__resp[i]['Remark'].decode('utf-16')
-            _ = self.__share_info(self.__resp[i]['NetName'])
-            share_type = _['Type']
-            max_uses = _['MaxUses'] # 4294967295L is unlimited
-            current_uses = _['CurrentUses']
-            permissions = _['Permissions'] # impacket always returns always 0
-            path = _['Path']
-
+            name = shares[i]['NetName'].decode('utf-16')
             self.shares_list.append(name)
 
+            comment = shares[i]['Remark'].decode('utf-16')
+
             print '[%d] %s (comment: %s)' % (count, name, comment)
-            print '\tPath: %s' % path
-            print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
-            #print '\tType: %s' % share_type
-            #print '\tPermissions: %d' % permissions
+
+            try:
+                _ = self.__share_info(shares[i]['NetName'])
+                share_type = _['Type']
+                max_uses = _['MaxUses'] # 4294967295L is unlimited
+                current_uses = _['CurrentUses']
+                permissions = _['Permissions'] # impacket always returns always 0
+                path = _['Path']
+
+                print '\tPath: %s' % path
+                print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
+                #print '\tType: %s' % share_type
+                #print '\tPermissions: %d' % permissions
+            except:
+                # self.__share_info() fails against Windows XP, perhaps a
+                # bug in Impacket's NetrShareGetInfo()
+                #traceback.print_exc()
+                pass
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.shares_list)
@@ -244,7 +280,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             if e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
                 logger.warn('File not found')
             else:
-                logger.warn('Unable to list file: %s' % (e.getErrorString(), ))
+                logger.warn('Unable to list files: %s' % (e.getErrorString(), ))
 
             return
 
@@ -408,8 +444,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             except IOError:
                 logger.error('Unable to open file %s' % filename)
                 return False
-
-            self.check_share()
 
             if not destfile or len(files) > 1:
                 destfile = os.path.basename(filename)
