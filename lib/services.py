@@ -111,6 +111,9 @@ class SvcCtl(object):
         sys.stdout.flush()
         self.__svcctl_disconnect()
 
+        if os.path.exists(command_and_args[0]):
+            self.rm(command_and_args[0])
+
     def svcshell(self, mode='SHARE'):
         self.__svcctl_connect()
 
