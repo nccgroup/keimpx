@@ -167,7 +167,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
     def get_writable_share(self):
         # Check we can write a directory on the shares, return the first writable one
         for _ in self.smb.listShares():
-            share = _['NetName'].decode('utf-16')
+            share = _['NetName'].decode('utf-16').replace('\x00', '')
             share_info = self.__share_info(_['NetName'][:-2])
             path = share_info['Path'].replace('\x00', '')
 

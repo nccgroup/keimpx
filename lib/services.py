@@ -94,7 +94,11 @@ class SvcCtl(object):
                 self.__serverThread.start()
 
             self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
-            self.svc_shell.onecmd(os.path.basename(command.replace('\\', '/')))
+
+            if os.path.exists(command_and_args[0]):
+                command = ntpath.join(DataStore.share_path, os.path.basename(command))
+
+            self.svc_shell.onecmd(command)
 
             if mode == 'SERVER':
                 self.__serverThread.stop()
@@ -112,7 +116,7 @@ class SvcCtl(object):
         self.__svcctl_disconnect()
 
         if os.path.exists(command_and_args[0]):
-            self.rm(command_and_args[0])
+            self.rm(os.path.basename(command_and_args[0]))
 
     def svcshell(self, mode='SHARE'):
         self.__svcctl_connect()
