@@ -44,13 +44,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         logger.info('Looking for a writable share, wait..')
         _ = self.get_writable_share()
 
-        if _:
-            self.default_share = _
-        else:
-            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % default_share)
-            self.default_share = default_share
-
         self.info(False)
+
+        if _:
+            DataStore.default_share = _
+        else:
+            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % DataStore.default_share)
+
+            if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
+                DataStore.share_path = ntpath.join(DataStore.user_path, 'Windows', 'Temp')
+            else:
+                DataStore.share_path = ntpath.join(DataStore.user_path, 'WINNT', 'Temp')
 
     def connect(self):
         self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
@@ -91,6 +95,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         DataStore.server_os = self.smb.getServerOS()
         DataStore.server_name = self.smb.getServerName()
+        DataStore.user_path = self.__resp['UserPath']
         DataStore.version_major = self.__resp['VersionMajor']
         DataStore.version_minor = self.__resp['VersionMinor']
 
@@ -164,10 +169,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         for _ in self.smb.listShares():
             share = _['NetName'].decode('utf-16')
             share_info = self.__share_info(_['NetName'][:-2])
-            path = share_info['Path'].strip('\x00')
+            path = share_info['Path'].replace('\x00', '')
 
             if self.is_writable_share(share):
                 logger.info('Share %s %sis writable' % (share, "(%s) " % path if path else ""))
+                DataStore.share_path = path
                 return share
             else:
                 logger.debug('Share %s %sis not writable' % (share, "(%s) " % path if path else ""))

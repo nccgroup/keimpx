@@ -82,7 +82,7 @@ class SvcCtl(object):
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
-            self.use(self.default_share)
+            self.use(DataStore.default_share)
             self.upload(command_and_args[0])
 
         self.__svcctl_connect()
@@ -174,8 +174,8 @@ class SvcCtl(object):
         '''
         Upload the service executable
         '''
-        self.use(self.default_share)
-        self.__pathname = ntpath.join(self.default_share, remote_file)
+        self.use(DataStore.default_share)
+        self.__pathname = ntpath.join(DataStore.default_share, remote_file)
         logger.info('Uploading the service executable to %s' % self.__pathname)
         self.upload(local_file, remote_file)
 
@@ -183,8 +183,8 @@ class SvcCtl(object):
         '''
         Remove the service executable
         '''
-        self.use(self.default_share)
-        self.__pathname = ntpath.join(self.default_share, remote_file)
+        self.use(DataStore.default_share)
+        self.__pathname = ntpath.join(DataStore.default_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
         self.rm(remote_file)
 
@@ -197,7 +197,7 @@ class SvcCtl(object):
         if not displayname:
             displayname = srvname
 
-        self.__pathname = ntpath.join('%SystemRoot%', remote_file)
+        self.__pathname = ntpath.join(DataStore.share_path, remote_file)
         self.__pathname = self.__pathname.encode('utf-16le')
         self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), displayname.encode('utf-16le'), self.__pathname)
 

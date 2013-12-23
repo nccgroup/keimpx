@@ -22,7 +22,7 @@ class AtSvc(object):
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
-            self.use(self.default_share)
+            self.use(DataStore.default_share)
             self.upload(command_and_args[0])
 
         self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
@@ -79,7 +79,7 @@ class AtSvc(object):
         '''
         Connect to atsvc named pipe
         '''
-        self.check_share(self.default_share)
+        self.check_share(DataStore.default_share)
 
         logger.debug('Connecting to the ATSVC named pipe')
         self.smb_transport('atsvc')

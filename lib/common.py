@@ -70,13 +70,15 @@ except ImportError:
 from lib.exceptions import *
 from lib.logger import logger
 
-default_share = 'ADMIN$'
-default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
 keimpx_path = ''
 
 class DataStore(object):
+    default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
+    default_share = 'ADMIN$'
     server_os = None
     server_name = None
+    share_path = None
+    user_path = 'C:\\'
     version_major = None
     version_minor = None
 
