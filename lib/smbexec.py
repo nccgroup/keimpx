@@ -73,13 +73,19 @@ class SMBServer(Thread):
 class SvcShell(cmd.Cmd):
     def __init__(self, svc, mgr_handle, rpc, mode='SHARE'):
         cmd.Cmd.__init__(self)
+
         self.__svc = svc
         self.__mgr_handle = mgr_handle
         self.__rpc = rpc
         self.__share = 'C$'
         self.__mode = mode
         self.__output_file = '%s.txt' % ''.join([random.choice(string.letters) for _ in range(8)])
-        self.__output = ntpath.join('\\', 'Windows', 'Temp', self.__output_file)
+
+        if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
+            self.__output = ntpath.join('\\', 'Windows', 'Temp', self.__output_file)
+        else:
+            self.__output = ntpath.join('\\', 'WINNT', 'Temp', self.__output_file)
+
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
         self.__batchFile = ntpath.join('%TEMP%', self.__batch_filename)
         self.__smbserver_dir = 'svcshell'

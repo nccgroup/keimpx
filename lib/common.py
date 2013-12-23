@@ -74,6 +74,12 @@ default_share = 'ADMIN$'
 default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
 keimpx_path = ''
 
+class DataStore(object):
+    server_os = None
+    server_name = None
+    version_major = None
+    version_minor = None
+
 def check_dialect(dialect):
     if dialect == SMB_DIALECT:
         return 'SMBv1'

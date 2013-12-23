@@ -50,6 +50,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % default_share)
             self.default_share = default_share
 
+        self.info(False)
+
     def connect(self):
         self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
 
@@ -79,13 +81,18 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             raise RuntimeError
 
     def info(self, display=True):
-        logger.debug('Binding on Server Service (SRVSVC) interface')
+        #logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
         self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
         self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
         self.__dce.disconnect()
+
+        DataStore.server_os = self.smb.getServerOS()
+        DataStore.server_name = self.smb.getServerName()
+        DataStore.version_major = self.__resp['VersionMajor']
+        DataStore.version_minor = self.__resp['VersionMinor']
 
         if display:
             print 'Operating system: %s' % self.smb.getServerOS()

@@ -15,9 +15,7 @@ class AtSvc(object):
         print data
 
     def atexec(self, command):
-        version_major = self.info(display=False)['VersionMajor']
-
-        if version_major < 6:
+        if DataStore.version_major < 6:
             logger.warn('This command only works on Windows >= Vista')
             return
 
