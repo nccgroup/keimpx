@@ -119,7 +119,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.__dce.disconnect()
 
     def __share_info(self, share):
-        logger.debug('Binding on Server Service (SRVSVC) interface')
+        #logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
@@ -142,7 +142,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         _ = ''.join([random.choice(string.letters) for _ in range(8)])
 
         try:
-            self.use(share)
+            self.use(share, False)
             self.mkdir(_)
         except:
             pass
@@ -156,12 +156,14 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         # Check we can write a directory on the shares, return the first writable one
         for _ in self.smb.listShares():
             share = _['NetName'].decode('utf-16')
+            share_info = self.__share_info(_['NetName'][:-2])
+            path = share_info['Path'].strip('\x00')
 
             if self.is_writable_share(share):
-                logger.info('Share %s is writable' % share)
+                logger.info('Share %s %sis writable' % (share, "(%s) " % path if path else ""))
                 return share
             else:
-                logger.debug('Share %s is not writable' % share)
+                logger.debug('Share %s %sis not writable' % (share, "(%s) " % path if path else ""))
 
         return None
 
@@ -196,7 +198,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         self.use(self.shares_list[choice-1])
 
-    def use(self, share):
+    def use(self, share, display=True):
         if not share:
             raise missingShare, 'Share has not been specified'
 
@@ -209,7 +211,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             self.pwd = '\\'
             self.ls('', False)
         except SessionError, e:
-            if e.getErrorCode() == nt_errors.STATUS_BAD_NETWORK_NAME:
+            if not display:
+                pass
+            elif e.getErrorCode() == nt_errors.STATUS_BAD_NETWORK_NAME:
                 logger.warn('Invalid share name')
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                 logger.warn('Access denied')
@@ -271,7 +275,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         try:
             files = self.smb.listPath(self.share, pwd)
         except SessionError, e:
-            if e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
+            if not display:
+                pass
+            elif e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
                 logger.warn('File not found')
             else:
                 logger.warn('Unable to list files: %s' % (e.getErrorString(), ))
