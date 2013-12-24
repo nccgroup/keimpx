@@ -420,7 +420,10 @@ def add_domain(line):
     global domains
 
     _ = str(line).replace(' ', '').split(',')
-    domains.extend(_)
+
+    for d in _:
+        d = d.upper().split('.')[0]
+        domains.append(d)
 
     logger.debug('Parsed domain%s: %s' % ('(s)' if len(_) > 1 else '', ', '.join([d for d in _])))
 
