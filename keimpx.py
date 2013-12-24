@@ -445,6 +445,7 @@ def set_domains():
     elif len(domains) > 0:
         if '' not in domains:
             domains.append('')
+
         logger.info('Loaded %s unique domain%s' % (len(domains), 's' if len(domains) > 1 else ''))
 
 ###################
@@ -524,6 +525,10 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
     if line is not None:
         try:
             user, password, lmhash, nthash = parse_credentials(line)
+
+            if user.count('\\') == 1:
+                _, user = user.split('\\')
+                add_domain(_)
         except credentialsError, _:
             logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return

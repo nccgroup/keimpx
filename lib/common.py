@@ -182,7 +182,7 @@ class RemoteFile():
         return self.__currentOffset
 
     def __str__(self):
-        return '\\%s\\%s' % (self.__share, self.__filename)
+        return '%s\\%s' % (self.__share, self.__filename)
 
 def MD5(data):
     md5 = hashlib.new('md5')
