@@ -12,7 +12,18 @@ class InteractiveShell(cmd.Cmd):
         '''
 
         cmd.Cmd.__init__(self)
-        self.smb_shell = SMBShell(target, credential, local_name)
+
+        try:
+            self.smb_shell = SMBShell(target, credential, local_name)
+        except SessionError, e:
+            #traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            sys.exit(1)
+        except Exception, e:
+            #traceback.print_exc()
+            logger.error('Generic error: %s' % e)
+            sys.exit(1)
+
         self.prompt = 'SMBShell(%s) > ' % target.getIdentity()
 
     def cmdloop(self):

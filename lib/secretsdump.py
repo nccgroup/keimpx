@@ -52,7 +52,7 @@ class RemoteOperations:
                 self.change(self.__service_name, start_type=0x3)
 
             self.start(self.__service_name)
-            time.sleep(1)
+            time.sleep(3)
 
     def enable_registry(self):
         self.__check_remote_registry()
