@@ -17,17 +17,21 @@ class SvcCtl(object):
         self.__svcctl_list(srvname)
         self.__svcctl_disconnect()
 
-    def status(self, srvname):
+    def status(self, srvname, return_status=False):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_status(srvname)
+        ans = self.__svcctl_status(srvname, return_status)
         self.__svcctl_disconnect()
 
-    def query(self, srvname):
+        return ans
+
+    def query(self, srvname, return_answer=False):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_config(srvname)
+        ans = self.__svcctl_config(srvname, return_answer)
         self.__svcctl_disconnect()
+
+        return ans
 
     def start(self, srvname, srvargs=''):
         self.__svcctl_connect()
@@ -41,10 +45,10 @@ class SvcCtl(object):
         self.__svcctl_stop(srvname)
         self.__svcctl_disconnect(srvname)
 
-    def change(self, srvname):
+    def change(self, srvname, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
         self.__svcctl_connect()
         self.__svcctl_srv_manager(srvname)
-        self.__svcctl_change(srvname)
+        self.__svcctl_change(display, path, service_type, start_type, start_name, password)
         self.__svcctl_disconnect(srvname)
 
     def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
@@ -78,11 +82,11 @@ class SvcCtl(object):
         self.__svcctl_bin_remove(remote_file)
         self.pwd = self.oldpwd
 
-    def svcexec(self, command, mode='SHARE'):
+    def svcexec(self, command, mode='SHARE', display=True):
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
-            self.use(DataStore.default_share)
+            self.use(DataStore.writable_share)
             self.upload(command_and_args[0])
 
         self.__svcctl_connect()
@@ -93,7 +97,7 @@ class SvcCtl(object):
                 self.__serverThread.daemon = True
                 self.__serverThread.start()
 
-            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
+            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode, display)
 
             if os.path.exists(command_and_args[0]):
                 command = ntpath.join(DataStore.share_path, os.path.basename(command))
@@ -153,10 +157,8 @@ class SvcCtl(object):
         '''
         Connect to svcctl named pipe
         '''
-        logger.debug('Connecting to the SVCCTL named pipe')
         self.smb_transport('svcctl')
 
-        logger.debug('Binding on Services Control Manager (SCM) interface')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(svcctl.MSRPC_UUID_SVCCTL)
         self.__svc = svcctl.DCERPCSvcCtl(self.__dce)
@@ -167,8 +169,6 @@ class SvcCtl(object):
         '''
         Disconnect from svcctl named pipe
         '''
-        logger.debug('Disconnecting from the SVCCTL named pipe')
-
         if srvname:
             self.__svc.CloseServiceHandle(self.__svc_handle)
 
@@ -181,8 +181,8 @@ class SvcCtl(object):
         '''
         Upload the service executable
         '''
-        self.use(DataStore.default_share)
-        self.__pathname = ntpath.join(DataStore.default_share, remote_file)
+        self.use(DataStore.writable_share)
+        self.__pathname = ntpath.join(DataStore.writable_share, remote_file)
         logger.info('Uploading the service executable to %s' % self.__pathname)
         self.upload(local_file, remote_file)
 
@@ -190,8 +190,8 @@ class SvcCtl(object):
         '''
         Remove the service executable
         '''
-        self.use(DataStore.default_share)
-        self.__pathname = ntpath.join(DataStore.default_share, remote_file)
+        self.use(DataStore.writable_share)
+        self.__pathname = ntpath.join(DataStore.writable_share, remote_file)
         logger.info('Removing the service executable %s' % self.__pathname)
         self.rm(remote_file)
 
@@ -296,15 +296,18 @@ class SvcCtl(object):
         else:
             print 'Service %s status is: %s' % (srvname, self.__svcctl_parse_status(status))
 
-    def __svcctl_config(self, srvname):
+    def __svcctl_config(self, srvname, return_answer=False):
         '''
         Display a service configuration
         '''
         logger.info('Querying the service configuration of service %s' % srvname)
 
-        print 'Service %s information:' % srvname
-
         resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
+
+        if return_answer:
+            return resp
+
+        print 'Service %s information:' % srvname
         self.__svcctl_parse_config(resp)
 
     def __svcctl_start(self, srvname, srvargs=''):
@@ -335,11 +338,10 @@ class SvcCtl(object):
         self.__svc.StopService(self.__svc_handle)
         self.__svcctl_status(srvname)
 
-    def __svcctl_change(self, srvname):
+    def __svcctl_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
         '''
         Change the configuration of a service
         '''
-        # TODO
         self.__svc.ChangeServiceConfigW(self.__svc_handle, display, path, service_type, start_type, start_name, password)
 
     def __svcctl_list_parse(self, srvname, resp):

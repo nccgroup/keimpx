@@ -6,6 +6,7 @@ import binascii
 import cmd
 import ConfigParser
 import glob
+import hashlib
 import inspect
 import logging
 import os
@@ -17,6 +18,7 @@ import shlex
 import socket
 import string
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -25,6 +27,8 @@ import warnings
 from optparse import OptionError
 from optparse import OptionGroup
 from optparse import OptionParser
+from struct import pack
+from struct import unpack
 from subprocess import mswindows
 from subprocess import PIPE
 from subprocess import Popen
@@ -49,6 +53,7 @@ try:
     from impacket import ntlm
     from impacket import smbserver
     from impacket import uuid
+    from impacket import winregistry
     from impacket.nmb import NetBIOSTimeout
     from impacket.dcerpc import atsvc
     from impacket.dcerpc import dcerpc
@@ -59,12 +64,21 @@ try:
     from impacket.dcerpc import transport
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
+    from impacket.ese import ESENT_DB
     from impacket.examples import remcomsvc, serviceinstall
     from impacket.smb3structs import SMB2_DIALECT_002
     from impacket.smb3structs import SMB2_DIALECT_21
     from impacket.smbconnection import *
+    from impacket.winregistry import hexdump
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n$ svn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n$ cd impacket\n$ python setup.py build\n$ sudo python setup.py install\n')
+    sys.exit(255)
+
+try:
+    from Crypto.Cipher import DES, ARC4, AES
+    from Crypto.Hash import HMAC, MD4
+except ImportError:
+    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.\nGet it from http://www.pycrypto.org')
     sys.exit(255)
 
 from lib.exceptions import *
@@ -73,14 +87,16 @@ from lib.logger import logger
 keimpx_path = ''
 
 class DataStore(object):
+    cmd_stdout = ''
     default_reg_key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProductName'
-    default_share = 'ADMIN$'
     server_os = None
     server_name = None
+    server_domain = None
     share_path = None
     user_path = 'C:\\'
     version_major = None
     version_minor = None
+    writable_share = 'ADMIN$'
 
 def check_dialect(dialect):
     if dialect == SMB_DIALECT:
@@ -129,3 +145,47 @@ def set_verbosity(level=0):
         logger.setLevel(logging.INFO)
     elif level > 1:
         logger.setLevel(logging.DEBUG)
+
+class RemoteFile():
+    def __init__(self, smb_connection, filename, share='ADMIN$'):
+        self.smb = smb_connection
+        self.__filename = filename
+        self.__share = share
+        self.__tid = self.smb.connectTree(self.__share)
+        self.__fid = None
+        self.__currentOffset = 0
+
+    def open(self):
+        self.__fid = self.smb.openFile(self.__tid, self.__filename)
+
+    def seek(self, offset, whence):
+        # Implement whence, for now it is always from the beginning of the file
+        if whence == 0:
+            self.__currentOffset = offset
+
+    def read(self, bytesToRead):
+        if bytesToRead > 0:
+            data =  self.smb.readFile(self.__tid, self.__fid, self.__currentOffset, bytesToRead)
+            self.__currentOffset += len(data)
+
+            return data
+
+        return ''
+
+    def close(self):
+        if self.__fid is not None:
+            self.smb.closeFile(self.__tid, self.__fid)
+            self.smb.deleteFile(self.__share, self.__filename)
+            self.__fid = None
+
+    def tell(self):
+        return self.__currentOffset
+
+    def __str__(self):
+        return '\\%s\\%s' % (self.__share, self.__filename)
+
+def MD5(data):
+    md5 = hashlib.new('md5')
+    md5.update(data)
+
+    return md5.digest()

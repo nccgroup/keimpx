@@ -71,13 +71,14 @@ class SMBServer(Thread):
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
 class SvcShell(cmd.Cmd):
-    def __init__(self, svc, mgr_handle, rpc, mode='SHARE'):
+    def __init__(self, svc, mgr_handle, rpc, mode='SHARE', display=True):
         cmd.Cmd.__init__(self)
 
         self.__svc = svc
         self.__mgr_handle = mgr_handle
         self.__rpc = rpc
         self.__mode = mode
+        self.__display = display
         self.__output_file = '%s.txt' % ''.join([random.choice(string.letters) for _ in range(8)])
         self.__output_file_path = ntpath.join(DataStore.share_path, self.__output_file)
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
@@ -142,8 +143,8 @@ class SvcShell(cmd.Cmd):
             except:
                 pass
         else:
-            self.transferClient.getFile(DataStore.default_share, self.__output_file, self.__output_callback)
-            self.transferClient.deleteFile(DataStore.default_share, self.__output_file)
+            self.transferClient.getFile(DataStore.writable_share, self.__output_file, self.__output_callback)
+            self.transferClient.deleteFile(DataStore.writable_share, self.__output_file)
 
     def execute_command(self, command):
         command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)
@@ -169,5 +170,9 @@ class SvcShell(cmd.Cmd):
 
     def send_data(self, data):
         self.execute_command(data)
-        print self.__outputBuffer
+        DataStore.cmd_stdout = self.__outputBuffer
+
+        if self.__display:
+            print self.__outputBuffer
+
         self.__outputBuffer = ''

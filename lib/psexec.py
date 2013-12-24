@@ -47,7 +47,7 @@ class PsExec(object):
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
-            self.use(DataStore.default_share)
+            self.use(DataStore.writable_share)
             self.upload(command_and_args[0])
 
         logger.debug('Going to use temporary service %s' % srvname)
