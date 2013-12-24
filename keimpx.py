@@ -468,7 +468,7 @@ def parse_credentials_file(filename):
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
 
-    fgdumpmatch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
+    fgdumpmatch = re.compile('^(\S+?):(.*?:?)([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
     fgdump = fgdumpmatch.match(credentials_line)
 
     wcematch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
@@ -483,10 +483,10 @@ def parse_credentials(credentials_line):
     # Credentials with hashes (pwdump/pwdumpx/fgdump/pass-the-hash output format)
     if fgdump:
         try:
-            binascii.a2b_hex(fgdump.group(2))
             binascii.a2b_hex(fgdump.group(3))
+            binascii.a2b_hex(fgdump.group(4))
 
-            return fgdump.group(1), '', fgdump.group(2), fgdump.group(3)
+            return fgdump.group(1), '', fgdump.group(3), fgdump.group(4)
         except:
             raise credentialsError, 'credentials error'
 
