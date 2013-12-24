@@ -192,6 +192,22 @@ psexec [command] - executes a command through SMB named pipes
       Same technique employed by Sysinternal's PsExec. The default command
       is cmd.exe therefore an interactive shell is established. It employs
       RemComSvc - no extra ports are required.
+
+Secrets dump options
+====================
+secretsdump [y|N] - performs various techniques to dump hashes from the
+              remote machine without executing any agent there. For SAM and LSA
+              Secrets (including cached creds) we try to read as much as we
+              can from the registry and then we save the hives in the target
+              system (a writable share) and read the rest of the data from
+              there. For NTDS.dit, we have to extract NTDS.dit via vssadmin
+              executed with the svcexec approach. It is copied on a temporary
+              directory and parsed remotely. This command initiates the
+              services required for its working if they are not available
+              (e.g. Remote Registry, even if it is disabled). After the work
+              is done, things are restored to the  original state.
+              The argument can be Y or N to either dump or not the password
+              history, by default it is N
 '''
 
     def do_verbosity(self, level):
@@ -465,3 +481,6 @@ psexec [command] - executes a command through SMB named pipes
 
     def do_psexec(self, command):
         self.smb_shell.psexec(command)
+
+    def do_secretsdump(self, history):
+        self.smb_shell.secretsdump(history)

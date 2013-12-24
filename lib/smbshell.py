@@ -7,13 +7,16 @@ from lib.common import *
 from lib.psexec import PsExec
 from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
+from lib.secretsdump import SecretsDump
 from lib.services import SvcCtl
 
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
-class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
+class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def __init__(self, target, credential, local_name):
+        SecretsDump.__init__(self)
+
         self.__dstip = target.getHost()
         self.__dstport = target.getPort()
         self.__user = credential.getUser()
@@ -24,7 +27,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
-        self.__timeout = 120
+        self.__timeout = 5*60
 
         self.smb = None
         self.tid = None
@@ -47,9 +50,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.info(False)
 
         if _:
-            DataStore.default_share = _
+            DataStore.writable_share = _
         else:
-            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % DataStore.default_share)
+            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % DataStore.writable_share)
 
             if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
                 DataStore.share_path = ntpath.join(DataStore.user_path, 'Windows', 'Temp')
@@ -85,7 +88,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
             raise RuntimeError
 
     def info(self, display=True):
-        #logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
@@ -95,6 +97,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
 
         DataStore.server_os = self.smb.getServerOS()
         DataStore.server_name = self.smb.getServerName()
+        DataStore.server_domain = self.smb.getServerDomain()
+        DataStore.server_host = self.smb.getRemoteHost()
         DataStore.user_path = self.__resp['UserPath']
         DataStore.version_major = self.__resp['VersionMajor']
         DataStore.version_minor = self.__resp['VersionMinor']
@@ -118,7 +122,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         return self.__resp
 
     def who(self):
-        logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
@@ -131,7 +134,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
         self.__dce.disconnect()
 
     def __share_info(self, share):
-        #logger.debug('Binding on Server Service (SRVSVC) interface')
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
