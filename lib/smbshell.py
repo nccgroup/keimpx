@@ -169,8 +169,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def get_writable_share(self):
         # Check we can write a directory on the shares, return the first writable one
         for _ in self.smb.listShares():
-            share = _['NetName'].decode('utf-16').replace('\x00', '')
-            share_info = self.__share_info(_['NetName'][:-2])
+            share = _['shi1_netname'][:-1]
+            share_info = self.__share_info(share.encode('utf-16le'))
             path = share_info['Path'].replace('\x00', '')
 
             if self.is_writable_share(share):
@@ -188,19 +188,19 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
         for i in range(len(shares)):
             count += 1
-            name = shares[i]['NetName'].decode('utf-16')
+            name = shares[i]['shi1_netname'][:-1]
             self.shares_list.append(name)
 
-            comment = shares[i]['Remark'].decode('utf-16')
+            comment = shares[i]['shi1_remark'][:-1]
+            share_type = shares[i]['shi1_type']
 
-            print '[%d] %s (comment: %s)' % (count, name, comment)
-
-            _ = self.__share_info(shares[i]['NetName'][:-2])
-            share_type = _['Type']
+            _ = self.__share_info(name.encode('utf-16le'))
             max_uses = _['MaxUses'] # 4294967295L is unlimited
             current_uses = _['CurrentUses']
             permissions = _['Permissions'] # impacket always returns always 0
             path = _['Path']
+
+            print '[%d] %s (comment: %s)' % (count, name, comment)
 
             print '\tPath: %s' % path
             print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
