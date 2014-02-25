@@ -61,9 +61,13 @@ try:
     from impacket.dcerpc import ndrutils
     from impacket.dcerpc import srvsvc
     from impacket.dcerpc import svcctl
-    from impacket.dcerpc import transport
+    #from impacket.dcerpc import transport
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
+    from impacket.dcerpc.v5 import rpcrt
+    from impacket.dcerpc.v5 import transport
+    from impacket.dcerpc.v5 import rrp
+    from impacket.dcerpc.v5 import scmr
     from impacket.ese import ESENT_DB
     from impacket.examples import remcomsvc, serviceinstall
     from impacket.smb3structs import SMB2_DIALECT_002
