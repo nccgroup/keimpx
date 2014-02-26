@@ -403,6 +403,9 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         if not srvname:
             raise missingService, 'Service name has not been specified'
 
+        # TODO: handle parameters
+        # https://code.google.com/p/impacket/source/diff?spec=svn852&r=852&format=side&path=/trunk/examples/services.py
+        # https://code.google.com/p/impacket/source/diff?spec=svn858&r=858&format=side&path=/trunk/examples/services.py
         self.smb_shell.change(srvname)
 
     def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
