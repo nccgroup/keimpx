@@ -90,18 +90,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def info(self, display=True):
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
-        self.__resp = self.__svc.get_server_info_102(self.trans.get_dip())
+        self.__dce.bind(srvs.MSRPC_UUID_SRVS)
+        self.__resp = srvs.hNetrServerGetInfo(self.__dce, 102)
         self.__dce.disconnect()
 
         DataStore.server_os = self.smb.getServerOS()
         DataStore.server_name = self.smb.getServerName()
         DataStore.server_domain = self.smb.getServerDomain()
         DataStore.server_host = self.smb.getRemoteHost()
-        DataStore.user_path = self.__resp['UserPath']
-        DataStore.version_major = self.__resp['VersionMajor']
-        DataStore.version_minor = self.__resp['VersionMinor']
+        DataStore.user_path = self.__resp['InfoStruct']['ServerInfo102']['sv102_userpath']
+        DataStore.version_major = self.__resp['InfoStruct']['ServerInfo102']['sv102_version_major']
+        DataStore.version_minor = self.__resp['InfoStruct']['ServerInfo102']['sv102_version_minor']
 
         if display:
             print 'Operating system: %s' % self.smb.getServerOS()
@@ -109,27 +108,29 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             print 'Domain: %s' % self.smb.getServerDomain()
             print 'SMB dialect: %s' % check_dialect(self.smb.getDialect())
             print 'NTLMv2 support: %s' % self.smb.doesSupportNTLMv2()
-            print 'UserPath: %s' % self.__resp['UserPath']
-            print 'Simultaneous users: %d' % self.__resp['Users']
-            print 'Version major: %d' % self.__resp['VersionMajor']
-            print 'Version minor: %d' % self.__resp['VersionMinor']
-            print 'Comment: %s' % self.__resp['Comment'] or ''
+            print 'UserPath: %s' % DataStore.user_path
+            print 'Simultaneous users: %d' % self.__resp['InfoStruct']['ServerInfo102']['sv102_users']
+            print 'Version major: %d' % DataStore.version_major
+            print 'Version minor: %d' % DataStore.version_minor
+            print 'Comment: %s' % self.__resp['InfoStruct']['ServerInfo102']['sv102_comment'] or ''
 
             # TODO: uncomment when SMBConnection will have a wrapper
             # getServerTime() method for both SMBv1,2,3
             #print 'Time: %s' % self.smb.get_server_time()
+
+        self.__dce.disconnect()
 
         return self.__resp
 
     def who(self):
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
-        resp = self.__svc.NetrSessionEnum()
+        self.__dce.connect()
+        self.__dce.bind(srvs.MSRPC_UUID_SRVS)
+        resp = srvs.hNetrSessionEnum(self.__dce, NULL, NULL, 502)
 
-        for session in resp:
-            print "host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['HostName'].decode('utf-16le')[:-1], session['UserName'].decode('utf-16le')[:-1], session['Active'], session['IDLE'], session['Type'].decode('utf-16le')[:-1],session['Transport'].decode('utf-16le')[:-1] )
+        for session in resp['InfoStruct']['SessionInfo']['Level502']['Buffer']:
+            print "Host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['sesi502_cname'][:-1], session['sesi502_username'][:-1], session['sesi502_time'], session['sesi502_idle_time'], session['sesi502_cltype_name'][:-1],session['sesi502_transport'][:-1])
 
         self.__dce.disconnect()
 
