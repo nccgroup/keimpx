@@ -118,8 +118,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             # getServerTime() method for both SMBv1,2,3
             #print 'Time: %s' % self.smb.get_server_time()
 
-        self.__dce.disconnect()
-
         return self.__resp
 
     def who(self):
