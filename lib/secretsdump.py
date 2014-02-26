@@ -45,7 +45,7 @@ class RemoteOperations:
         if self.__started is False:
             ans = self.query(self.__service_name, return_answer=True)
 
-            if ans['QueryConfig']['StartType'] == 0x4:
+            if ans['lpServiceConfig']['dwStartType'] == 0x4:
                 logger.info('Service %s is disabled, enabling it' % self.__service_name)
                 self.__disabled = True
                 self.change(self.__service_name, start_type=0x3)
@@ -202,7 +202,7 @@ class RemoteOperations:
     def get_service_account(self, service_name):
         try:
             resp = self.query(service_name, return_answer=True)
-            account = resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
+            account = resp['lpServiceConfig']['lpServiceStartName'][:-1]
 
             if account.startswith('.\\'):
                 account = account[2:]
