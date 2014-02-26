@@ -13,54 +13,54 @@ class SvcCtl(object):
         pass
 
     def services(self, srvname):
-        self.__svcctl_connect()
-        self.__svcctl_list(srvname)
-        self.__svcctl_disconnect()
+        self.__scmr_connect()
+        self.__scmr_list(srvname)
+        self.__scmr_disconnect()
 
-    def status(self, srvname, return_status=False):
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        ans = self.__svcctl_status(srvname, return_status)
-        self.__svcctl_disconnect()
+    def status(self, srvname, return_state=False):
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        resp = self.__scmr_state(srvname, return_state)
+        self.__scmr_disconnect()
 
-        return ans
+        return resp
 
     def query(self, srvname, return_answer=False):
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        ans = self.__svcctl_config(srvname, return_answer)
-        self.__svcctl_disconnect()
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        resp = self.__scmr_config(srvname, return_answer)
+        self.__scmr_disconnect()
 
-        return ans
+        return resp
 
     def start(self, srvname, srvargs=''):
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_start(srvname, srvargs)
-        self.__svcctl_disconnect(srvname)
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        self.__scmr_start(srvname, srvargs)
+        self.__scmr_disconnect(srvname)
 
     def stop(self, srvname):
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_stop(srvname)
-        self.__svcctl_disconnect(srvname)
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        self.__scmr_stop(srvname)
+        self.__scmr_disconnect(srvname)
 
     def change(self, srvname, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_change(display, path, service_type, start_type, start_name, password)
-        self.__svcctl_disconnect(srvname)
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        self.__scmr_change(display, path, service_type, start_type, start_name, password)
+        self.__scmr_disconnect(srvname)
 
     def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
         self.oldpwd = self.pwd
         self.pwd = '\\'
 
-        self.__svcctl_bin_upload(local_file, remote_file)
-        self.__svcctl_connect()
-        self.__svcctl_create(srvname, remote_file, displayname)
-        self.__svcctl_srv_manager(srvname)
-        self.__svcctl_start(srvname, srvargs)
-        self.__svcctl_disconnect(srvname)
+        self.__scmr_bin_upload(local_file, remote_file)
+        self.__scmr_connect()
+        self.__scmr_create(srvname, remote_file, displayname)
+        self.__scmr_srv_manager(srvname)
+        self.__scmr_start(srvname, srvargs)
+        self.__scmr_disconnect(srvname)
 
         self.pwd = self.oldpwd
 
@@ -68,18 +68,18 @@ class SvcCtl(object):
         self.oldpwd = self.pwd
         self.pwd = '\\'
 
-        self.__svcctl_connect()
-        self.__svcctl_srv_manager(srvname)
-        resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
-        remote_file = resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
+        self.__scmr_connect()
+        self.__scmr_srv_manager(srvname)
+        resp = scmr.hRQueryServiceConfigW(self.__rpc, self.__service_handle)
+        remote_file = resp['lpServiceConfig']['lpBinaryPathName'][:-1]
         remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
 
-        if self.__svcctl_status(srvname, return_status=True) == 'RUNNING':
-            self.__svcctl_stop(srvname)
+        if self.__scmr_state(srvname, return_state=True) == 'RUNNING':
+            self.__scmr_stop(srvname)
 
-        self.__svcctl_delete(srvname)
-        self.__svcctl_disconnect(srvname)
-        self.__svcctl_bin_remove(remote_file)
+        self.__scmr_delete(srvname)
+        self.__scmr_disconnect(srvname)
+        self.__scmr_bin_remove(remote_file)
         self.pwd = self.oldpwd
 
     def svcexec(self, command, mode='SHARE', display=True):
@@ -89,7 +89,7 @@ class SvcCtl(object):
             self.use(DataStore.writable_share)
             self.upload(command_and_args[0])
 
-        self.__svcctl_connect()
+        self.__scmr_connect()
 
         try:
             if mode == 'SERVER':
@@ -97,7 +97,7 @@ class SvcCtl(object):
                 self.__serverThread.daemon = True
                 self.__serverThread.start()
 
-            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode, display)
+            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, mode, display)
 
             if os.path.exists(command_and_args[0]):
                 command = ntpath.join(DataStore.share_path, os.path.basename(command))
@@ -117,13 +117,13 @@ class SvcCtl(object):
             logger.error(str(e))
 
         sys.stdout.flush()
-        self.__svcctl_disconnect()
+        self.__scmr_disconnect()
 
         if os.path.exists(command_and_args[0]):
             self.rm(os.path.basename(command_and_args[0]))
 
     def svcshell(self, mode='SHARE'):
-        self.__svcctl_connect()
+        self.__scmr_connect()
 
         try:
             if mode == 'SERVER':
@@ -131,7 +131,7 @@ class SvcCtl(object):
                 self.__serverThread.daemon = True
                 self.__serverThread.start()
 
-            self.svc_shell = SvcShell(self.__svc, self.__mgr_handle, self.trans, mode)
+            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, mode)
             self.svc_shell.cmdloop()
 
             if mode == 'SERVER':
@@ -147,37 +147,37 @@ class SvcCtl(object):
             logger.error(str(e))
 
         sys.stdout.flush()
-        self.__svcctl_disconnect()
+        self.__scmr_disconnect()
 
-    def __svcctl_srv_manager(self, srvname):
-        self.__resp = self.__svc.OpenServiceW(self.__mgr_handle, srvname.encode('utf-16le'))
-        self.__svc_handle = self.__resp['ContextHandle']
+    def __scmr_srv_manager(self, srvname):
+        self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname)
+        self.__service_handle = self.__resp['lpServiceHandle']
 
-    def __svcctl_connect(self):
+    def __scmr_connect(self):
         '''
         Connect to svcctl named pipe
         '''
         self.smb_transport('svcctl')
 
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(svcctl.MSRPC_UUID_SVCCTL)
-        self.__svc = svcctl.DCERPCSvcCtl(self.__dce)
-        self.__resp = self.__svc.OpenSCManagerW()
-        self.__mgr_handle = self.__resp['ContextHandle']
+        self.__dce.bind(scmr.MSRPC_UUID_SCMR)
+        self.__rpc = self.__dce
+        self.__resp = scmr.hROpenSCManagerW(self.__dce)
+        self.__mgr_handle = self.__resp['lpScHandle']
 
-    def __svcctl_disconnect(self, srvname=None):
+    def __scmr_disconnect(self, srvname=None):
         '''
         Disconnect from svcctl named pipe
         '''
         if srvname:
-            self.__svc.CloseServiceHandle(self.__svc_handle)
+            scmr.hRCloseServiceHandle(self.__rpc, self.__service_handle)
 
         if self.__mgr_handle:
-            self.__svc.CloseServiceHandle(self.__mgr_handle)
+            scmr.hRCloseServiceHandle(self.__rpc, self.__mgr_handle)
 
         self.__dce.disconnect()
 
-    def __svcctl_bin_upload(self, local_file, remote_file):
+    def __scmr_bin_upload(self, local_file, remote_file):
         '''
         Upload the service executable
         '''
@@ -186,7 +186,7 @@ class SvcCtl(object):
         logger.info('Uploading the service executable to %s' % self.__pathname)
         self.upload(local_file, remote_file)
 
-    def __svcctl_bin_remove(self, remote_file):
+    def __scmr_bin_remove(self, remote_file):
         '''
         Remove the service executable
         '''
@@ -195,7 +195,7 @@ class SvcCtl(object):
         logger.info('Removing the service executable %s' % self.__pathname)
         self.rm(remote_file)
 
-    def __svcctl_create(self, srvname, remote_file, displayname=None):
+    def __scmr_create(self, srvname, remote_file, displayname=None):
         '''
         Create the service
         '''
@@ -205,155 +205,182 @@ class SvcCtl(object):
             displayname = srvname
 
         self.__pathname = ntpath.join(DataStore.share_path, remote_file)
-        self.__pathname = self.__pathname.encode('utf-16le')
-        self.__svc.CreateServiceW(self.__mgr_handle, srvname.encode('utf-16le'), displayname.encode('utf-16le'), self.__pathname)
+        scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname, lpBinaryPathName='%s\x00' % self.__pathname)
 
-    def __svcctl_delete(self, srvname):
+    def __scmr_delete(self, srvname):
         '''
         Delete the service
         '''
         logger.info('Deleting the service %s' % srvname)
-        self.__svc.DeleteService(self.__svc_handle)
+        scmr.hRDeleteService(self.__rpc, self.__service_handle)
 
-    def __svcctl_parse_config(self, resp):
-        print 'TYPE              : %2d - ' % resp['QueryConfig']['ServiceType'],
+    def __scmr_parse_config(self, resp):
+        print 'TYPE              : %2d - ' % resp['lpServiceConfig']['dwServiceType'],
 
-        if resp['QueryConfig']['ServiceType'] & 0x1:
+        if resp['lpServiceConfig']['dwServiceType'] & 0x1:
             print 'SERVICE_KERNLE_DRIVER'
-        if resp['QueryConfig']['ServiceType'] & 0x2:
+        if resp['lpServiceConfig']['dwServiceType'] & 0x2:
             print 'SERVICE_FILE_SYSTEM_DRIVER'
-        if resp['QueryConfig']['ServiceType'] & 0x10:
+        if resp['lpServiceConfig']['dwServiceType'] & 0x10:
             print 'SERVICE_WIN32_OWN_PROCESS'
-        if resp['QueryConfig']['ServiceType'] & 0x20:
+        if resp['lpServiceConfig']['dwServiceType'] & 0x20:
             print 'SERVICE_WIN32_SHARE_PROCESS'
-        if resp['QueryConfig']['ServiceType'] & 0x100:
+        if resp['lpServiceConfig']['dwServiceType'] & 0x100:
             print 'SERVICE_INTERACTIVE_PROCESS'
 
-        print 'START_TYPE        : %2d - ' % resp['QueryConfig']['StartType'],
+        print 'START_TYPE        : %2d - ' % resp['lpServiceConfig']['dwStartType'],
 
-        if resp['QueryConfig']['StartType'] == 0x0:
+        if resp['lpServiceConfig']['dwStartType'] == 0x0:
             print 'BOOT START'
-        elif resp['QueryConfig']['StartType'] == 0x1:
+        elif resp['lpServiceConfig']['dwStartType'] == 0x1:
             print 'SYSTEM START'
-        elif resp['QueryConfig']['StartType'] == 0x2:
+        elif resp['lpServiceConfig']['dwStartType'] == 0x2:
             print 'AUTO START'
-        elif resp['QueryConfig']['StartType'] == 0x3:
+        elif resp['lpServiceConfig']['dwStartType'] == 0x3:
             print 'DEMAND START'
-        elif resp['QueryConfig']['StartType'] == 0x4:
+        elif resp['lpServiceConfig']['dwStartType'] == 0x4:
             print 'DISABLED'
         else:
             print 'UNKOWN'
 
-        print 'ERROR_CONTROL     : %2d - ' % resp['QueryConfig']['ErrorControl'],
+        print 'ERROR_CONTROL     : %2d - ' % resp['lpServiceConfig']['dwErrorControl'],
 
-        if resp['QueryConfig']['ErrorControl'] == 0x0:
+        if resp['lpServiceConfig']['dwErrorControl'] == 0x0:
             print 'IGNORE'
-        elif resp['QueryConfig']['ErrorControl'] == 0x1:
+        elif resp['lpServiceConfig']['dwErrorControl'] == 0x1:
             print 'NORMAL'
-        elif resp['QueryConfig']['ErrorControl'] == 0x2:
+        elif resp['lpServiceConfig']['dwErrorControl'] == 0x2:
             print 'SEVERE'
-        elif resp['QueryConfig']['ErrorControl'] == 0x3:
+        elif resp['lpServiceConfig']['dwErrorControl'] == 0x3:
             print 'CRITICAL'
         else:
             print 'UNKOWN'
 
-        print 'BINARY_PATH_NAME  : %s' % resp['QueryConfig']['BinaryPathName'].decode('utf-16le')
-        print 'LOAD_ORDER_GROUP  : %s' % resp['QueryConfig']['LoadOrderGroup'].decode('utf-16le')
-        print 'TAG               : %d' % resp['QueryConfig']['TagID']
-        print 'DISPLAY_NAME      : %s' % resp['QueryConfig']['DisplayName'].decode('utf-16le')
-        print 'DEPENDENCIES      : %s' % resp['QueryConfig']['Dependencies'].decode('utf-16le').replace('/', ' - ')
-        print 'SERVICE_START_NAME: %s' % resp['QueryConfig']['ServiceStartName'].decode('utf-16le')
+        print 'BINARY_PATH_NAME  : %s' % resp['lpServiceConfig']['lpBinaryPathName'][:-1]
+        print 'LOAD_ORDER_GROUP  : %s' % resp['lpServiceConfig']['lpLoadOrderGroup'][:-1]
+        print 'TAG               : %d' % resp['lpServiceConfig']['dwTagId']
+        print 'DISPLAY_NAME      : %s' % resp['lpServiceConfig']['lpDisplayName'][:-1]
+        print 'DEPENDENCIES      : %s' % resp['lpServiceConfig']['lpDependencies'][:-1]
+        print 'SERVICE_START_NAME: %s' % resp['lpServiceConfig']['lpServiceStartName'][:-1]
 
-    def __svcctl_parse_status(self, status):
-        if status == svcctl.SERVICE_CONTINUE_PENDING:
+    def __scmr_parse_state(self, state):
+        if state == scmr.SERVICE_CONTINUE_PENDING:
            return 'CONTINUE PENDING'
-        elif status == svcctl.SERVICE_PAUSE_PENDING:
+        elif state == scmr.SERVICE_PAUSE_PENDING:
            return 'PAUSE PENDING'
-        elif status == svcctl.SERVICE_PAUSED:
+        elif state == scmr.SERVICE_PAUSED:
            return 'PAUSED'
-        elif status == svcctl.SERVICE_RUNNING:
+        elif state == scmr.SERVICE_RUNNING:
            return 'RUNNING'
-        elif status == svcctl.SERVICE_START_PENDING:
+        elif state == scmr.SERVICE_START_PENDING:
            return 'START PENDING'
-        elif status == svcctl.SERVICE_STOP_PENDING:
+        elif state == scmr.SERVICE_STOP_PENDING:
            return 'STOP PENDING'
-        elif status == svcctl.SERVICE_STOPPED:
+        elif state == scmr.SERVICE_STOPPED:
            return 'STOPPED'
         else:
            return 'UNKOWN'
 
-    def __svcctl_status(self, srvname, return_status=False):
+    def __scmr_state(self, srvname, return_state=False):
         '''
-        Display status of a service
+        Display state of a service
         '''
-        logger.info('Querying the status of service %s' % srvname)
+        logger.info('Querying the state of service %s' % srvname)
 
-        ans = self.__svc.QueryServiceStatus(self.__svc_handle)
-        status = ans['CurrentState']
+        resp = scmr.hRQueryServiceStatus(self.__rpc, self.__service_handle)
+        state = resp['lpServiceStatus']['dwCurrentState']
 
-        if return_status:
-            return self.__svcctl_parse_status(status)
+        if return_state:
+            return self.__scmr_parse_state(state)
         else:
-            print 'Service %s status is: %s' % (srvname, self.__svcctl_parse_status(status))
+            print 'Service %s state is: %s' % (srvname, self.__scmr_parse_state(state))
 
-    def __svcctl_config(self, srvname, return_answer=False):
+    def __scmr_config(self, srvname, return_answer=False):
         '''
         Display a service configuration
         '''
         logger.info('Querying the service configuration of service %s' % srvname)
 
-        resp = self.__svc.QueryServiceConfigW(self.__svc_handle)
+        resp = scmr.hRQueryServiceConfigW(self.__rpc, self.__service_handle)
 
         if return_answer:
             return resp
 
         print 'Service %s information:' % srvname
-        self.__svcctl_parse_config(resp)
+        self.__scmr_parse_config(resp)
 
-    def __svcctl_start(self, srvname, srvargs=''):
+    def __scmr_start(self, srvname, srvargs=''):
         '''
         Start the service
         '''
         logger.info('Starting the service %s' % srvname)
 
-        if not srvargs:
-            srvargs = []
+        if srvargs:
+            srvargs = str(srvargs).split(' ')
         else:
-            new_srvargs = []
+            srvargs = []
 
-            for arg in str(srvargs).split(' '):
-                new_srvargs.append(arg.encode('utf-16le'))
+        scmr.hRStartServiceW(self.__rpc, self.__service_handle, argc=len(srvargs), argv=srvargs)
+        self.__scmr_state(srvname)
 
-            srvargs = new_srvargs
-
-        self.__svc.StartServiceW(self.__svc_handle, srvargs)
-        self.__svcctl_status(srvname)
-
-    def __svcctl_stop(self, srvname):
+    def __scmr_stop(self, srvname):
         '''
         Stop the service
         '''
         logger.info('Stopping the service %s' % srvname)
 
-        self.__svc.StopService(self.__svc_handle)
-        self.__svcctl_status(srvname)
+        scmr.hRControlService(self.__rpc, self.__service_handle, scmr.SERVICE_CONTROL_STOP)
+        self.__scmr_state(srvname)
 
-    def __svcctl_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
+    def __scmr_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
         '''
         Change the configuration of a service
         '''
-        self.__svc.ChangeServiceConfigW(self.__svc_handle, display, path, service_type, start_type, start_name, password)
+        if start_type is not None:
+            start_type = int(start_type)
+        else:
+            start_type = scmr.SERVICE_NO_CHANGE
 
-    def __svcctl_list_parse(self, srvname, resp):
+        if service_type is not None:
+            service_type = int(service_type)
+        else:
+            service_type = scmr.SERVICE_NO_CHANGE
+
+        if display is not None:
+            display = '%s\x00' % display
+        else:
+            display = NULL
+
+        if path is not None:
+            path = '%s\x00' % path
+        else:
+            path = NULL
+
+        if start_name is not None:
+            start_name = '%s\x00' % start_name
+        else:
+            start_name = NULL
+
+        if password is not None:
+            s = self.trans.get_smb_connection()
+            key = s.getSessionKey()
+            password = ('%s\x00' % password).encode('utf-16le')
+            password = encryptSecret(key, password)
+        else:
+            password = NULL
+
+        scmr.hRChangeServiceConfigW(self.__rpc, self.__service_handle, service_type, start_type, scmr.SERVICE_ERROR_IGNORE, path, NULL, NULL, NULL, 0, start_name, password, 0, display)
+
+    def __scmr_list_parse(self, srvname, resp):
         '''
         Parse list of services
         '''
         services = []
 
         for i in range(len(resp)):
-            name = resp[i]['ServiceName'].decode('utf-16')
-            display = resp[i]['DisplayName'].decode('utf-16')
-            state = resp[i]['CurrentState']
+            name = resp[i]['lpServiceName'][:-1]
+            display = resp[i]['lpDisplayName'][:-1]
+            state = resp[i]['ServiceStatus']['dwCurrentState']
 
             if srvname:
                 srvname = srvname.strip('*')
@@ -366,22 +393,17 @@ class SvcCtl(object):
         services.sort()
 
         for service in services:
-            print '%s (%s): %-80s' % (service[0], service[1], self.__svcctl_parse_status(service[2]))
+            print '%s (%s): %-80s' % (service[0], service[1], self.__scmr_parse_state(service[2]))
 
         return len(services)
 
-    def __svcctl_list(self, srvname):
+    def __scmr_list(self, srvname):
         '''
         List services
         '''
         logger.info('Listing services')
 
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_SHARE_PROCESS)
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS)
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_FILE_SYSTEM_DRIVER)
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_INTERACTIVE_PROCESS)
-        #resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceType=svcctl.SERVICE_WIN32_OWN_PROCESS | svcctl.SERVICE_WIN32_SHARE_PROCESS | svcctl.SERVICE_INTERACTIVE_PROCESS, serviceState=svcctl.SERVICE_STATE_ALL)
-        resp = self.__svc.EnumServicesStatusW(self.__mgr_handle, serviceState=svcctl.SERVICE_STATE_ALL)
-        num = self.__svcctl_list_parse(srvname, resp)
+        resp = scmr.hREnumServicesStatusW(self.__rpc, self.__mgr_handle, dwServiceState=scmr.SERVICE_STATE_ALL)
+        num = self.__scmr_list_parse(srvname, resp)
 
         print '\nTotal services: %d\n' % num

@@ -156,16 +156,16 @@ class SvcShell(cmd.Cmd):
 
         logger.debug('Creating service with executable path: %s' % command)
 
-        resp = self.__svc.CreateServiceW(self.__mgr_handle, self.__service_name, self.__service_name, command.encode('utf-16le'))
-        service = resp['ContextHandle']
+        resp = scmr.hRCreateServiceW(self.__svc, self.__mgr_handle, '%s\x00' % self.__service_name, '%s\x00' % self.__service_name, lpBinaryPathName='%s\x00' % command)
+        self.__service_handle = resp['lpServiceHandle']
 
         try:
-           self.__svc.StartServiceW(service)
+            scmr.hRStartServiceW(self.__svc, self.__service_handle)
         except:
            pass
 
-        self.__svc.DeleteService(service)
-        self.__svc.CloseServiceHandle(service)
+        scmr.hRDeleteService(self.__svc, self.__service_handle)
+        scmr.hRCloseServiceHandle(self.__svc, self.__service_handle)
         self.get_output()
 
     def send_data(self, data):

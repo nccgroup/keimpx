@@ -60,14 +60,14 @@ try:
     from impacket.dcerpc import epm
     from impacket.dcerpc import ndrutils
     from impacket.dcerpc import srvsvc
-    from impacket.dcerpc import svcctl
-    #from impacket.dcerpc import transport
     from impacket.dcerpc import winreg
     from impacket.dcerpc.samr import *
     from impacket.dcerpc.v5 import rpcrt
-    from impacket.dcerpc.v5 import transport
     from impacket.dcerpc.v5 import rrp
     from impacket.dcerpc.v5 import scmr
+    from impacket.dcerpc.v5 import srvs
+    from impacket.dcerpc.v5 import transport
+    from impacket.dcerpc.v5.dtypes import NULL
     from impacket.ese import ESENT_DB
     from impacket.examples import remcomsvc, serviceinstall
     from impacket.smb3structs import SMB2_DIALECT_002
@@ -75,7 +75,7 @@ try:
     from impacket.smbconnection import *
     from impacket.winregistry import hexdump
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\n$ svn checkout http://impacket.googlecode.com/svn/trunk/ impacket\n$ cd impacket\n$ python setup.py build\n$ sudo python setup.py install\n')
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated version of the library\ncd /tmp\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket\npython setup.py build\nsudo python setup.py install\n')
     sys.exit(255)
 
 try:

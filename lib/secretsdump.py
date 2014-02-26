@@ -28,7 +28,7 @@ class RemoteOperations:
         self.__rrp.bind(rrp.MSRPC_UUID_RRP)
 
     def __check_remote_registry(self):
-        status = self.status(self.__service_name, return_status=True)
+        status = self.status(self.__service_name, return_state=True)
 
         if status in ('PAUSED', 'STOPPED'):
             logger.info('Service %s is in stopped state' % self.__service_name)
@@ -316,9 +316,13 @@ class SAMHashes(OfflineRegistry):
         logger.debug('Calculating HashedBootKey from SAM')
         QWERTY = "!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = "0123456789012345678901234567890123456789\0"
+
         F = self.getValue(ntpath.join('SAM\Domains\Account','F'))[1]
+
         domainData = DOMAIN_ACCOUNT_F(F)
+
         rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
+
         rc4 = ARC4.new(rc4Key)
         self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key']+domainData['Key0']['CheckSum'])
 
@@ -326,7 +330,7 @@ class SAMHashes(OfflineRegistry):
         checkSum = MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
 
         if checkSum != self.__hashedBootKey[16:]:
-            raise Exception('HashedBootKey checksum failed')
+            raise Exception('hashedBootKey CheckSum failed')
 
     def __decryptHash(self, rid, cryptedHash, constant):
         # Section 2.2.11.1.1 Encrypting an NT or LM Hash Value with a Specified Key
