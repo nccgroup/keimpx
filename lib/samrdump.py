@@ -9,6 +9,9 @@ from lib.polenum import *
 # Code borrowed and adapted from Impacket's samrdump.py example #
 #################################################################
 class Samr(object):
+    # TODO: port it to DCERPC v5
+    # https://code.google.com/p/impacket/source/detail?r=1077&path=/trunk/examples/samrdump.py
+
     def __init__(self):
         pass
 

@@ -18,7 +18,6 @@ class RemoteOperations:
         self.__should_stop = False
         self.__started = False
         self.__string_binding_winreg = r'ncacn_np:445[\pipe\winreg]'
-        self.__winreg = None
 
     def __connect_winreg(self):
         rpc = transport.DCERPCTransportFactory(self.__string_binding_winreg)
