@@ -20,8 +20,8 @@ class RpcDump(object):
 
         # Let's groups the UUIDS
         for entry in entries:
-            binding = epm.PrintStringBinding(entry['Tower']['Floors'], self.trans.get_dip())
-            tmpUUID = str(entry['Tower']['Floors'][0])
+            binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.get_dip())
+            tmpUUID = str(entry['tower']['Floors'][0])
 
             if endpoints.has_key(tmpUUID) is not True:
                 endpoints[tmpUUID] = {}
@@ -32,7 +32,7 @@ class RpcDump(object):
             else:
                 endpoints[tmpUUID]['EXE'] = 'N/A'
 
-            endpoints[tmpUUID]['Annotation'] = entry['Annotation'][:-1]
+            endpoints[tmpUUID]['annotation'] = entry['annotation'][:-1]
             endpoints[tmpUUID]['Bindings'].append(binding)
 
             if epm.KNOWN_PROTOCOLS.has_key(tmpUUID[:36]):
@@ -45,7 +45,7 @@ class RpcDump(object):
         for endpoint in endpoints.keys():
             print 'Protocol: %s ' % endpoints[endpoint]['Protocol']
             print 'Provider: %s ' % endpoints[endpoint]['EXE']
-            print 'UUID    : %s %s' % (endpoint, endpoints[endpoint]['Annotation'])
+            print 'UUID    : %s %s' % (endpoint, endpoints[endpoint]['annotation'])
             print 'Bindings: '
 
             for binding in endpoints[endpoint]['Bindings']:
@@ -72,8 +72,8 @@ class RpcDump(object):
 
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.connect()
-        self.__dce.set_auth_level(ntlm.NTLM_AUTH_PKT_PRIVACY)
-        self.__dce.bind(epm.MSRPC_UUID_PORTMAP)
+        #self.__dce.set_auth_level(ntlm.NTLM_AUTH_PKT_PRIVACY)
+        #self.__dce.bind(epm.MSRPC_UUID_PORTMAP)
 
     def __rpc_disconnect(self):
         '''
@@ -84,8 +84,7 @@ class RpcDump(object):
 
     def __fetchList(self):
         entries = []
-        rpcepm = epm.DCERPCEpm(self.__dce)
-        resp = rpcepm.lookup('', inquireType = epm.RPC_C_EP_ALL_ELTS)
+        resp = epm.hept_lookup(self.trans.get_dip())
         self.__rpc_disconnect()
 
         return resp
