@@ -5,6 +5,8 @@
 import logging
 import sys
 
+from thirdparty.ansistrm import ColorizingStreamHandler
+
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
@@ -15,7 +17,8 @@ logging.addLevelName(logging.INFO, 'INFO')
 logging.addLevelName(logging.DEBUG, 'DEBUG')
 
 logger = logging.getLogger()
-logger_handler = logging.StreamHandler(sys.stdout)
+#logger_handler = logging.StreamHandler(sys.stdout)
+logger_handler = ColorizingStreamHandler(sys.stdout)
 formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', '%H:%M:%S')
 logger_handler.setFormatter(formatter)
 logger.addHandler(logger_handler)
