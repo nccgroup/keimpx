@@ -91,7 +91,14 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvs.MSRPC_UUID_SRVS)
-        self.__resp = srvs.hNetrServerGetInfo(self.__dce, 102)
+
+        try:
+            self.__resp = srvs.hNetrServerGetInfo(self.__dce, 102)
+        except rpcrt.DCERPCException, _:
+            #traceback.print_exc()
+            logger.warning('Unable to query server information')
+            return None
+
         self.__dce.disconnect()
 
         DataStore.server_os = self.smb.getServerOS()
@@ -169,7 +176,14 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         # Check we can write a directory on the shares, return the first writable one
         for _ in self.smb.listShares():
             share = _['shi1_netname'][:-1]
-            share_info = self.__share_info(share.encode('utf-16le'))
+
+            try:
+                share_info = self.__share_info(share.encode('utf-16le'))
+            except srvsvc.SRVSVCSessionError, _:
+                #traceback.print_exc()
+                logger.warning('Unable to query share: %s' % share)
+                continue
+
             path = share_info['Path'].replace('\x00', '')
 
             if self.is_writable_share(share):

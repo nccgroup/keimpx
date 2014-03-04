@@ -867,6 +867,9 @@ def main():
             shell.cmdloop()
         except RuntimeError, e:
             logger.error('Runtime error: %s' % str(e))
+        except Exception, _:
+            #traceback.print_exc()
+            pass
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
