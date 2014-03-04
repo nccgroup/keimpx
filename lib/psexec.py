@@ -146,6 +146,7 @@ class RemoteStdOutPipe(Pipes):
 
     def run(self):
         self.connectPipe()
+
         while True:
             try:
                 ans = self.server.readFile(self.tid,self.fid, 0, 1024)
@@ -200,23 +201,22 @@ class RemoteShell(cmd.Cmd):
         self.port = port
 
     def cmdloop(self):
-        while True:
-            try:
-                cmd.Cmd.cmdloop(self)
-            except SessionError, e:
-                #traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(), ))
-            except NetBIOSTimeout, e:
-                logger.error('SMB connection timed out')
-            except keimpxError, e:
-                logger.error(e)
-            except KeyboardInterrupt, _:
-                print
-                logger.info('User aborted')
-                self.do_exit('')
-            except Exception, e:
-                #traceback.print_exc()
-                logger.error(str(e))
+        try:
+            cmd.Cmd.cmdloop(self)
+        except SessionError, e:
+            #traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+        except NetBIOSTimeout, e:
+            logger.error('SMB connection timed out')
+        except keimpxError, e:
+            logger.error(e)
+        except KeyboardInterrupt, _:
+            print
+            logger.info('User aborted')
+            self.do_exit('')
+        except Exception, e:
+            #traceback.print_exc()
+            logger.error(str(e))
 
     def emptyline(self):
         self.send_data('\r\n')
