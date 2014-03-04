@@ -18,11 +18,11 @@ class InteractiveShell(cmd.Cmd):
         except SessionError, e:
             #traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(), ))
-            sys.exit(1)
+            return False
         except Exception, e:
             #traceback.print_exc()
-            logger.error('Generic error: %s' % e)
-            sys.exit(1)
+            logger.error('Generic error: %s' % str(e))
+            return False
 
         self.prompt = 'SMBShell(%s) > ' % target.getIdentity()
 
@@ -30,23 +30,22 @@ class InteractiveShell(cmd.Cmd):
         logger.info('Launching interactive SMB shell')
         print 'Type help for list of commands'
 
-        while True:
-            try:
-                cmd.Cmd.cmdloop(self)
-            except SessionError, e:
-                #traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(), ))
-            except NetBIOSTimeout, e:
-                logger.error('SMB connection timed out')
-            except keimpxError, e:
-                logger.error(e)
-            except KeyboardInterrupt, _:
-                print
-                logger.info('User aborted')
-                self.do_exit('')
-            except Exception, e:
-                #traceback.print_exc()
-                logger.error(str(e))
+        try:
+            cmd.Cmd.cmdloop(self)
+        except SessionError, e:
+            #traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(), ))
+        except NetBIOSTimeout, e:
+            logger.error('SMB connection timed out')
+        except keimpxError, e:
+            logger.error(e)
+        except KeyboardInterrupt, _:
+            print
+            logger.info('User aborted')
+            self.do_exit('')
+        except Exception, e:
+            #traceback.print_exc()
+            logger.error(str(e))
 
     def emptyline(self):
         pass
@@ -119,7 +118,7 @@ class InteractiveShell(cmd.Cmd):
         Disconnect the SMB session
         '''
         self.smb_shell.logoff()
-        sys.exit(0)
+        return True
 
     def do_help(self, line):
         '''
