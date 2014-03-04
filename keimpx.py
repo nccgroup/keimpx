@@ -765,7 +765,7 @@ def main():
 
     if successes == 0:
         print '\nNo credentials worked on any target\n'
-        sys.exit(1)
+        sys.exit(0)
 
     print '\nThe credentials worked in total %d times\n' % successes
     print 'TARGET SORTED RESULTS:\n'
@@ -803,69 +803,70 @@ def main():
     if conf.batch or conf.smbcmdlist or conf.oscmdlist:
         return
 
-    msg = 'Do you want to establish a SMB shell from any of the targets? [Y/n] '
-    choice = raw_input(msg)
+    while True:
+        msg = 'Do you want to establish a SMB shell from any of the targets? [Y/n] '
+        choice = raw_input(msg)
 
-    if choice and choice[0].lower() != 'y':
-        return
+        if choice and choice[0].lower() != 'y':
+            return
 
-    counter = 0
-    targets_dict = {}
-    msg = 'Which target do you want to connect to?'
+        counter = 0
+        targets_dict = {}
+        msg = 'Which target do you want to connect to?'
 
-    for target in targets:
-        valid_credentials = target.getValidCredentials()
+        for target in targets:
+            valid_credentials = target.getValidCredentials()
 
-        if len(valid_credentials) > 0:
+            if len(valid_credentials) > 0:
+                counter += 1
+                msg += '\n[%d] %s%s' % (counter, target.getIdentity(), ' (default)' if counter == 1 else '')
+                targets_dict[counter] = (target, valid_credentials)
+
+        msg += '\n> '
+        choice = read_input(msg, counter)
+        user_target, valid_credentials = targets_dict[int(choice)]
+
+        counter = 0
+        credentials_dict = {}
+        msg = 'Which credentials do you want to use to connect?'
+
+        for credential in valid_credentials:
             counter += 1
-            msg += '\n[%d] %s%s' % (counter, target.getIdentity(), ' (default)' if counter == 1 else '')
-            targets_dict[counter] = (target, valid_credentials)
+            msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), ' (default)' if counter == 1 else '')
+            credentials_dict[counter] = credential
 
-    msg += '\n> '
-    choice = read_input(msg, counter)
-    user_target, valid_credentials = targets_dict[int(choice)]
+        msg += '\n> '
+        choice = read_input(msg, counter)
+        user_credentials = credentials_dict[int(choice)]
 
-    counter = 0
-    credentials_dict = {}
-    msg = 'Which credentials do you want to use to connect?'
+        if mswindows is True and have_readline:
+            try:
+                _outputfile = readline.GetOutputFile()
+            except AttributeError:
+                logger.debug('Failed GetOutputFile when using platform\'s readline library')
+                have_readline = False
 
-    for credential in valid_credentials:
-        counter += 1
-        msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), ' (default)' if counter == 1 else '')
-        credentials_dict[counter] = credential
+        uses_libedit = False
 
-    msg += '\n> '
-    choice = read_input(msg, counter)
-    user_credentials = credentials_dict[int(choice)]
+        if sys.platform.lower() == 'darwin' and have_readline:
+            import commands
 
-    if mswindows is True and have_readline:
+            (status, result) = commands.getstatusoutput('otool -L %s | grep libedit' % readline.__file__)
+
+            if status == 0 and len(result) > 0:
+                readline.parse_and_bind('bind ^I rl_complete')
+
+                debugMsg  = 'Leopard libedit detected when using platform\'s '
+                debugMsg += 'readline library'
+                logger.debug(debugMsg)
+
+                uses_libedit = True
+
         try:
-            _outputfile = readline.GetOutputFile()
-        except AttributeError:
-            logger.debug('Failed GetOutputFile when using platform\'s readline library')
-            have_readline = False
-
-    uses_libedit = False
-
-    if sys.platform.lower() == 'darwin' and have_readline:
-        import commands
-
-        (status, result) = commands.getstatusoutput('otool -L %s | grep libedit' % readline.__file__)
-
-        if status == 0 and len(result) > 0:
-            readline.parse_and_bind('bind ^I rl_complete')
-
-            debugMsg  = 'Leopard libedit detected when using platform\'s '
-            debugMsg += 'readline library'
-            logger.debug(debugMsg)
-
-            uses_libedit = True
-
-    try:
-        shell = InteractiveShell(user_target, user_credentials, conf.name)
-        shell.cmdloop()
-    except RuntimeError:
-        sys.exit(255)
+            shell = InteractiveShell(user_target, user_credentials, conf.name)
+            shell.cmdloop()
+        except RuntimeError, e:
+            logger.error('Runtime error: %s' % str(e))
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
