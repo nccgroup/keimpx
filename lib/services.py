@@ -13,54 +13,54 @@ class SvcCtl(object):
         pass
 
     def services(self, srvname):
-        self.__scmr_connect()
+        self.scmr_connect()
         self.__scmr_list(srvname)
-        self.__scmr_disconnect()
+        self.scmr_disconnect()
 
     def status(self, srvname, return_state=False):
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         resp = self.__scmr_state(srvname, return_state)
-        self.__scmr_disconnect()
+        self.scmr_disconnect()
 
         return resp
 
     def query(self, srvname, return_answer=False):
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         resp = self.__scmr_config(srvname, return_answer)
-        self.__scmr_disconnect()
+        self.scmr_disconnect()
 
         return resp
 
     def start(self, srvname, srvargs=''):
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         self.__scmr_start(srvname, srvargs)
-        self.__scmr_disconnect(srvname)
+        self.scmr_disconnect(srvname)
 
     def stop(self, srvname):
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         self.__scmr_stop(srvname)
-        self.__scmr_disconnect(srvname)
+        self.scmr_disconnect(srvname)
 
     def change(self, srvname, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         self.__scmr_change(display, path, service_type, start_type, start_name, password)
-        self.__scmr_disconnect(srvname)
+        self.scmr_disconnect(srvname)
 
     def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
         self.oldpwd = self.pwd
         self.pwd = '\\'
 
         self.__scmr_bin_upload(local_file, remote_file)
-        self.__scmr_connect()
+        self.scmr_connect()
         self.__scmr_create(srvname, remote_file, displayname)
-        self.__scmr_srv_manager(srvname)
+        self.scmr_srv_manager(srvname)
         self.__scmr_start(srvname, srvargs)
-        self.__scmr_disconnect(srvname)
+        self.scmr_disconnect(srvname)
 
         self.pwd = self.oldpwd
 
@@ -68,8 +68,8 @@ class SvcCtl(object):
         self.oldpwd = self.pwd
         self.pwd = '\\'
 
-        self.__scmr_connect()
-        self.__scmr_srv_manager(srvname)
+        self.scmr_connect()
+        self.scmr_srv_manager(srvname)
         resp = scmr.hRQueryServiceConfigW(self.__rpc, self.__service_handle)
         remote_file = resp['lpServiceConfig']['lpBinaryPathName'][:-1]
         remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
@@ -78,7 +78,7 @@ class SvcCtl(object):
             self.__scmr_stop(srvname)
 
         self.__scmr_delete(srvname)
-        self.__scmr_disconnect(srvname)
+        self.scmr_disconnect(srvname)
         self.__scmr_bin_remove(remote_file)
         self.pwd = self.oldpwd
 
@@ -89,7 +89,7 @@ class SvcCtl(object):
             self.use(DataStore.writable_share)
             self.upload(command_and_args[0])
 
-        self.__scmr_connect()
+        self.scmr_connect()
 
         try:
             if mode == 'SERVER':
@@ -117,13 +117,13 @@ class SvcCtl(object):
             logger.error(str(e))
 
         sys.stdout.flush()
-        self.__scmr_disconnect()
+        self.scmr_disconnect()
 
         if os.path.exists(command_and_args[0]):
             self.rm(os.path.basename(command_and_args[0]))
 
     def svcshell(self, mode='SHARE'):
-        self.__scmr_connect()
+        self.scmr_connect()
 
         try:
             if mode == 'SERVER':
@@ -147,13 +147,13 @@ class SvcCtl(object):
             logger.error(str(e))
 
         sys.stdout.flush()
-        self.__scmr_disconnect()
+        self.scmr_disconnect()
 
-    def __scmr_srv_manager(self, srvname):
+    def scmr_srv_manager(self, srvname):
         self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname)
         self.__service_handle = self.__resp['lpServiceHandle']
 
-    def __scmr_connect(self):
+    def scmr_connect(self):
         '''
         Connect to svcctl named pipe
         '''
@@ -165,7 +165,7 @@ class SvcCtl(object):
         self.__resp = scmr.hROpenSCManagerW(self.__dce)
         self.__mgr_handle = self.__resp['lpScHandle']
 
-    def __scmr_disconnect(self, srvname=None):
+    def scmr_disconnect(self, srvname=None):
         '''
         Disconnect from svcctl named pipe
         '''
