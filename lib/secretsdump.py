@@ -85,7 +85,10 @@ class RemoteOperations:
         self.__regHandle = ans['phKey']
         ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa')
         keyHandle = ans['phkResult']
-        dataType, noLMHash = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'NoLmHash')
+        try:
+            dataType, noLMHash = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'NoLmHash')
+        except:
+            noLMHash = 0
 
         if noLMHash == 1:
             logger.debug('LM hashes are NOT being stored')
