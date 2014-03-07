@@ -93,6 +93,24 @@ class test_login(Thread):
     def logoff(self):
         self.smb.logoff()
 
+    def check_admin(self):
+        try:
+            self.__trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename='svcctl', smb_connection=self.smb)
+            self.__trans.connect()
+            self.__dce = self.__trans.get_dce_rpc()
+            self.__dce.bind(scmr.MSRPC_UUID_SCMR)
+            self.__resp = scmr.hROpenSCManagerW(self.__dce)
+            self.__mgr_handle = self.__resp['lpScHandle']
+            scmr.hRCloseServiceHandle(self.__dce, self.__mgr_handle)
+            self.__dce.disconnect()
+            return True
+        except rpcrt.DCERPCException, e:
+            pass
+        except Exception, e:
+            logger.error('Check admin error: %s' % str(e))
+
+        return False
+
     def run(self):
         global pool_thread
         global successes
@@ -111,6 +129,7 @@ class test_login(Thread):
                 for domain in domains:
                     status = False
                     error_code = None
+                    is_admin = None
 
                     if domain:
                         user_str = '%s\%s' % (domain, user)
@@ -120,17 +139,20 @@ class test_login(Thread):
                     try:
                         self.connect()
                         self.login(user, password, lmhash, nthash, domain)
-                        self.logoff()
 
                         if self.smb.isGuestSession() > 0:
                             logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
                             return
                         else:
+                            is_admin = self.check_admin()
+
                             if self.smb.getServerDomain().upper() != domain.upper() and self.smb.getServerName().upper() != domain.upper():
                                 domain = ''
                                 user_str = user
 
-                            logger.info('Successful login for %s with %s on %s' % (user_str, password_str, self.__target_id))
+                            logger.info('Successful login for %s with %s on %s %s' % (user_str, password_str, self.__target_id, "(admin user)" if is_admin else ""))
+
+                        self.logoff()
 
                         status = True
                         successes += 1
@@ -138,8 +160,8 @@ class test_login(Thread):
                         logger.debug('Failed login for %s with %s on %s %s' % (user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
 
-                    credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code)
-                    self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code)
+                    credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
+                    self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
 
                     if status is True:
                         break
@@ -151,12 +173,13 @@ class test_login(Thread):
         pool_thread.release()
 
 class CredentialsTarget:
-    def __init__(self, host, port, domain, status, error_code):
+    def __init__(self, host, port, domain, status, error_code, is_admin):
         self.host = host
         self.port = port
         self.domain = domain
         self.status = status
         self.error_code = error_code
+        self.is_admin = is_admin
 
     def getHost(self):
         return self.host
@@ -167,11 +190,14 @@ class CredentialsTarget:
     def getStatus(self):
         return self.status
 
+    def isAdmin(self):
+        return self.is_admin
+
     def getIdentity(self):
         if self.domain:
-            return '%s:%s@%s' % (self.host, self.port, self.domain)
+            return '%s:%s@%s %s' % (self.host, self.port, self.domain, '(admin user)' if self.isAdmin() else '')
         else:
-            return '%s:%s' % (self.host, self.port)
+            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.isAdmin() else '')
 
 class Credentials:
     def __init__(self, user, password='', lmhash='', nthash=''):
@@ -208,8 +234,8 @@ class Credentials:
         else:
             return self.user, self.password, '', ''
 
-    def addTarget(self, host, port, domain, status, error_code):
-        self.tested_targets.append(CredentialsTarget(host, port, domain, status, error_code))
+    def addTarget(self, host, port, domain, status, error_code, is_admin):
+        self.tested_targets.append(CredentialsTarget(host, port, domain, status, error_code, is_admin))
 
     def getTargets(self, valid_only=False):
         _ = []
@@ -225,7 +251,7 @@ class Credentials:
         return self.getTargets(True)
 
 class TargetCredentials:
-    def __init__(self, user, password, lmhash, nthash, domain, status, error_code):
+    def __init__(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
         self.user = user
         self.password = password
         self.lmhash = lmhash
@@ -233,6 +259,7 @@ class TargetCredentials:
         self.domain = domain
         self.status = status
         self.error_code = error_code
+        self.is_admin = is_admin
 
     def getUser(self):
         return self.user
@@ -252,6 +279,9 @@ class TargetCredentials:
     def getStatus(self):
         return self.status
 
+    def isAdmin(self):
+        return self.is_admin
+
     def getIdentity(self):
         if self.domain:
             _ = '%s\%s' % (self.domain, self.user)
@@ -259,9 +289,9 @@ class TargetCredentials:
             _ = self.user
 
         if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (_, self.lmhash, self.nthash)
+            return '%s/%s:%s %s' % (_, self.lmhash, self.nthash, '(admin user)' if self.isAdmin() else '')
         else:
-            return '%s/%s' % (_, self.password or 'BLANK')
+            return '%s/%s %s' % (_, self.password or 'BLANK', '(admin user)' if self.isAdmin() else '')
 
 class Target:
     def __init__(self, target, port):
@@ -281,8 +311,8 @@ class Target:
     def getIdentity(self):
         return '%s:%d' % (self.target, self.port)
 
-    def addCredential(self, user, password, lmhash, nthash, domain, status, error_code):
-        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status, error_code))
+    def addCredential(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
+        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status, error_code, is_admin))
 
     def getCredentials(self, valid_only=False):
         _ = []
@@ -322,18 +352,31 @@ def parse_list_file(filename):
     for line in file_lines:
         add_command(line)
 
+def get_admin_credentials(target):
+    for credentials in target.getValidCredentials():
+        if credentials.isAdmin():
+            return credentials
+
+    return False
+
 def oscmdlist():
     parse_list_file(conf.oscmdlist)
     targets_tuple = ()
 
     for target in targets:
+        admin_credentials = None
+
         if len(target.getValidCredentials()) == 0:
             continue
         else:
-            first_credentials = target.getValidCredentials()[0]
+            admin_credentials = get_admin_credentials(target)
 
-        logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        smb_shell = SMBShell(target, first_credentials, conf.name)
+        if admin_credentials is False:
+            admin_credentials = target.getValidCredentials()[0]
+            logger.warn('No admin user identified for target %s, some commands will not work' % target.getIdentity())
+
+        logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), admin_credentials.getUser()))
+        smb_shell = SMBShell(target, admin_credentials, conf.name)
 
         if len(commands) > 0:
             logger.info('Executing OS commands from provided file')
@@ -368,10 +411,14 @@ def smbcmdlist():
         if len(target.getValidCredentials()) == 0:
             continue
         else:
-            first_credentials = target.getValidCredentials()[0]
+            admin_credentials = get_admin_credentials(target)
 
-        logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), first_credentials.getUser()))
-        shell = InteractiveShell(target, first_credentials, conf.name)
+        if admin_credentials is False:
+            admin_credentials = target.getValidCredentials()[0]
+            logger.warn('No admin user identified for target %s, some commands will not work' % target.getIdentity())
+
+        logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), admin_credentials.getUser()))
+        shell = InteractiveShell(target, admin_credentials, conf.name)
 
         if len(commands) > 0:
             logger.info('Executing SMB commands from provided file')
