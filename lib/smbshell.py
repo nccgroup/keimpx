@@ -24,6 +24,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.__lmhash = credential.getLMhash()
         self.__nthash = credential.getNThash()
         self.__domain = credential.getDomain()
+        self.__is_admin = credential.isAdmin()
         self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
@@ -52,7 +53,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         if _:
             DataStore.writable_share = _
         else:
-            logger.warn('Unable to find a writable share, going to use %s, but some commands will not work' % DataStore.writable_share)
+            logger.warn('Unable to find a writable share. Going to use %s, but some commands will not work' % DataStore.writable_share)
 
             if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
                 DataStore.share_path = ntpath.join(DataStore.user_path, 'Windows', 'Temp')
