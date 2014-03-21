@@ -145,9 +145,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def __share_info(self, share):
         self.smb_transport('srvsvc')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(srvsvc.MSRPC_UUID_SRVSVC)
-        self.__svc = srvsvc.DCERPCSrvSvc(self.__dce)
-        resp = self.__svc.NetrShareGetInfo('', share)
+        self.__dce.connect()
+        self.__dce.bind(srvs.MSRPC_UUID_SRVS)
+        resp = srvs.hNetrShareGetInfo(self.__dce, '%s\x00' % share, 2)
         self.__dce.disconnect()
 
         return resp
@@ -181,13 +181,13 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             share = _['shi1_netname'][:-1]
 
             try:
-                share_info = self.__share_info(share.encode('utf-16le'))
-            except srvsvc.SRVSVCSessionError, _:
+                share_info = self.__share_info(share)
+            except rpcrt.DCERPCException, _:
                 #traceback.print_exc()
                 logger.warning('Unable to query share: %s' % share)
                 continue
 
-            path = share_info['Path'].replace('\x00', '')
+            path = share_info['InfoStruct']['ShareInfo2']['shi2_path'][:-1]
 
             if self.is_writable_share(share):
                 logger.info('Share %s %sis writable' % (share, "(%s) " % path if path else ""))
@@ -210,11 +210,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             comment = shares[i]['shi1_remark'][:-1]
             share_type = shares[i]['shi1_type']
 
-            _ = self.__share_info(name.encode('utf-16le'))
-            max_uses = _['MaxUses'] # 4294967295L is unlimited
-            current_uses = _['CurrentUses']
-            permissions = _['Permissions'] # impacket always returns always 0
-            path = _['Path']
+            _ = self.__share_info(name)
+            max_uses = _['InfoStruct']['ShareInfo2']['shi2_max_uses'] # 4294967295L is unlimited
+            current_uses = _['InfoStruct']['ShareInfo2']['shi2_current_uses']
+            permissions = _['InfoStruct']['ShareInfo2']['shi2_permissions'] # impacket always returns always 0
+            path = _['InfoStruct']['ShareInfo2']['shi2_path']
 
             print '[%d] %s (comment: %s)' % (count, name, comment)
 

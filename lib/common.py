@@ -58,7 +58,6 @@ try:
     from impacket.dcerpc import atsvc
     from impacket.dcerpc import dcerpc
     from impacket.dcerpc import ndrutils
-    from impacket.dcerpc import srvsvc
     from impacket.dcerpc.samr import *
     from impacket.dcerpc.v5 import epm
     from impacket.dcerpc.v5 import rpcrt
