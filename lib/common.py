@@ -192,3 +192,56 @@ def MD5(data):
     md5.update(data)
 
     return md5.digest()
+
+################################################################
+# Code borrowed and adapted from Impacket's smbexec.py example #
+################################################################
+class SMBServer(Thread):
+    def __init__(self, smbserver_share):
+        Thread.__init__(self)
+        _, self.__smbserver_log = tempfile.mkstemp(prefix="keimpx-")
+        self.__smbserver_dir = tempfile.gettempdir()
+        self.__smbserver_share = smbserver_share
+
+    def run(self):
+        # Here we write a mini config for the server
+        smbConfig = ConfigParser.ConfigParser()
+        smbConfig.add_section('global')
+        smbConfig.set('global', 'server_name', 'server_name')
+        smbConfig.set('global', 'server_os', 'UNIX')
+        smbConfig.set('global', 'server_domain', 'WORKGROUP')
+        smbConfig.set('global', 'log_file', self.__smbserver_log)
+        smbConfig.set('global', 'credentials_file', '')
+
+        # Let's add a dummy share
+        smbConfig.add_section(self.__smbserver_share)
+        smbConfig.set(self.__smbserver_share, 'comment', '')
+        smbConfig.set(self.__smbserver_share, 'read only', 'no')
+        smbConfig.set(self.__smbserver_share, 'share type', '0')
+        smbConfig.set(self.__smbserver_share, 'path', self.__smbserver_dir)
+
+        # IPC always needed
+        smbConfig.add_section('IPC$')
+        smbConfig.set('IPC$', 'comment', '')
+        smbConfig.set('IPC$', 'read only', 'yes')
+        smbConfig.set('IPC$', 'share type', '3')
+        smbConfig.set('IPC$', 'path')
+
+        self.localsmb = smbserver.SMBSERVER(('0.0.0.0', 445), config_parser=smbConfig)
+
+        logger.info('Setting up SMB Server')
+        self.localsmb.processConfigFile()
+        logger.debug('Ready to listen...')
+
+        try:
+            self.localsmb.serve_forever()
+        except:
+            pass
+
+    def stop(self):
+        if os.path.exists(self.__smbserver_log):
+            os.unlink(self.__smbserver_log)
+
+        self.localsmb.socket.close()
+        self.localsmb.server_close()
+        self._Thread__stop()

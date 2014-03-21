@@ -39,6 +39,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.users_list = set()
         self.completion = []
 
+        self.smbserver_share = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
+
         self.connect()
         logger.debug('Connection to host %s established' % target.getIdentity())
 

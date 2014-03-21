@@ -93,15 +93,14 @@ class SvcCtl(object):
 
         try:
             if mode == 'SERVER':
-                self.__serverThread = SMBServer()
+                self.__serverThread = SMBServer(self.smbserver_share)
                 self.__serverThread.daemon = True
                 self.__serverThread.start()
-
-            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, mode, display)
 
             if os.path.exists(command_and_args[0]):
                 command = ntpath.join(DataStore.share_path, os.path.basename(command))
 
+            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, self.smbserver_share, mode, display)
             self.svc_shell.onecmd(command)
 
             if mode == 'SERVER':
@@ -127,11 +126,11 @@ class SvcCtl(object):
 
         try:
             if mode == 'SERVER':
-                self.__serverThread = SMBServer()
+                self.__serverThread = SMBServer(self.smbserver_share)
                 self.__serverThread.daemon = True
                 self.__serverThread.start()
 
-            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, mode)
+            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, self.smbserver_share, mode)
             self.svc_shell.cmdloop()
 
             if mode == 'SERVER':
