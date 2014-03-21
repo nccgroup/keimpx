@@ -83,6 +83,12 @@ class SvcCtl(object):
         self.pwd = self.oldpwd
 
     def svcexec(self, command, mode='SHARE', display=True):
+        if mode == 'SERVER' and not is_local_admin():
+            err = "you need to run keimpx as an administrator. keimpx "
+            err += "needs to listen on TCP port a SMB server for "
+            err += "incoming connection attempts"
+            raise missingPermission(err)
+
         command_and_args = shlex.split(command)
 
         if os.path.exists(command_and_args[0]):
@@ -122,6 +128,12 @@ class SvcCtl(object):
             self.rm(os.path.basename(command_and_args[0]))
 
     def svcshell(self, mode='SHARE'):
+        if mode == 'SERVER' and not is_local_admin():
+            err = "you need to run keimpx as an administrator. keimpx "
+            err += "needs to listen on TCP port a SMB server for "
+            err += "incoming connection attempts"
+            raise missingPermission(err)
+
         self.__scmr_connect()
 
         try:

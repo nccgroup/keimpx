@@ -31,3 +31,6 @@ class missingFile(keimpxError):
 
 class registryKey(keimpxError):
     pass
+
+class missingPermission(keimpxError):
+    pass

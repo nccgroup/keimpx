@@ -193,6 +193,35 @@ def MD5(data):
 
     return md5.digest()
 
+def is_local_admin():
+    """
+    Returns True if the current process is run under admin privileges
+    """
+
+    isAdmin = None
+
+    if os.name in ('posix', 'mac'):
+        _ = os.geteuid()
+
+        isAdmin = isinstance(_, (int, float, long)) and _ == 0
+    elif subprocess.mswindows:
+        import ctypes
+
+        _ = ctypes.windll.shell32.IsUserAnAdmin()
+
+        isAdmin = isinstance(_, (int, float, long)) and _ == 1
+    else:
+        errMsg = "keimpx is not able to check if you are running it "
+        errMsg += "as an administrator account on this platform. "
+        errMsg += "keimpx will assume that you are an administrator "
+        errMsg += "which is mandatory for the requested attack "
+        errMsg += "to work properly"
+        logger.error(errMsg)
+
+        isAdmin = True
+
+    return isAdmin
+
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
