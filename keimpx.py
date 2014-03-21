@@ -99,7 +99,7 @@ class test_login(Thread):
             self.__trans.connect()
             self.__dce = self.__trans.get_dce_rpc()
             self.__dce.bind(scmr.MSRPC_UUID_SCMR)
-            self.__resp = scmr.hROpenSCManagerW(self.__dce)
+            self.__resp = scmr.hROpenSCManagerW(self.__dce, dwDesiredAccess=scmr.SC_MANAGER_CREATE_SERVICE)
             self.__mgr_handle = self.__resp['lpScHandle']
             scmr.hRCloseServiceHandle(self.__dce, self.__mgr_handle)
             self.__dce.disconnect()
