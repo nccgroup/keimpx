@@ -18,9 +18,14 @@ class SvcShell(cmd.Cmd):
         self.__display = display
         self.__smbserver_share = smbserver_share
         self.__output_file = '%s.txt' % ''.join(random.choice(string.letters) for _ in range(8))
-        self.__output_file_path = ntpath.join(DataStore.share_path, self.__output_file)
         self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
-        self.__batchFile = ntpath.join(DataStore.share_path, self.__batch_filename)
+
+        if self.__mode == 'SERVER':
+            self.__batchFile = ntpath.join('%TEMP%', self.__batch_filename)
+        else:
+            self.__batchFile = ntpath.join(DataStore.share_path, self.__batch_filename)
+            self.__output_file_path = ntpath.join(DataStore.share_path, self.__output_file)
+
         self.__outputBuffer = ''
         self.__command = ''
         self.__shell = '%COMSPEC% /Q /c'
@@ -33,7 +38,6 @@ class SvcShell(cmd.Cmd):
 
         if self.__mode == 'SERVER':
             self.__local_ip = self.transferClient.getSMBServer().get_socket().getsockname()[0]
-            self.__copyBack = 'copy %s \\\\%s\\%s' % (self.__output_file_path, self.__local_ip, self.__smbserver_share)
 
     def __output_callback(self, data):
         self.__outputBuffer += data
@@ -76,14 +80,13 @@ class SvcShell(cmd.Cmd):
             os.unlink(os.path.join(tempfile.gettempdir(), self.__output_file))
         else:
             self.transferClient.getFile(DataStore.writable_share, self.__output_file, self.__output_callback)
-
-        self.transferClient.deleteFile(DataStore.writable_share, self.__output_file)
+            self.transferClient.deleteFile(DataStore.writable_share, self.__output_file)
 
     def execute_command(self, command):
-        command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)
-
         if self.__mode == 'SERVER':
-            command += ' & %s' % self.__copyBack
+            command = '%s echo %s ^> \\\\%s\\%s\\%s > %s & %s %s' % (self.__shell, command, self.__local_ip, self.__smbserver_share, self.__output_file, self.__batchFile, self.__shell, self.__batchFile)
+        else:
+            command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)
 
         command += ' & del %s' % self.__batchFile
 
