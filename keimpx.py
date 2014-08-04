@@ -53,6 +53,7 @@ SUCH DAMAGE.
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.3-dev'
 
+import os
 import re
 
 from lib.common import *
@@ -68,6 +69,7 @@ pool_thread = None
 successes = 0
 targets = []
 commands = []
+stop_threads = [False]
 
 if hasattr(sys, 'frozen'):
     keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
@@ -129,6 +131,9 @@ class test_login(Thread):
                     password_str = '%s:%s' % (lmhash, nthash)
 
                 for domain in domains:
+                    if stop_threads[0]:
+                        break
+
                     status = False
                     error_code = None
                     is_admin = None
@@ -170,7 +175,8 @@ class test_login(Thread):
 
             logger.info('Assessment on host %s finished' % self.__target.getIdentity())
         except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
+            if not stop_threads[0]:
+                logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
 
         pool_thread.release()
 
@@ -808,6 +814,7 @@ def main():
         for target in targets:
             pool_thread.acquire()
             current = test_login(target)
+            current.daemon = True
             current.start()
 
         while (threading.activeCount() > 1):
@@ -817,19 +824,17 @@ def main():
     except KeyboardInterrupt:
         print
         try:
-            logger.warn('Test interrupted, waiting for threads to finish')
-
-            while (threading.activeCount() > 1):
-                a = 'Caughtit'
-                pass
+            logger.warn('Test interrupted')
+            a = 'Caughtit'
+            stop_threads[0] = True
         except KeyboardInterrupt:
             print
             logger.info('User aborted')
-            sys.exit(1)
+            os._exit(1)
 
     if successes == 0:
         print '\nNo credentials worked on any target\n'
-        sys.exit(0)
+        os._exit(0)
 
     print '\nThe credentials worked in total %d times\n' % successes
     print 'TARGET SORTED RESULTS:\n'
@@ -943,6 +948,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print
         logger.info('User aborted')
-        sys.exit(1)
+        os._exit(1)
 
-    sys.exit(0)
+    os._exit(0)
