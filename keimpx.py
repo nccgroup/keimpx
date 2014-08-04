@@ -53,6 +53,8 @@ SUCH DAMAGE.
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.3-dev'
 
+import re
+
 from lib.common import *
 from lib.interactiveshell import InteractiveShell
 from lib.smbshell import SMBShell
@@ -668,12 +670,27 @@ def add_target(line):
 
         logger.debug('Parsed target: %s' % target.getIdentity())
 
+def addr_to_int(value):
+    _ = value.split('.')
+    return (long(_[0]) << 24) + (long(_[1]) << 16) + (long(_[2]) << 8) + long(_[3])
+
+def int_to_addr(value):
+    return '.'.join(str(value >> n & 0xFF) for n in (24, 16, 8, 0))
+
 def set_targets():
     logger.info('Loading targets')
 
     if conf.target is not None:
-        logger.debug('Loading targets from command line')
-        add_target(conf.target)
+        if '/' not in conf.target:
+            logger.debug('Loading targets from command line')
+            add_target(conf.target)
+        else:
+            address, mask = re.search(r"([\d.]+)/(\d+)", conf.target).groups()
+            logger.debug('Expanding targets from command line')
+            start_int = addr_to_int(address) & ~((1 << 32 - int(mask)) - 1)
+            end_int = start_int | ((1 << 32 - int(mask)) - 1)
+            for _ in xrange(start_int, end_int):
+                add_target(int_to_addr(_))
 
     if conf.list is not None:
         logger.debug('Loading targets from file %s' % conf.list)
