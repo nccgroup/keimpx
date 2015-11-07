@@ -4,6 +4,7 @@
 
 from lib.common import *
 from lib.smbexec import SvcShell
+from lib.avservices import AVSERVICES
 
 #################################################################
 # Code borrowed and adapted from Impacket's services.py example #
@@ -81,6 +82,20 @@ class SvcCtl(object):
         self.__scmr_disconnect(srvname)
         self.__scmr_bin_remove(remote_file)
         self.pwd = self.oldpwd
+
+    def stopav(self):
+        self.__scmr_connect()
+        resp = scmr.hREnumServicesStatusW(self.__rpc, self.__mgr_handle, dwServiceState=scmr.SERVICE_STATE_ALL)
+
+        for i in range(len(resp)):
+            name = resp[i]['lpServiceName'][:-1]
+            display = resp[i]['lpDisplayName'][:-1]
+            state = resp[i]['ServiceStatus']['dwCurrentState']
+            if state == scmr.SERVICE_RUNNING and name in AVSERVICES:
+                try:
+                    self.stop(name)
+                except:
+                    print "Couldn't stop %s (%s), currently in state: %s" % (display, name, self.__scmr_parse_state(state))
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():
