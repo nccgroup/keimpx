@@ -160,6 +160,7 @@ stop {service name} - stop a service
 change {service name} - change the configuration of a service (in progress)
 deploy {service name} {local file} [service args] [remote file] [displayname] - deploy remotely a service executable
 undeploy {service name} - undeploy remotely a service executable
+stopav - attempt to stop any known antivirus services
 
 Users options
 =============
@@ -454,6 +455,9 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             raise missingService, 'Service name has not been specified'
 
         self.smb_shell.undeploy(srvname)
+
+    def do_stopav(self, srvname):
+        self.smb_shell.stopav()
 
     def do_users(self, usrdomain):
         self.smb_shell.users(usrdomain)
