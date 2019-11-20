@@ -156,7 +156,8 @@ class test_login(Thread):
                         else:
                             is_admin = self.check_admin()
 
-                            if self.smb.getServerDomain().upper() != domain.upper() and self.smb.getServerName().upper() != domain.upper():
+                            if (self.smb.getServerDomain().upper() != domain.upper()
+                                    and self.smb.getServerName().upper() != domain.upper()):
                                 domain = ''
                                 user_str = user
 
