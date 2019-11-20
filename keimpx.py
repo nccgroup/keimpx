@@ -76,6 +76,7 @@ if hasattr(sys, 'frozen'):
 else:
     keimpx_path = os.path.dirname(os.path.realpath(__file__))
 
+
 class test_login(Thread):
     def __init__(self, target):
         Thread.__init__(self)
@@ -99,7 +100,8 @@ class test_login(Thread):
 
     def check_admin(self):
         try:
-            self.__trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename='svcctl', smb_connection=self.smb)
+            self.__trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename='svcctl',
+                                                  smb_connection=self.smb)
             self.__trans.connect()
             self.__dce = self.__trans.get_dce_rpc()
             self.__dce.bind(scmr.MSRPC_UUID_SCMR)
@@ -125,7 +127,7 @@ class test_login(Thread):
             for credential in credentials:
                 user, password, lmhash, nthash = credential.getCredentials()
 
-                if password != '' or ( password == '' and lmhash == '' and nthash == ''):
+                if password != '' or (password == '' and lmhash == '' and nthash == ''):
                     password_str = password or 'BLANK'
                 elif lmhash != '' and nthash != '':
                     password_str = '%s:%s' % (lmhash, nthash)
@@ -148,7 +150,8 @@ class test_login(Thread):
                         self.login(user, password, lmhash, nthash, domain)
 
                         if self.smb.isGuestSession() > 0:
-                            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts' % self.__target_id)
+                            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts'
+                                        % self.__target_id)
                             return
                         else:
                             is_admin = self.check_admin()
@@ -157,14 +160,17 @@ class test_login(Thread):
                                 domain = ''
                                 user_str = user
 
-                            logger.info('Successful login for %s with %s on %s %s' % (user_str, password_str, self.__target_id, "(admin user)" if is_admin else ""))
+                            logger.info('Successful login for %s with %s on %s %s'
+                                        % (user_str, password_str, self.__target_id,
+                                           "(admin user)" if is_admin else ""))
 
                         self.logoff()
 
                         status = True
                         successes += 1
                     except SessionError, e:
-                        logger.debug('Failed login for %s with %s on %s %s' % (user_str, password_str, self.__target_id, e.getErrorString()))
+                        logger.debug('Failed login for %s with %s on %s %s' % (
+                            user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
 
                     credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
@@ -179,6 +185,7 @@ class test_login(Thread):
                 logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
 
         pool_thread.release()
+
 
 class CredentialsTarget:
     def __init__(self, host, port, domain, status, error_code, is_admin):
@@ -206,6 +213,7 @@ class CredentialsTarget:
             return '%s:%s@%s %s' % (self.host, self.port, self.domain, '(admin user)' if self.isAdmin() else '')
         else:
             return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.isAdmin() else '')
+
 
 class Credentials:
     def __init__(self, user, password='', lmhash='', nthash=''):
@@ -250,13 +258,14 @@ class Credentials:
 
         for tested_target in self.tested_targets:
             if (valid_only and tested_target.getStatus() is True) \
-                or not valid_only:
+                    or not valid_only:
                 _.append(tested_target)
 
         return _
 
     def getValidTargets(self):
         return self.getTargets(True)
+
 
 class TargetCredentials:
     def __init__(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
@@ -279,7 +288,7 @@ class TargetCredentials:
         return self.lmhash
 
     def getNThash(self):
-        return self.nthash    
+        return self.nthash
 
     def getDomain(self):
         return self.domain
@@ -301,6 +310,7 @@ class TargetCredentials:
         else:
             return '%s/%s %s' % (_, self.password or 'BLANK', '(admin user)' if self.isAdmin() else '')
 
+
 class Target:
     def __init__(self, target, port):
         self.target = target
@@ -320,14 +330,15 @@ class Target:
         return '%s:%d' % (self.target, self.port)
 
     def addCredential(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
-        self.tested_credentials.append(TargetCredentials(user, password, lmhash, nthash, domain, status, error_code, is_admin))
+        self.tested_credentials.append(
+            TargetCredentials(user, password, lmhash, nthash, domain, status, error_code, is_admin))
 
     def getCredentials(self, valid_only=False):
         _ = []
 
         for tested_credential in self.tested_credentials:
             if (valid_only and tested_credential.getStatus() is True) \
-                or not valid_only:
+                    or not valid_only:
                 _.append(tested_credential)
 
         return _
@@ -335,12 +346,14 @@ class Target:
     def getValidCredentials(self):
         return self.getCredentials(True)
 
+
 def add_command(cmd):
     global commands
 
-    #if cmd is not None and len(cmd) > 0 and cmd not in commands:
+    # if cmd is not None and len(cmd) > 0 and cmd not in commands:
     if cmd is not None and len(cmd) > 0:
         commands.append(cmd)
+
 
 def parse_list_file(filename):
     global commands
@@ -360,12 +373,14 @@ def parse_list_file(filename):
     for line in file_lines:
         add_command(line)
 
+
 def get_admin_credentials(target):
     for credentials in target.getValidCredentials():
         if credentials.isAdmin():
             return credentials
 
     return False
+
 
 def oscmdlist():
     parse_list_file(conf.oscmdlist)
@@ -395,8 +410,8 @@ def oscmdlist():
                 try:
                     smb_shell.svcexec(command, 'SHARE')
                 except SessionError, e:
-                    #traceback.print_exc()
-                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                    # traceback.print_exc()
+                    logger.error('SMB error: %s' % (e.getErrorString(),))
                 except NetBIOSTimeout, e:
                     logger.error('SMB connection timed out')
                 except keimpxError, e:
@@ -406,10 +421,11 @@ def oscmdlist():
                     logger.info('User aborted')
                     smb_shell.do_exit('')
                 except Exception, e:
-                    #traceback.print_exc()
+                    # traceback.print_exc()
                     logger.error(str(e))
 
                 print '----------8<----------'
+
 
 def smbcmdlist():
     parse_list_file(conf.smbcmdlist)
@@ -437,8 +453,8 @@ def smbcmdlist():
                 try:
                     shell.onecmd(command)
                 except SessionError, e:
-                    #traceback.print_exc()
-                    logger.error('SMB error: %s' % (e.getErrorString(), ))
+                    # traceback.print_exc()
+                    logger.error('SMB error: %s' % (e.getErrorString(),))
                 except NetBIOSTimeout, e:
                     logger.error('SMB connection timed out')
                 except keimpxError, e:
@@ -448,10 +464,11 @@ def smbcmdlist():
                     logger.info('User aborted')
                     shell.do_exit('')
                 except Exception, e:
-                    #traceback.print_exc()
+                    # traceback.print_exc()
                     logger.error(str(e))
 
                 print '----------8<----------'
+
 
 ###############
 # Set domains #
@@ -471,6 +488,7 @@ def parse_domains_file(filename):
     for line in file_lines:
         add_domain(line)
 
+
 def add_domain(line):
     global domains
 
@@ -481,6 +499,7 @@ def add_domain(line):
         domains.append(d)
 
     logger.debug('Parsed domain%s: %s' % ('(s)' if len(_) > 1 else '', ', '.join([d for d in _])))
+
 
 def set_domains():
     global domains
@@ -506,6 +525,7 @@ def set_domains():
 
         logger.info('Loaded %s unique domain%s' % (len(domains), 's' if len(domains) > 1 else ''))
 
+
 ###################
 # Set credentials #
 ###################
@@ -523,6 +543,7 @@ def parse_credentials_file(filename):
 
     for line in file_lines:
         add_credentials(line=line)
+
 
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
@@ -576,6 +597,7 @@ def parse_credentials(credentials_line):
     else:
         raise credentialsError, 'credentials error'
 
+
 def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
     global added_credentials
     global credentials
@@ -601,6 +623,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
 
         logger.debug('Parsed credentials: %s' % credential.getIdentity())
 
+
 def set_credentials():
     logger.info('Loading credentials')
 
@@ -617,6 +640,7 @@ def set_credentials():
         sys.exit(1)
 
     logger.info('Loaded %s unique credential%s' % (len(credentials), 's' if len(credentials) > 1 else ''))
+
 
 ###############
 # Set targets #
@@ -635,6 +659,7 @@ def parse_targets_file(filename):
 
     for line in file_lines:
         add_target(line)
+
 
 def parse_target(target_line):
     targetmatch = re.compile('^([0-9a-zA-Z\-\_\.]+)(:(\d+))?')
@@ -656,6 +681,7 @@ def parse_target(target_line):
     else:
         raise targetError, 'target error'
 
+
 def add_target(line):
     global added_targets
     global targets
@@ -676,12 +702,15 @@ def add_target(line):
 
         logger.debug('Parsed target: %s' % target.getIdentity())
 
+
 def addr_to_int(value):
     _ = value.split('.')
     return (long(_[0]) << 24) + (long(_[1]) << 16) + (long(_[2]) << 8) + long(_[3])
 
+
 def int_to_addr(value):
     return '.'.join(str(value >> n & 0xFF) for n in (24, 16, 8, 0))
+
 
 def set_targets():
     logger.info('Loading targets')
@@ -708,6 +737,7 @@ def set_targets():
 
     logger.info('Loaded %s unique target%s' % (len(targets), 's' if len(targets) > 1 else ''))
 
+
 def check_conf():
     global conf
 
@@ -730,6 +760,7 @@ def check_conf():
     set_targets()
     set_credentials()
     set_domains()
+
 
 def cmdline_parser():
     '''
@@ -762,7 +793,7 @@ def cmdline_parser():
         parser.add_option('-d', dest='domainsfile', help='File with list of domains')
 
         parser.add_option('-p', dest='port', type='int', default=445,
-                           help='SMB port: 139 or 445 (default: 445)')
+                          help='SMB port: 139 or 445 (default: 445)')
 
         parser.add_option('-n', dest='name', help='Local NetBIOS hostname')
 
@@ -773,15 +804,15 @@ def cmdline_parser():
                           help='Batch mode: do not prompt for an interactive SMB shell')
 
         parser.add_option('-x', dest='smbcmdlist', help='Execute a list of SMB '
-                          'commands against all hosts')
+                                                        'commands against all hosts')
 
         parser.add_option('-X', dest='oscmdlist', help='Execute a list of OS '
-                          'commands against all hosts')
+                                                       'commands against all hosts')
 
         (args, _) = parser.parse_args()
 
         if not args.target and not args.list:
-            errMsg  = 'missing a mandatory parameter (-t or -l), '
+            errMsg = 'missing a mandatory parameter (-t or -l), '
             errMsg += '-h for help'
             parser.error(errMsg)
 
@@ -792,11 +823,13 @@ def cmdline_parser():
     debugMsg = 'Parsing command line'
     logger.debug(debugMsg)
 
+
 def banner():
     print '''
     keimpx %s
     by %s
     ''' % (__version__, __author__)
+
 
 def main():
     global conf
@@ -925,7 +958,7 @@ def main():
             if status == 0 and len(result) > 0:
                 readline.parse_and_bind('bind ^I rl_complete')
 
-                debugMsg  = 'Leopard libedit detected when using platform\'s '
+                debugMsg = 'Leopard libedit detected when using platform\'s '
                 debugMsg += 'readline library'
                 logger.debug(debugMsg)
 
@@ -937,8 +970,9 @@ def main():
         except RuntimeError, e:
             logger.error('Runtime error: %s' % str(e))
         except Exception, _:
-            #traceback.print_exc()
+            # traceback.print_exc()
             pass
+
 
 if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)

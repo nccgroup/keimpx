@@ -5,6 +5,7 @@
 from lib.common import *
 from lib.polenum import *
 
+
 #################################################################
 # Code borrowed and adapted from Impacket's samrdump.py example #
 #################################################################
@@ -162,9 +163,9 @@ class Samr(object):
             self.users_list = set()
 
     def __samr_pswpolicy(self, usrdomain=None):
-        '''
+        """
         Enumerate password policy on the system
-        '''
+        """
         self.__samr_domains(False)
 
         encoding = sys.getdefaultencoding()
@@ -182,9 +183,9 @@ class Samr(object):
             resp.print_friendly()
 
     def __samr_domains(self, display=True):
-        '''
+        """
         Enumerate domains to which the system is part of
-        '''
+        """
         logger.info('Enumerating domains')
 
         resp = self.__samr.enumdomains(self.__mgr_handle)

@@ -39,10 +39,12 @@ from threading import Thread
 
 try:
     import pyreadline as readline
+
     have_readline = True
 except ImportError:
     try:
         import readline
+
         have_readline = True
     except ImportError:
         have_readline = False
@@ -73,20 +75,26 @@ try:
     from impacket.smbconnection import *
     from impacket.winregistry import hexdump
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated version of the library\ncd /tmp\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
     sys.exit(255)
 
 try:
     from Crypto.Cipher import DES, ARC4, AES
     from Crypto.Hash import HMAC, MD4
 except ImportError:
-    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
+    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
+                     + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
     sys.exit(255)
 
 from lib.exceptions import *
 from lib.logger import logger
 
 keimpx_path = ''
+
 
 class DataStore(object):
     cmd_stdout = ''
@@ -100,6 +108,7 @@ class DataStore(object):
     version_minor = None
     writable_share = 'ADMIN$'
 
+
 def check_dialect(dialect):
     if dialect == SMB_DIALECT:
         return 'SMBv1'
@@ -109,6 +118,7 @@ def check_dialect(dialect):
         return 'SMBv2.1'
     else:
         return 'SMBv3.0'
+
 
 def read_input(msg, counter):
     while True:
@@ -125,6 +135,7 @@ def read_input(msg, counter):
 
     return choice
 
+
 def remove_comments(lines):
     cleaned_lines = []
 
@@ -137,6 +148,7 @@ def remove_comments(lines):
 
     return cleaned_lines
 
+
 def set_verbosity(level=0):
     if isinstance(level, basestring) and level.isdigit():
         level = int(level)
@@ -147,6 +159,7 @@ def set_verbosity(level=0):
         logger.setLevel(logging.INFO)
     elif level > 1:
         logger.setLevel(logging.DEBUG)
+
 
 class RemoteFile():
     def __init__(self, smb_connection, filename, share='ADMIN$'):
@@ -167,7 +180,7 @@ class RemoteFile():
 
     def read(self, bytesToRead):
         if bytesToRead > 0:
-            data =  self.smb.readFile(self.__tid, self.__fid, self.__currentOffset, bytesToRead)
+            data = self.smb.readFile(self.__tid, self.__fid, self.__currentOffset, bytesToRead)
             self.__currentOffset += len(data)
 
             return data
@@ -186,11 +199,13 @@ class RemoteFile():
     def __str__(self):
         return '%s\\%s' % (self.__share, self.__filename)
 
+
 def MD5(data):
     md5 = hashlib.new('md5')
     md5.update(data)
 
     return md5.digest()
+
 
 def is_local_admin():
     """
@@ -220,6 +235,7 @@ def is_local_admin():
         isAdmin = True
 
     return isAdmin
+
 
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #

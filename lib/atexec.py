@@ -4,6 +4,7 @@
 
 from lib.common import *
 
+
 ###############################################################
 # Code borrowed and adapted from Impacket's atexec.py example #
 ###############################################################
@@ -26,21 +27,22 @@ class AtSvc(object):
             self.upload(command_and_args[0])
 
         self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
-        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
+        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (
+        os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
         self.__atsvc_connect()
 
         logger.debug('Creating scheduled task with command: %s' % self.__at_command)
 
         # Check [MS-TSCH] Section 2.3.4
         self.__atInfo = atsvc.AT_INFO()
-        self.__atInfo['JobTime']         = 0
-        self.__atInfo['DaysOfMonth']     = 0
-        self.__atInfo['DaysOfWeek']      = 0
-        self.__atInfo['Flags']           = 0
-        self.__atInfo['Command']         = ndrutils.NDRUniqueStringW()
+        self.__atInfo['JobTime'] = 0
+        self.__atInfo['DaysOfMonth'] = 0
+        self.__atInfo['DaysOfWeek'] = 0
+        self.__atInfo['Flags'] = 0
+        self.__atInfo['Command'] = ndrutils.NDRUniqueStringW()
         self.__atInfo['Command']['Data'] = (self.__at_command).encode('utf-16le')
 
-        resp = self.__at.NetrJobAdd(('\\\\%s'% self.trans.get_dip()), self.__atInfo)
+        resp = self.__at.NetrJobAdd(('\\\\%s' % self.trans.get_dip()), self.__atInfo)
         jobId = resp['JobID']
 
         # Switching context to TSS
@@ -58,7 +60,7 @@ class AtSvc(object):
 
         # Switching back to the old ctx_id
         self.__at = atsvc.DCERPCAtSvc(self.__dce)
-        resp = self.__at.NetrJobDel('\\\\%s'% self.trans.get_dip(), jobId, jobId)
+        resp = self.__at.NetrJobDel('\\\\%s' % self.trans.get_dip(), jobId, jobId)
         self.__tmpFilePath = ntpath.join('Temp', self.__tmpFileName)
         self.transferClient = self.trans.get_smb_connection()
 

@@ -5,6 +5,7 @@
 from lib.common import *
 from lib.smbshell import SMBShell
 
+
 class InteractiveShell(cmd.Cmd):
     def __init__(self, target, credential, local_name):
         '''
@@ -16,11 +17,11 @@ class InteractiveShell(cmd.Cmd):
         try:
             self.smb_shell = SMBShell(target, credential, local_name)
         except SessionError, e:
-            #traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
             return False
         except Exception, e:
-            #traceback.print_exc()
+            # traceback.print_exc()
             logger.error('Generic error: %s' % str(e))
             return False
 
@@ -33,8 +34,8 @@ class InteractiveShell(cmd.Cmd):
         try:
             cmd.Cmd.cmdloop(self)
         except SessionError, e:
-            #traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
         except NetBIOSTimeout, e:
             logger.error('SMB connection timed out')
         except keimpxError, e:
@@ -44,7 +45,7 @@ class InteractiveShell(cmd.Cmd):
             logger.info('User aborted')
             self.do_exit('')
         except Exception, e:
-            #traceback.print_exc()
+            # traceback.print_exc()
             logger.error(str(e))
 
     def emptyline(self):
@@ -335,7 +336,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
                 raise missingOption, 'You have to specify source and destination file names'
             else:
                 srcfile, destfile = argvalues
-                
+
         self.smb_shell.rename(srcfile, destfile)
 
     def do_mkdir(self, path):
