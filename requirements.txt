@@ -1,1 +1,3 @@
+pycrypto==2.6.1
 impacket==0.9.13
+pyasn1==0.4.7
