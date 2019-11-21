@@ -510,7 +510,7 @@ class LSASecrets(OfflineRegistry):
         for i in range(0, len(value), 8):
             cipherText = value[:8]
             tmpStrKey = key0[:7]
-            tmpKey = self.__cryptoCommon.transformKey(self, tmpStrKey)
+            tmpKey = transformKey(tmpStrKey)
             Crypt1 = DES.new(tmpKey, DES.MODE_ECB)
             plainText += Crypt1.decrypt(cipherText)
             cipherText = cipherText[8:]
