@@ -399,11 +399,13 @@ class SAMHashes(OfflineRegistry):
 
         logger.info('Dumping local SAM hashes (UID:RID:LMhash:NThash), wait..')
         self.__getHBootKey()
+        logger.info('Done getHBootKey')
 
         usersKey = 'SAM\\Domains\\Account\\Users'
 
         # Enumerate all the RIDs
         rids = self.enumKey(usersKey)
+        logger.info('Done enumerating RIDs')
 
         # Remove the Names item
         try:
