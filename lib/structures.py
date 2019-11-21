@@ -54,7 +54,7 @@ class DOMAIN_ACCOUNT_F(Structure):
         ('ServerRole', '<H=0'),
         ('UasCompatibilityRequired', '<H=0'),
         ('Unknown3', '<Q=0'),
-        ('Key0', ':', SAM_KEY_DATA),
+        ('Key0', ':'),
         # Commenting this, not needed and not present on Windows 2000 SP0
         #        ('Key1',':', SAM_KEY_DATA),
         #        ('Unknown4','<L=0'),

@@ -371,17 +371,13 @@ class SAMHashes(OfflineRegistry):
         logger.debug('Calculating HashedBootKey from SAM')
         QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = b"0123456789012345678901234567890123456789\0"
-        logger.info('break1')
 
         F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
-        logger.info('break2')
 
         domainData = DOMAIN_ACCOUNT_F(F)
-        logger.info('break3')
 
         if domainData['Key0'][0:1] == b'\x01':
             samKeyData = SAM_KEY_DATA(domainData['Key0'])
-            logger.info('break4')
 
             rc4Key = self.MD5(samKeyData['Salt'] + QWERTY + self.__bootKey + DIGITS)
             logger.info('break5')
