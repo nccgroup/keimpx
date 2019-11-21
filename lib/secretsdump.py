@@ -354,7 +354,7 @@ class OfflineRegistry:
 
 class SAMHashes(OfflineRegistry):
     def __init__(self, samFile, bootKey, isRemote=False, perSecretCallback=lambda secret: _print_helper(secret)):
-        OfflineRegistry.__init__(self, samFile, isRemote)
+        OfflineRegistry.__init__(self, samFile)
         self.__samFile = samFile
         self.__hashedBootKey = b''
         self.__bootKey = bootKey
