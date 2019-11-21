@@ -2,8 +2,20 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
-from lib.polenum import *
+import sys
+from lib.logger import logger
+from lib.polenum import DCERPCSamr
+
+try:
+    from impacket.dcerpc.samr import MSRPC_UUID_SAMR, MSRPCUserInfo
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 #################################################################
 # Code borrowed and adapted from Impacket's samrdump.py example #
@@ -162,9 +174,9 @@ class Samr(object):
             self.users_list = set()
 
     def __samr_pswpolicy(self, usrdomain=None):
-        '''
+        """
         Enumerate password policy on the system
-        '''
+        """
         self.__samr_domains(False)
 
         encoding = sys.getdefaultencoding()
@@ -182,9 +194,9 @@ class Samr(object):
             resp.print_friendly()
 
     def __samr_domains(self, display=True):
-        '''
+        """
         Enumerate domains to which the system is part of
-        '''
+        """
         logger.info('Enumerating domains')
 
         resp = self.__samr.enumdomains(self.__mgr_handle)

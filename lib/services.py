@@ -2,9 +2,27 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import os
+import shlex
+import sys
+from lib.logger import logger
+from lib.common import DataStore, missingPermission, is_local_admin, SMBServer
 from lib.smbexec import SvcShell
 from lib.avservices import AVSERVICES
+
+try:
+    from impacket.dcerpc.v5 import scmr
+    from impacket.dcerpc.v5.dtypes import NULL
+    from impacket.smbconnection import ntpath, SessionError
+    from impacket.crypto import encryptSecret
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 #################################################################
 # Code borrowed and adapted from Impacket's services.py example #
@@ -46,7 +64,8 @@ class SvcCtl(object):
         self.__scmr_stop(srvname)
         self.__scmr_disconnect(srvname)
 
-    def change(self, srvname, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
+    def change(self, srvname, display=None, path=None, service_type=None, start_type=None, start_name=None,
+               password=None):
         self.__scmr_connect()
         self.__scmr_srv_manager(srvname)
         self.__scmr_change(display, path, service_type, start_type, start_name, password)
@@ -95,7 +114,8 @@ class SvcCtl(object):
                 try:
                     self.stop(name)
                 except:
-                    print "Couldn't stop %s (%s), currently in state: %s" % (display, name, self.__scmr_parse_state(state))
+                    print "Couldn't stop %s (%s), currently in state: %s" % (
+                        display, name, self.__scmr_parse_state(state))
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():
@@ -127,13 +147,13 @@ class SvcCtl(object):
             if mode == 'SERVER':
                 self.__serverThread.stop()
         except SessionError, e:
-            #traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
         except KeyboardInterrupt, _:
             print
             logger.info('User aborted')
         except Exception, e:
-            #traceback.print_exc()
+            # traceback.print_exc()
             logger.error(str(e))
 
         sys.stdout.flush()
@@ -163,13 +183,13 @@ class SvcCtl(object):
             if mode == 'SERVER':
                 self.__serverThread.stop()
         except SessionError, e:
-            #traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
         except KeyboardInterrupt, _:
             print
             logger.info('User aborted')
         except Exception, e:
-            #traceback.print_exc()
+            # traceback.print_exc()
             logger.error(str(e))
 
         sys.stdout.flush()
@@ -231,7 +251,8 @@ class SvcCtl(object):
             displayname = srvname
 
         self.__pathname = ntpath.join(DataStore.share_path, remote_file)
-        scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname, lpBinaryPathName='%s\x00' % self.__pathname)
+        scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname,
+                              lpBinaryPathName='%s\x00' % self.__pathname)
 
     def __scmr_delete(self, srvname):
         '''
@@ -291,21 +312,21 @@ class SvcCtl(object):
 
     def __scmr_parse_state(self, state):
         if state == scmr.SERVICE_CONTINUE_PENDING:
-           return 'CONTINUE PENDING'
+            return 'CONTINUE PENDING'
         elif state == scmr.SERVICE_PAUSE_PENDING:
-           return 'PAUSE PENDING'
+            return 'PAUSE PENDING'
         elif state == scmr.SERVICE_PAUSED:
-           return 'PAUSED'
+            return 'PAUSED'
         elif state == scmr.SERVICE_RUNNING:
-           return 'RUNNING'
+            return 'RUNNING'
         elif state == scmr.SERVICE_START_PENDING:
-           return 'START PENDING'
+            return 'START PENDING'
         elif state == scmr.SERVICE_STOP_PENDING:
-           return 'STOP PENDING'
+            return 'STOP PENDING'
         elif state == scmr.SERVICE_STOPPED:
-           return 'STOPPED'
+            return 'STOPPED'
         else:
-           return 'UNKOWN'
+            return 'UNKOWN'
 
     def __scmr_state(self, srvname, return_state=False):
         '''
@@ -358,7 +379,8 @@ class SvcCtl(object):
         scmr.hRControlService(self.__rpc, self.__service_handle, scmr.SERVICE_CONTROL_STOP)
         self.__scmr_state(srvname)
 
-    def __scmr_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None, password=None):
+    def __scmr_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None,
+                      password=None):
         '''
         Change the configuration of a service
         '''
@@ -395,7 +417,9 @@ class SvcCtl(object):
         else:
             password = NULL
 
-        scmr.hRChangeServiceConfigW(self.__rpc, self.__service_handle, service_type, start_type, scmr.SERVICE_ERROR_IGNORE, path, NULL, NULL, NULL, 0, start_name, password, 0, display)
+        scmr.hRChangeServiceConfigW(self.__rpc, self.__service_handle, service_type, start_type,
+                                    scmr.SERVICE_ERROR_IGNORE, path, NULL, NULL, NULL, 0, start_name, password, 0,
+                                    display)
 
     def __scmr_list_parse(self, srvname, resp):
         '''

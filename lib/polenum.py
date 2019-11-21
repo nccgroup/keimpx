@@ -2,7 +2,23 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+
+import sys
+import array
+from time import localtime, strftime, gmtime
+from struct import unpack
+
+try:
+    from impacket import ImpactPacket
+    from impacket.dcerpc.samr import SAMROpenDomainHeader, SAMRRespOpenDomainHeader
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 ########################################################################
 # Code ripped with permission from deanx's polenum tool,               #
@@ -11,25 +27,27 @@ from lib.common import *
 def get_obj(name):
     return eval(name)
 
+
 def d2b(a):
     bin = []
 
     while a:
-        bin.append(a%2)
+        bin.append(a % 2)
         a /= 2
 
     return bin[::-1]
 
+
 def display_time(filetime_high, filetime_low, minutes_utc=0):
-    import __builtins__
-    d = filetime_low + (filetime_high)*16**8 # convert to 64bit int
-    d *= 1.0e-7 # convert to seconds
-    d -= 11644473600 # remove 3389 years?
+    d = filetime_low + (filetime_high) * 16 ** 8  # convert to 64bit int
+    d *= 1.0e-7  # convert to seconds
+    d -= 11644473600  # remove 3389 years?
 
     try:
-        return strftime('%a, %d %b %Y %H:%M:%S +0000ddddd', localtime(d)) # return the standard format day
+        return strftime('%a, %d %b %Y %H:%M:%S +0000ddddd', localtime(d))  # return the standard format day
     except ValueError, e:
         return '0'
+
 
 class ExtendInplace(type):
     def __new__(self, name, bases, dict):
@@ -44,20 +62,21 @@ class ExtendInplace(type):
 
         return prevclass
 
+
 def convert(low, high, no_zero):
     if low == 0 and hex(high) == '-0x80000000':
         return 'Not Set'
     if low == 0 and high == 0:
         return 'None'
-    if no_zero: # make sure we have a +ve vale for the unsined int
+    if no_zero:  # make sure we have a +ve vale for the unsined int
         if (low != 0):
-            high = 0 - (high+1)
+            high = 0 - (high + 1)
         else:
             high = 0 - (high)
         low = 0 - low
 
-    tmp = low + (high)*16**8 # convert to 64bit int
-    tmp *= (1e-7) #  convert to seconds
+    tmp = low + (high) * 16 ** 8  # convert to 64bit int
+    tmp *= (1e-7)  # convert to seconds
 
     try:
         minutes = int(strftime('%M', gmtime(tmp)))  # do the conversion to human readable format
@@ -65,17 +84,17 @@ def convert(low, high, no_zero):
         return 'BAD TIME:'
 
     hours = int(strftime('%H', gmtime(tmp)))
-    days = int(strftime('%j', gmtime(tmp)))-1
+    days = int(strftime('%j', gmtime(tmp))) - 1
     time = ''
 
     if days > 1:
-     time = str(days) + ' days '
+        time = str(days) + ' days '
     elif days == 1:
         time = str(days) + ' day '
     if hours > 1:
         time += str(hours) + ' hours '
     elif hours == 1:
-        time = str(days) + ' hour '    
+        time = str(days) + ' hour '
     if minutes > 1:
         time += str(minutes) + ' minutes'
     elif minutes == 1:
@@ -83,20 +102,21 @@ def convert(low, high, no_zero):
 
     return time
 
+
 class MSRPCPassInfo:
     PASSCOMPLEX = {
-                    5: 'Domain Password Complex',
-                    4: 'Domain Password No Anon Change',
-                    3: 'Domain Password No Clear Change',
-                    2: 'Domain Password Lockout Admins',
-                    1: 'Domain Password Store Cleartext',
-                    0: 'Domain Refuse Password Change'
-                  }
+        5: 'Domain Password Complex',
+        4: 'Domain Password No Anon Change',
+        3: 'Domain Password No Clear Change',
+        2: 'Domain Password Lockout Admins',
+        1: 'Domain Password Store Cleartext',
+        0: 'Domain Refuse Password Change'
+    }
 
-    def __init__(self, data = None):
+    def __init__(self, data=None):
         self._min_pass_length = 0
         self._pass_hist = 0
-        self._pass_prop= 0
+        self._pass_prop = 0
         self._min_age_low = 0
         self._min_age_high = 0
         self._max_age_low = 0
@@ -117,34 +137,36 @@ class MSRPCPassInfo:
         if data:
             self.set_header(data, 1)
 
-    def set_header(self,data,level):
+    def set_header(self, data, level):
         index = 8
 
-        if level == 1: 
-            self._min_pass_length, self._pass_hist, self._pass_prop, self._max_age_low, self._max_age_high, self._min_age_low, self._min_age_high = unpack('<HHLllll',data[index:index+24])
+        if level == 1:
+            (self._min_pass_length, self._pass_hist, self._pass_prop, self._max_age_low, self._max_age_high,
+             self._min_age_low, self._min_age_high) = unpack('<HHLllll', data[index:index + 24])
             bin = d2b(self._pass_prop)
 
             if len(bin) != 8:
                 for x in xrange(6 - len(bin)):
-                    bin.insert(0,0)
+                    bin.insert(0, 0)
 
-            self._pass_prop =  ''.join([str(g) for g in bin])    
+            self._pass_prop = ''.join([str(g) for g in bin])
 
         if level == 3:
-            self._max_force_low, self._max_force_high = unpack('<ll',data[index:index+8])
+            self._max_force_low, self._max_force_high = unpack('<ll', data[index:index + 8])
         elif level == 7:
-            self._role = unpack('<L',data[index:index+4])
+            self._role = unpack('<L', data[index:index + 4])
         elif level == 12:
-            self._lockout_dur_low, self._lockout_dur_high, self._lockout_window_low, self._lockout_window_high, self._lockout_thresh = unpack('<llllH',data[index:index+18])
+            (self._lockout_dur_low, self._lockout_dur_high, self._lockout_window_low,
+             self._lockout_window_high, self._lockout_thresh) = unpack('<llllH', data[index:index + 18])
 
     def print_friendly(self):
         print 'Minimum password length: %s' % str(self._min_pass_length or 'None')
-        print 'Password history length: %s' % str(self._pass_hist or 'None' )
+        print 'Password history length: %s' % str(self._pass_hist or 'None')
         print 'Maximum password age: %s' % str(convert(self._max_age_low, self._max_age_high, 1))
         print 'Password Complexity Flags: %s' % str(self._pass_prop or 'None')
         print 'Minimum password age: %s' % str(convert(self._min_age_low, self._min_age_high, 1))
-        print 'Reset Account Lockout Counter: %s' % str(convert(self._lockout_window_low,self._lockout_window_high, 1)) 
-        print 'Locked Account Duration: %s' % str(convert(self._lockout_dur_low,self._lockout_dur_high, 1)) 
+        print 'Reset Account Lockout Counter: %s' % str(convert(self._lockout_window_low, self._lockout_window_high, 1))
+        print 'Locked Account Duration: %s' % str(convert(self._lockout_dur_low, self._lockout_dur_high, 1))
         print 'Account Lockout Threshold: %s' % str(self._lockout_thresh or 'None')
         print 'Forced Log off Time: %s' % str(convert(self._max_force_low, self._max_force_high, 1))
 
@@ -153,16 +175,17 @@ class MSRPCPassInfo:
         for a in self._pass_prop:
             print '%s: %s' % (self.PASSCOMPLEX[i], str(a))
 
-            i+= 1
+            i += 1
 
         return
+
 
 class SAMREnumDomainsPass(ImpactPacket.Header):
     OP_NUM = 0x2E
 
     __SIZE = 22
 
-    def __init__(self, aBuffer = None):
+    def __init__(self, aBuffer=None):
         ImpactPacket.Header.__init__(self, SAMREnumDomainsPass.__SIZE)
 
         if aBuffer:
@@ -202,10 +225,11 @@ class SAMREnumDomainsPass(ImpactPacket.Header):
     def set_level(self, level):
         self.set_word(20, level, '<')
 
+
 class SAMRRespLookupPassPolicy(ImpactPacket.Header):
     __SIZE = 4
 
-    def __init__(self, aBuffer = None):
+    def __init__(self, aBuffer=None):
         ImpactPacket.Header.__init__(self, SAMRRespLookupPassPolicy.__SIZE)
 
         if aBuffer:
@@ -233,10 +257,11 @@ class SAMRRespLookupPassPolicy(ImpactPacket.Header):
 
         return SAMRRespLookupPassPolicy.__SIZE + var_size
 
+
 class DCERPCSamr:
     __metaclass__ = ExtendInplace
 
-    def enumpswpolicy(self,context_handle): # needs to make 3 requests to get all pass policy
+    def enumpswpolicy(self, context_handle):  # needs to make 3 requests to get all pass policy
         enumpas = SAMREnumDomainsPass()
         enumpas.set_context_handle(context_handle)
         enumpas.set_level(1)
@@ -250,23 +275,23 @@ class DCERPCSamr:
         enumpas.set_level(3)
         self._dcerpc.send(enumpas)
         data = self._dcerpc.recv()
-        pspol.set_header(data,3)
+        pspol.set_header(data, 3)
 
         enumpas = SAMREnumDomainsPass()
         enumpas.set_context_handle(context_handle)
         enumpas.set_level(7)
         self._dcerpc.send(enumpas)
         data = self._dcerpc.recv()
-        pspol.set_header(data,7)
+        pspol.set_header(data, 7)
 
         enumpas = SAMREnumDomainsPass()
         enumpas.set_context_handle(context_handle)
         enumpas.set_level(12)
         self._dcerpc.send(enumpas)
         data = self._dcerpc.recv()
-        pspol.set_header(data,12)
+        pspol.set_header(data, 12)
 
-        return pspol 
+        return pspol
 
     def opendomain(self, context_handle, domain_sid):
         opendom = SAMROpenDomainHeader()

@@ -2,13 +2,38 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+import os
+import sys
+import random
+import string
+import time
+import glob
+import socket
+from lib.common import DataStore, check_dialect, read_input, missingShare, missingFile, keimpx_path
+from lib.logger import logger
 from lib.atexec import AtSvc
-from lib.common import *
 from lib.psexec import PsExec
 from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
 from lib.secretsdump import SecretsDump
 from lib.services import SvcCtl
+from telnetlib import Telnet
+
+try:
+    from impacket import nt_errors
+    from impacket.dcerpc.v5 import rpcrt
+    from impacket.dcerpc.v5 import srvs
+    from impacket.dcerpc.v5 import transport
+    from impacket.dcerpc.v5.dtypes import NULL
+    from impacket.smbconnection import SMBConnection, SessionError, ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
@@ -17,18 +42,18 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def __init__(self, target, credential, local_name):
         SecretsDump.__init__(self)
 
-        self.__dstip = target.getHost()
-        self.__dstport = target.getPort()
-        self.__user = credential.getUser()
-        self.__password = credential.getPassword()
-        self.__lmhash = credential.getLMhash()
-        self.__nthash = credential.getNThash()
-        self.__domain = credential.getDomain()
-        self.__is_admin = credential.isAdmin()
+        self.__dstip = target.get_host()
+        self.__dstport = target.get_port()
+        self.__user = credential.get_user()
+        self.__password = credential.get_password()
+        self.__lmhash = credential.get_lm_hash()
+        self.__nthash = credential.get_nt_hash()
+        self.__domain = credential.get_domain()
+        self.__is_admin = credential.is_admin()
         self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
-        self.__timeout = 5*60
+        self.__timeout = 5 * 60
 
         self.smb = None
         self.tid = None
@@ -42,7 +67,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.smbserver_share = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
 
         self.connect()
-        logger.debug('Connection to host %s established' % target.getIdentity())
+        logger.debug('Connection to host %s established' % target.get_identity())
 
         self.login()
         logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
@@ -55,7 +80,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         if _:
             DataStore.writable_share = _
         else:
-            logger.warn('Unable to find a writable share. Going to use %s, but some commands will not work' % DataStore.writable_share)
+            logger.warn('Unable to find a writable share. Going to use %s, but some commands will not work'
+                        % DataStore.writable_share)
 
             if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
                 DataStore.share_path = ntpath.join(DataStore.user_path, 'Windows', 'Temp')
@@ -72,14 +98,15 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
         except SessionError, e:
-            logger.error('SMB error: %s' % (e.getErrorString(), ))
+            logger.error('SMB error: %s' % (e.getErrorString(),))
             raise RuntimeError
 
     def logoff(self):
         self.smb.logoff()
 
     def smb_transport(self, named_pipe):
-        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe, smb_connection=self.smb)
+        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe,
+                                            smb_connection=self.smb)
 
         try:
             self.trans.connect()
@@ -87,7 +114,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
         except SessionError, e:
-            logger.warn('SMB error: %s' % (e.getErrorString(), ))
+            logger.warn('SMB error: %s' % (e.getErrorString(),))
             raise RuntimeError
 
     def info(self, display=True):
@@ -98,7 +125,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         try:
             self.__resp = srvs.hNetrServerGetInfo(self.__dce, 102)
         except rpcrt.DCERPCException, _:
-            #traceback.print_exc()
+            # traceback.print_exc()
             logger.warning('Unable to query server information')
             return None
 
@@ -126,7 +153,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
             # TODO: uncomment when SMBConnection will have a wrapper
             # getServerTime() method for both SMBv1,2,3
-            #print 'Time: %s' % self.smb.get_server_time()
+            # print 'Time: %s' % self.smb.get_server_time()
 
         return self.__resp
 
@@ -138,7 +165,10 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         resp = srvs.hNetrSessionEnum(self.__dce, NULL, NULL, 502)
 
         for session in resp['InfoStruct']['SessionInfo']['Level502']['Buffer']:
-            print "Host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s" % (session['sesi502_cname'][:-1], session['sesi502_username'][:-1], session['sesi502_time'], session['sesi502_idle_time'], session['sesi502_cltype_name'][:-1],session['sesi502_transport'][:-1])
+            print ("Host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s"
+                   % (session['sesi502_cname'][:-1], session['sesi502_username'][:-1], session['sesi502_time'],
+                      session['sesi502_idle_time'], session['sesi502_cltype_name'][:-1],
+                      session['sesi502_transport'][:-1]))
 
         self.__dce.disconnect()
 
@@ -153,7 +183,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         return resp
 
     def check_share(self, share=None):
-        #logger.debug("Into check_share with share: %s, self.share is: %s and self.tid is: %s" % (share, self.share, self.tid))
+        # logger.debug("Into check_share with share: %s, self.share is: %s and self.tid is: %s"
+        #              % (share, self.share, self.tid))
 
         if share:
             self.use(share)
@@ -183,7 +214,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             try:
                 share_info = self.__share_info(share)
             except rpcrt.DCERPCException, _:
-                #traceback.print_exc()
+                # traceback.print_exc()
                 logger.warning('Unable to query share: %s' % share)
                 continue
 
@@ -211,23 +242,23 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             share_type = shares[i]['shi1_type']
 
             _ = self.__share_info(name)
-            max_uses = _['InfoStruct']['ShareInfo2']['shi2_max_uses'] # 4294967295L is unlimited
+            max_uses = _['InfoStruct']['ShareInfo2']['shi2_max_uses']  # 4294967295L is unlimited
             current_uses = _['InfoStruct']['ShareInfo2']['shi2_current_uses']
-            permissions = _['InfoStruct']['ShareInfo2']['shi2_permissions'] # impacket always returns always 0
+            permissions = _['InfoStruct']['ShareInfo2']['shi2_permissions']  # impacket always returns always 0
             path = _['InfoStruct']['ShareInfo2']['shi2_path']
 
             print '[%d] %s (comment: %s)' % (count, name, comment)
 
             print '\tPath: %s' % path
             print '\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295L else max_uses)
-            #print '\tType: %s' % share_type
-            #print '\tPermissions: %d' % permissions
+            # print '\tType: %s' % share_type
+            # print '\tPermissions: %d' % permissions
 
         msg = 'Which share do you want to connect to? (default: 1) '
         limit = len(self.shares_list)
         choice = read_input(msg, limit)
 
-        self.use(self.shares_list[choice-1])
+        self.use(self.shares_list[choice - 1])
 
     def use(self, share, display=True):
         if not share:
@@ -249,7 +280,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                 logger.warn('Access denied')
             else:
-                logger.warn('Unable to connect to share: %s' % (e.getErrorString(), ))
+                logger.warn('Unable to connect to share: %s' % (e.getErrorString(),))
 
     def cd(self, path):
         if not path:
@@ -267,9 +298,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             return
 
         if path[0] == '\\':
-           self.pwd = path
+            self.pwd = path
         else:
-           self.pwd = ntpath.join(self.pwd, path)
+            self.pwd = ntpath.join(self.pwd, path)
 
         # Let's try to open the directory to see if it's valid
         try:
@@ -279,13 +310,13 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             self.pwd = self.oldpwd
         except SessionError, e:
             if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
-               return
+                return
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                 logger.warn('Access denied')
             elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
                 logger.warn('File not found')
             else:
-                logger.warn('Unable to change directory: %s' % (e.getErrorString(), ))
+                logger.warn('Unable to change directory: %s' % (e.getErrorString(),))
 
             self.pwd = self.oldpwd
 
@@ -311,15 +342,17 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             elif e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
                 logger.warn('File not found')
             else:
-                logger.warn('Unable to list files: %s' % (e.getErrorString(), ))
+                logger.warn('Unable to list files: %s' % (e.getErrorString(),))
 
             return
 
         for f in files:
             if display is True:
-                print '%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(), f.get_longname())
+                print '%s %8s %10d %s' % (
+                    time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(),
+                    f.get_longname())
 
-            self.completion.append((f.get_longname(),f.is_directory(), f.get_filesize()))
+            self.completion.append((f.get_longname(), f.is_directory(), f.get_filesize()))
 
     def lstree(self, path):
         self.check_share()
@@ -368,7 +401,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
-                    logger.error('Unable to access file: %s' % (e.getErrorString(), ))
+                    logger.error('Unable to access file: %s' % (e.getErrorString(),))
 
                 continue
 
@@ -387,7 +420,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                     if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
                         break
                     else:
-                        logger.error('Unable to read file content: %s' % (e.getErrorString(), ))
+                        logger.error('Unable to read file content: %s' % (e.getErrorString(),))
 
             self.smb.closeFile(self.tid, self.fid)
 
@@ -422,7 +455,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
-                    logger.error('Unable to download file: %s' % (e.getErrorString(), ))
+                    logger.error('Unable to download file: %s' % (e.getErrorString(),))
 
     def downloadtree(self, path):
         self.check_share()
@@ -464,7 +497,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         if isinstance(pathname, basestring):
             files = glob.glob(pathname)
         else:
-            files = [ pathname ]
+            files = [pathname]
 
         for filename in files:
             try:
@@ -492,7 +525,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
                     logger.warn('Access denied to upload %s due to share access flags' % destfile)
                 else:
-                    logger.error('Unable to upload file: %s' % (e.getErrorString(), ))
+                    logger.error('Unable to upload file: %s' % (e.getErrorString(),))
 
             fp.close()
 
@@ -528,7 +561,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
-                    logger.error('Unable to remove file: %s' % (e.getErrorString(), ))
+                    logger.error('Unable to remove file: %s' % (e.getErrorString(),))
 
     def rmdir(self, path):
         self.check_share()
@@ -551,7 +584,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
                     logger.warn('Access denied to %s due to share access flags' % identified_file)
                 else:
-                    logger.error('Unable to remove directory: %s' % (e.getErrorString(), ))
+                    logger.error('Unable to remove directory: %s' % (e.getErrorString(),))
 
     def bindshell(self, port):
         connected = False
@@ -595,13 +628,13 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                     else:
                         logger.error(warn_msg)
             except SessionError, e:
-                #traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(), ))
+                # traceback.print_exc()
+                logger.error('SMB error: %s' % (e.getErrorString(),))
             except KeyboardInterrupt, _:
                 print
                 logger.info('User aborted')
             except Exception, e:
-                #traceback.print_exc()
+                # traceback.print_exc()
                 logger.error(str(e))
 
             if connected is True:

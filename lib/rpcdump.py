@@ -2,7 +2,22 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import sys
+from lib.logger import logger
+
+try:
+    from impacket import uuid
+    from impacket.uuid import uuidtup_to_bin
+    from impacket.dcerpc import ndrutils
+    from impacket.dcerpc.v5 import epm
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 ################################################################
 # Code borrowed and adapted from Impacket's rpcdump.py example #
@@ -18,7 +33,7 @@ class RpcDump(object):
         entries = self.__fetchList()
         endpoints = {}
 
-        # Let's groups the UUIDS
+        # Let's groups the UUIDs
         for entry in entries:
             binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.get_dip())
             tmpUUID = str(entry['tower']['Floors'][0])
@@ -27,8 +42,8 @@ class RpcDump(object):
                 endpoints[tmpUUID] = {}
                 endpoints[tmpUUID]['Bindings'] = list()
 
-            if ndrutils.KNOWN_UUIDS.has_key(uuid.uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
-                endpoints[tmpUUID]['EXE'] = ndrutils.KNOWN_UUIDS[uuid.uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
+            if ndrutils.KNOWN_UUIDS.has_key(uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
+                endpoints[tmpUUID]['EXE'] = ndrutils.KNOWN_UUIDS[uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
             else:
                 endpoints[tmpUUID]['EXE'] = 'N/A'
 
@@ -40,8 +55,8 @@ class RpcDump(object):
             else:
                 endpoints[tmpUUID]['Protocol'] = 'N/A'
 
-            #print 'Transfer Syntax: %s' % entry['Tower']['Floors'][1]
-     
+            # print 'Transfer Syntax: %s' % entry['Tower']['Floors'][1]
+
         for endpoint in endpoints.keys():
             print 'Protocol: %s ' % endpoints[endpoint]['Protocol']
             print 'Provider: %s ' % endpoints[endpoint]['EXE']
@@ -64,21 +79,21 @@ class RpcDump(object):
             logger.info('No endpoints found')
 
     def __rpc_connect(self):
-        '''
+        """
         Connect to epmapper named pipe
-        '''
+        """
         logger.debug('Connecting to the epmapper named pipe')
         self.smb_transport('epmapper')
 
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.connect()
-        #self.__dce.set_auth_level(ntlm.NTLM_AUTH_PKT_PRIVACY)
-        #self.__dce.bind(epm.MSRPC_UUID_PORTMAP)
+        # self.__dce.set_auth_level(ntlm.NTLM_AUTH_PKT_PRIVACY)
+        # self.__dce.bind(epm.MSRPC_UUID_PORTMAP)
 
     def __rpc_disconnect(self):
-        '''
+        """
         Disconnect from epmapper named pipe
-        '''
+        """
         logger.debug('Disconnecting from the epmapper named pipe')
         self.__dce.disconnect()
 

