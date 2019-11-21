@@ -208,7 +208,7 @@ class test_login(Thread):
                         error_code = e.getErrorCode()
 
                     credential.add_target(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
-                    self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
+                    self.__target.add_credential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
 
                     if status is True:
                         break
