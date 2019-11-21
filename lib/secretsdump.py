@@ -372,7 +372,7 @@ class SAMHashes(OfflineRegistry):
         QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = b"0123456789012345678901234567890123456789\0"
 
-        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
+        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))
 
         domainData = DOMAIN_ACCOUNT_F(F)
 
