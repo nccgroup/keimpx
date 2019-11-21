@@ -310,7 +310,7 @@ class TargetCredentials:
         self.domain = domain
         self.status = status
         self.error_code = error_code
-        self.is_admin = is_admin
+        self.is_admin_bool = is_admin
 
     def get_user(self):
         return self.user
@@ -331,7 +331,7 @@ class TargetCredentials:
         return self.status
 
     def is_admin(self):
-        return self.is_admin
+        return self.is_admin_bool
 
     def get_identity(self):
         if self.domain:
