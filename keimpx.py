@@ -250,11 +250,12 @@ class CredentialsTarget:
 
 
 class Credentials:
-    def __init__(self, user, password='', lmhash='', nthash=''):
+    def __init__(self, user, password='', lmhash='', nthash='', domain = ''):
         self.user = user
         self.password = password
         self.lmhash = lmhash
         self.nthash = nthash
+        self.domain = domain
 
         # All targets where these credentials pair have been tested
         # List of CredentialsTarget() objects
@@ -274,9 +275,15 @@ class Credentials:
 
     def get_identity(self):
         if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
+            if self.domain != '':
+                return '%s\\%s/%s:%s' % (self.domain, self.user, self.lmhash, self.nthash)
+            else:
+                return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
         else:
-            return '%s/%s' % (self.user, self.password or 'BLANK')
+            if self.domain != '':
+                return '%s\\%s/%s' % (self.domain, self.user, self.password or 'BLANK')
+            else:
+                return '%s/%s' % (self.user, self.password or 'BLANK')
 
     def get_credentials(self):
         if self.lmhash != '' and self.nthash != '':
@@ -582,16 +589,16 @@ def parse_credentials_file(filename):
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
 
-    fgdumpmatch = re.compile('^(\S+?):(.*?:?)([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
+    fgdumpmatch = re.compile(r'^(\S+?):(.*?:?)([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
     fgdump = fgdumpmatch.match(credentials_line)
 
-    wcematch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
+    wcematch = re.compile(r'^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     wce = wcematch.match(credentials_line)
 
-    cainmatch = re.compile('^(\S+?):.*?:.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
+    cainmatch = re.compile(r'^(\S+?):.*?:.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     cain = cainmatch.match(credentials_line)
 
-    plaintextpassmatch = re.compile('^(\S+?)\s+(\S*?)$')
+    plaintextpassmatch = re.compile(r'^(\S+?)\s+(\S*?)$')
     plain = plaintextpassmatch.match(credentials_line)
 
     # Credentials with hashes (pwdump/pwdumpx/fgdump/pass-the-hash output format)
@@ -632,7 +639,7 @@ def parse_credentials(credentials_line):
         raise credentialsError, 'credentials error'
 
 
-def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
+def add_credentials(user=None, password='', lmhash='', nthash='', domain='', line=None):
     global added_credentials
     global credentials
 
@@ -643,16 +650,17 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
             if user.count('\\') == 1:
                 _, user = user.split('\\')
                 add_domain(_)
+                domain = _
         except credentialsError, _:
             logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return
 
-    if (user, password, lmhash, nthash) in added_credentials:
+    if (user, password, lmhash, nthash, domain) in added_credentials:
         return
     elif user is not None:
-        added_credentials.add((user, password, lmhash, nthash))
+        added_credentials.add((user, password, lmhash, nthash, domain))
 
-        credential = Credentials(user, password, lmhash, nthash)
+        credential = Credentials(user, password, lmhash, nthash, domain)
         credentials.append(credential)
 
         logger.debug('Parsed credentials: %s' % credential.get_identity())
@@ -663,7 +671,7 @@ def set_credentials():
 
     if conf.user is not None:
         logger.debug('Loading credentials from command line')
-        add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '')
+        add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '', conf.domain or '')
 
     if conf.credsfile is not None:
         logger.debug('Loading credentials from file %s' % conf.credsfile)
@@ -884,7 +892,7 @@ def main():
             current.daemon = True
             current.start()
 
-        while (threading.activeCount() > 1):
+        while threading.activeCount() > 1:
             a = 'Caughtit'
             pass
 
