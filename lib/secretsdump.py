@@ -1090,3 +1090,38 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
 
 def _print_helper(*args, **kwargs):
     print(args[-1])
+
+
+class CryptoCommon:
+    # Common crypto stuff used over different classes
+    def deriveKey(self, baseKey):
+        # 2.2.11.1.3 Deriving Key1 and Key2 from a Little-Endian, Unsigned Integer Key
+        # Let I be the little-endian, unsigned integer.
+        # Let I[X] be the Xth byte of I, where I is interpreted as a zero-base-index array of bytes.
+        # Note that because I is in little-endian byte order, I[0] is the least significant byte.
+        # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
+        # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
+        key = pack('<L',baseKey)
+        key1 = [key[0] , key[1] , key[2] , key[3] , key[0] , key[1] , key[2]]
+        key2 = [key[3] , key[0] , key[1] , key[2] , key[3] , key[0] , key[1]]
+        if PY2:
+            return transformKey(b''.join(key1)),transformKey(b''.join(key2))
+        else:
+            return transformKey(bytes(key1)),transformKey(bytes(key2))
+
+    @staticmethod
+    def decryptAES(key, value, iv=b'\x00'*16):
+        plainText = b''
+        if iv != b'\x00'*16:
+            aes256 = AES.new(key,AES.MODE_CBC, iv)
+
+        for index in range(0, len(value), 16):
+            if iv == b'\x00'*16:
+                aes256 = AES.new(key,AES.MODE_CBC, iv)
+            cipherBuffer = value[index:index+16]
+            # Pad buffer to 16 bytes
+            if len(cipherBuffer) < 16:
+                cipherBuffer += b'\x00' * (16-len(cipherBuffer))
+            plainText += aes256.decrypt(cipherBuffer)
+
+        return plainText
