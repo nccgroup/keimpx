@@ -362,17 +362,19 @@ class SAMHashes(OfflineRegistry):
         DIGITS = "0123456789012345678901234567890123456789\0"
 
         F = self.getValue(ntpath.join('SAM\Domains\Account', 'F'))[1]
-
+        logger.info('Got F')
         domainData = DOMAIN_ACCOUNT_F(F)
+        logger.info('Added F to DOMAIN_ACCOUNT structure')
 
         rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
-
+        logger.info('Got rc4key')
         rc4 = ARC4.new(rc4Key)
+        logger.info('Added rc4key to rc4')
         self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key'] + domainData['Key0']['CheckSum'])
-
+        logger.info('Created hashedBootKey')
         # Verify key with checksum
         checkSum = MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
-
+        logger.info('Got checkSum')
         if checkSum != self.__hashedBootKey[16:]:
             raise Exception('hashedBootKey CheckSum failed')
 
