@@ -371,20 +371,28 @@ class SAMHashes(OfflineRegistry):
         logger.debug('Calculating HashedBootKey from SAM')
         QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = b"0123456789012345678901234567890123456789\0"
+        logger.info('break1')
 
         F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
+        logger.info('break2')
 
         domainData = DOMAIN_ACCOUNT_F(F)
+        logger.info('break3')
 
         if domainData['Key0'][0:1] == b'\x01':
             samKeyData = SAM_KEY_DATA(domainData['Key0'])
+            logger.info('break4')
 
             rc4Key = self.MD5(samKeyData['Salt'] + QWERTY + self.__bootKey + DIGITS)
+            logger.info('break5')
             rc4 = ARC4.new(rc4Key)
+            logger.info('break6')
             self.__hashedBootKey = rc4.encrypt(samKeyData['Key'] + samKeyData['CheckSum'])
+            logger.info('break7')
 
             # Verify key with checksum
             checkSum = self.MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
+            logger.info('break8')
 
             if checkSum != self.__hashedBootKey[16:]:
                 raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
@@ -427,18 +435,15 @@ class SAMHashes(OfflineRegistry):
 
         logger.info('Dumping local SAM hashes (uid:rid:lmhash:nthash)')
         self.getHBootKey()
-        logger.info('Break 1')
         usersKey = 'SAM\\Domains\\Account\\Users'
 
         # Enumerate all the RIDs
         rids = self.enumKey(usersKey)
-        logger.info('break 2')
         # Remove the Names item
         try:
             rids.remove('Names')
         except:
             pass
-        logger.info('break 3')
         for rid in rids:
             userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
             rid = int(rid, 16)
