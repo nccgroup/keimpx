@@ -5,6 +5,7 @@
 import os
 import shlex
 import sys
+import ntpath
 from lib.logger import logger
 from lib.common import DataStore, is_local_admin, SMBServer
 from lib.smbexec import SvcShell
@@ -14,7 +15,7 @@ from lib.exceptions import missingPermission
 try:
     from impacket.dcerpc.v5 import scmr
     from impacket.dcerpc.v5.dtypes import NULL
-    from impacket.smbconnection import ntpath, SessionError
+    from impacket.smbconnection import SessionError
     from impacket.crypto import encryptSecret
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'

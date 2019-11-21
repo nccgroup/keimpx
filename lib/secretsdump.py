@@ -7,6 +7,7 @@ import random
 import hashlib
 import sys
 import string
+import ntpath
 from struct import pack
 from lib.common import DataStore, RemoteFile
 from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
@@ -22,7 +23,7 @@ try:
     from impacket.dcerpc.v5 import transport
     from impacket.ese import ESENT_DB
     from impacket.winregistry import hexdump
-    from impacket.smbconnection import ntpath, SessionError
+    from impacket.smbconnection import SessionError
     from impacket.structure import Structure
 
 except ImportError:

@@ -7,6 +7,7 @@ import os
 import glob
 import shlex
 import sys
+import ntpath
 from subprocess import Popen, PIPE, STDOUT
 from lib.common import set_verbosity
 from lib.smbshell import SMBShell
@@ -15,7 +16,7 @@ from lib.exceptions import keimpxError, missingOption, missingService, missingFi
 
 try:
     from impacket.nmb import NetBIOSTimeout
-    from impacket.smbconnection import SessionError, ntpath
+    from impacket.smbconnection import SessionError
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'

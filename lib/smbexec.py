@@ -8,13 +8,13 @@ import string
 import os
 import tempfile
 import sys
+import ntpath
 from lib.common import DataStore
 from lib.logger import logger
 from subprocess import PIPE, Popen, STDOUT
 
 try:
     from impacket.dcerpc.v5 import scmr
-    from impacket.smbconnection import ntpath
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'

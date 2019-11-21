@@ -9,6 +9,7 @@ import string
 import time
 import glob
 import socket
+import ntpath
 from lib.common import DataStore, check_dialect, read_input, keimpx_path
 from lib.logger import logger
 from lib.atexec import AtSvc
@@ -26,7 +27,7 @@ try:
     from impacket.dcerpc.v5 import srvs
     from impacket.dcerpc.v5 import transport
     from impacket.dcerpc.v5.dtypes import NULL
-    from impacket.smbconnection import SMBConnection, SessionError, ntpath
+    from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'

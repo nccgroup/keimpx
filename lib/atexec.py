@@ -10,11 +10,11 @@ import os
 import sys
 import time
 import string
+import ntpath
 
 try:
     from impacket.dcerpc import atsvc
     from impacket.dcerpc import ndrutils
-    from impacket.smbconnection import ntpath
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
