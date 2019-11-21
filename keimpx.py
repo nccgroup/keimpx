@@ -115,9 +115,9 @@ class test_login(Thread):
         Thread.__init__(self)
 
         self.__target = target
-        self.__dstip = self.__target.getHost()
-        self.__dstport = self.__target.getPort()
-        self.__target_id = self.__target.getIdentity()
+        self.__dstip = self.__target.get_host()
+        self.__dstport = self.__target.get_port()
+        self.__target_id = self.__target.get_identity()
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = conf.name
         self.__timeout = 3
@@ -213,10 +213,10 @@ class test_login(Thread):
                     if status is True:
                         break
 
-            logger.info('Assessment on host %s finished' % self.__target.getIdentity())
+            logger.info('Assessment on host %s finished' % self.__target.get_identity())
         except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
             if not stop_threads[0]:
-                logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
+                logger.warn('Connection to host %s failed (%s)' % (self.__target.get_identity(), str(e)))
 
         pool_thread.release()
 
