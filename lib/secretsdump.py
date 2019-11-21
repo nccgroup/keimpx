@@ -8,10 +8,11 @@ import hashlib
 import sys
 import string
 from struct import pack
-from lib.common import DataStore, RemoteFile, registryKey
+from lib.common import DataStore, RemoteFile
 from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
                             LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID)
 from lib.logger import logger
+from lib.exceptions import registryKey
 
 try:
     from impacket import nt_errors

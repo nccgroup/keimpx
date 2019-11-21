@@ -6,9 +6,10 @@ import os
 import shlex
 import sys
 from lib.logger import logger
-from lib.common import DataStore, missingPermission, is_local_admin, SMBServer
+from lib.common import DataStore, is_local_admin, SMBServer
 from lib.smbexec import SvcShell
 from lib.avservices import AVSERVICES
+from lib.exceptions import missingPermission
 
 try:
     from impacket.dcerpc.v5 import scmr

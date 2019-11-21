@@ -9,7 +9,7 @@ import string
 import time
 import glob
 import socket
-from lib.common import DataStore, check_dialect, read_input, missingShare, missingFile, keimpx_path
+from lib.common import DataStore, check_dialect, read_input, keimpx_path
 from lib.logger import logger
 from lib.atexec import AtSvc
 from lib.psexec import PsExec
@@ -17,6 +17,7 @@ from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
 from lib.secretsdump import SecretsDump
 from lib.services import SvcCtl
+from lib.exceptions import missingShare, missingFile
 from telnetlib import Telnet
 
 try:
