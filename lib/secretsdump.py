@@ -480,15 +480,15 @@ class SAMHashes(OfflineRegistry):
             self.__itemsFound[rid] = answer
             self.__perSecretCallback(answer)
 
-    def exportSAM(self, baseFileName, openFileFunc=None):
+    def exportSAM(self):
         if len(self.__itemsFound) > 0:
             items = sorted(self.__itemsFound)
-            fileName = baseFileName + '.sam'
-            fd = openFile(fileName, openFileFunc=openFileFunc)
+            fd = open('%s-sam.txt' % DataStore.server_host, 'w+')
+
             for item in items:
-                fd.write(self.__itemsFound[item] + '\n')
+                fd.write('%s\n' % self.__itemsFound[item])
+
             fd.close()
-            return fileName
 
 
 class LSASecrets(OfflineRegistry):
