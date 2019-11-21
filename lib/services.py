@@ -121,9 +121,8 @@ class SvcCtl(object):
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():
-            err = "you need to run keimpx as an administrator. keimpx "
-            err += "needs to listen on TCP port a SMB server for "
-            err += "incoming connection attempts"
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
+                   "server.")
             raise missingPermission(err)
 
         command_and_args = shlex.split(command)
@@ -166,9 +165,8 @@ class SvcCtl(object):
 
     def svcshell(self, mode='SHARE'):
         if mode == 'SERVER' and not is_local_admin():
-            err = "you need to run keimpx as an administrator. keimpx "
-            err += "needs to listen on TCP port a SMB server for "
-            err += "incoming connection attempts"
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
+                   "server.")
             raise missingPermission(err)
 
         self.__scmr_connect()

@@ -131,13 +131,6 @@ class RemoteFile():
         return '%s\\%s' % (self.__share, self.__filename)
 
 
-def MD5(data):
-    md5 = hashlib.new('md5')
-    md5.update(data)
-
-    return md5.digest()
-
-
 def is_local_admin():
     """
     Returns True if the current process is run under admin privileges
