@@ -7,7 +7,6 @@ import os
 import re
 import subprocess
 import sys
-from lib.logger import logger
 
 
 def stdoutencode(data):
@@ -26,7 +25,7 @@ def stdoutencode(data):
                 warnMsg += 'replacement with \'?\' character. Please, find '
                 warnMsg += 'proper character representation inside '
                 warnMsg += 'corresponding output files. '
-                logger.warn(warnMsg)
+                logging.warn(warnMsg)
 
             retVal = output
         else:
