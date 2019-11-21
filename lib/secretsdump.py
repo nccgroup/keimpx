@@ -41,7 +41,7 @@ except ImportError:
 
 try:
     from Crypto.Cipher import DES, ARC4, AES
-    from Crypto.Hash import HMAC, MD4, MD5
+    from Crypto.Hash import HMAC, MD4
 except ImportError:
     sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
                      + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
