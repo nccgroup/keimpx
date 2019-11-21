@@ -28,6 +28,7 @@ try:
     from impacket.smbconnection import SessionError
     from impacket.structure import Structure
     from impacket.smbserver import openFile
+    from impacket.crypto import transformKey
 
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
@@ -443,7 +444,7 @@ class SAMHashes(OfflineRegistry):
                 ntHash = ntlm.NTOWFv1('', '')
 
             answer = "%s:%d:%s:%s:::" % (
-                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
+            userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
             self.__itemsFound[rid] = answer
             self.__perSecretCallback(answer)
 
@@ -1065,24 +1066,24 @@ class CryptoCommon:
         # Note that because I is in little-endian byte order, I[0] is the least significant byte.
         # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
         # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
-        key = pack('<L', baseKey)
-        key1 = [key[0], key[1], key[2], key[3], key[0], key[1], key[2]]
-        key2 = [key[3], key[0], key[1], key[2], key[3], key[0], key[1]]
-        return CryptoCommon.transformKey(bytes(key1)), CryptoCommon.transformKey(bytes(key2))
+        key = pack('<L',baseKey)
+        key1 = [key[0] , key[1] , key[2] , key[3] , key[0] , key[1] , key[2]]
+        key2 = [key[3] , key[0] , key[1] , key[2] , key[3] , key[0] , key[1]]
+        return transformKey(bytes(key1)),transformKey(bytes(key2))
 
     @staticmethod
-    def decryptAES(key, value, iv=b'\x00' * 16):
+    def decryptAES(key, value, iv=b'\x00'*16):
         plainText = b''
-        if iv != b'\x00' * 16:
-            aes256 = AES.new(key, AES.MODE_CBC, iv)
+        if iv != b'\x00'*16:
+            aes256 = AES.new(key,AES.MODE_CBC, iv)
 
         for index in range(0, len(value), 16):
-            if iv == b'\x00' * 16:
-                aes256 = AES.new(key, AES.MODE_CBC, iv)
-            cipherBuffer = value[index:index + 16]
+            if iv == b'\x00'*16:
+                aes256 = AES.new(key,AES.MODE_CBC, iv)
+            cipherBuffer = value[index:index+16]
             # Pad buffer to 16 bytes
             if len(cipherBuffer) < 16:
-                cipherBuffer += b'\x00' * (16 - len(cipherBuffer))
+                cipherBuffer += b'\x00' * (16-len(cipherBuffer))
             plainText += aes256.decrypt(cipherBuffer)
 
         return plainText
