@@ -163,7 +163,7 @@ class Pipes(Thread):
             lock.acquire()
             self.server = SMBConnection('*SMBSERVER', self.transport.get_smb_connection().getRemoteHost(),
                                         sess_port=self.port)
-            user, passwd, domain, lm, nt = self.credentials
+            user, passwd, domain, lm, nt, _, _, _ = self.credentials
             self.server.login(user, passwd, domain, lm, nt)
             lock.release()
             self.tid = self.server.connectTree('IPC$')
