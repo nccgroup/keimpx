@@ -2,9 +2,26 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import os
+import shlex
+import sys
+from lib.logger import logger
+from lib.common import DataStore, missingPermission, is_local_admin, SMBServer
 from lib.smbexec import SvcShell
 from lib.avservices import AVSERVICES
+
+try:
+    from impacket.dcerpc.v5 import scmr
+    from impacket.dcerpc.v5.dtypes import NULL
+    from impacket.smbconnection import ntpath, SessionError
+    from impacket.crypto import encryptSecret
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 #################################################################
@@ -98,7 +115,7 @@ class SvcCtl(object):
                     self.stop(name)
                 except:
                     print "Couldn't stop %s (%s), currently in state: %s" % (
-                    display, name, self.__scmr_parse_state(state))
+                        display, name, self.__scmr_parse_state(state))
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():

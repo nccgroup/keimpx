@@ -2,8 +2,21 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
-import uuid
+import sys
+from lib.logger import logger
+
+try:
+    from impacket import uuid
+    from impacket.uuid import uuidtup_to_bin
+    from impacket.dcerpc import ndrutils
+    from impacket.dcerpc.v5 import epm
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 ################################################################

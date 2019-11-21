@@ -2,8 +2,27 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import cmd
+import os
+import glob
+import shlex
+import sys
+from subprocess import Popen, PIPE, STDOUT
+from lib.common import set_verbosity
 from lib.smbshell import SMBShell
+from lib.logger import logger
+from lib.exceptions import keimpxError, missingOption, missingService, missingFile
+
+try:
+    from impacket.nmb import NetBIOSTimeout
+    from impacket.smbconnection import SessionError, ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 class InteractiveShell(cmd.Cmd):
@@ -25,7 +44,7 @@ class InteractiveShell(cmd.Cmd):
             logger.error('Generic error: %s' % str(e))
             return False
 
-        self.prompt = 'SMBShell(%s) > ' % target.getIdentity()
+        self.prompt = 'SMBShell(%s) > ' % target.get_identity()
 
     def cmdloop(self):
         logger.info('Launching interactive SMB shell')
@@ -281,7 +300,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_download(self, filename):
         if not filename:
-            raise missingOption, 'File name has not been specified'
+            raise missingOption('File name has not been specified')
 
         self.smb_shell.download(filename)
 
@@ -311,7 +330,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             argvalues = shlex.split(pathname)
 
             if len(argvalues) < 1:
-                raise missingOption, 'You have to specify at least the local file name'
+                raise missingOption('You have to specify at least the local file name')
             elif len(argvalues) > 1:
                 destfile = argvalues[1]
 
@@ -333,7 +352,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             argvalues = shlex.split(srcfile)
 
             if len(argvalues) != 2:
-                raise missingOption, 'You have to specify source and destination file names'
+                raise missingOption('You have to specify source and destination file names')
             else:
                 srcfile, destfile = argvalues
 
@@ -371,13 +390,13 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_status(self, srvname):
         if not srvname:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         self.smb_shell.status(srvname)
 
     def do_query(self, srvname):
         if not srvname:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         self.smb_shell.query(srvname)
 
@@ -386,7 +405,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             argvalues = shlex.split(srvname)
 
             if len(argvalues) < 1:
-                raise missingService, 'Service name has not been specified'
+                raise missingService('Service name has not been specified')
             elif len(argvalues) > 1:
                 srvargs = argvalues[1]
 
@@ -396,13 +415,13 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_stop(self, srvname):
         if not srvname:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         self.smb_shell.stop(srvname)
 
     def do_change(self, srvname):
         if not srvname:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         # TODO: handle parameters
         # https://code.google.com/p/impacket/source/diff?spec=svn852&r=852&format=side&path=/trunk/examples/services.py
@@ -417,13 +436,13 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         argvalues = shlex.split(srvname)
 
         if len(argvalues) < 1:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         srvname = argvalues[0]
 
         if not local_file:
             if len(argvalues) < 2:
-                raise missingFile, 'Service file %s has not been specified' % local_file
+                raise missingFile('Service file %s has not been specified' % local_file)
             if len(argvalues) >= 5:
                 displayname = argvalues[4]
             if len(argvalues) >= 4:
@@ -434,7 +453,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
                 local_file = argvalues[1]
 
         if not os.path.exists(local_file):
-            raise missingFile, 'Service file %s does not exist' % local_file
+            raise missingFile('Service file %s does not exist' % local_file)
 
         srvname = str(srvname)
         srvargs = str(srvargs)
@@ -453,7 +472,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_undeploy(self, srvname):
         if not srvname:
-            raise missingService, 'Service name has not been specified'
+            raise missingService('Service name has not been specified')
 
         self.smb_shell.undeploy(srvname)
 
@@ -479,7 +498,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         argvalues = shlex.split(command)
 
         if len(argvalues) < 1:
-            raise missingService, 'Command has not been specified'
+            raise missingService('Command has not been specified')
         elif len(argvalues) == 1:
             command = argvalues[0]
         elif len(argvalues) > 1 and argvalues[-1] in ('SHARE', 'SERVER'):
@@ -493,7 +512,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_atexec(self, command):
         if not command:
-            raise missingOption, 'Command has not been specified'
+            raise missingOption('Command has not been specified')
 
         self.smb_shell.atexec(command)
 

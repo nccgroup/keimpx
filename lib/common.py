@@ -2,78 +2,20 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-import binascii
-import cmd
 import ConfigParser
-import glob
 import hashlib
-import inspect
 import logging
 import os
-import ntpath
-import random
-import re
-import rlcompleter
-import shlex
-import socket
-import string
 import sys
 import tempfile
-import threading
-import time
-import traceback
-import warnings
-
-from optparse import OptionError
-from optparse import OptionGroup
-from optparse import OptionParser
-from struct import pack
-from struct import unpack
-from subprocess import mswindows
-from subprocess import PIPE
-from subprocess import Popen
-from subprocess import STDOUT
-from telnetlib import Telnet
-from threading import Lock
 from threading import Thread
+from lib.logger import logger
 
 try:
-    import pyreadline as readline
-
-    have_readline = True
-except ImportError:
-    try:
-        import readline
-
-        have_readline = True
-    except ImportError:
-        have_readline = False
-
-try:
-    from impacket import ImpactPacket
-    from impacket import nt_errors
-    from impacket import ntlm
     from impacket import smbserver
-    from impacket import uuid
-    from impacket import winregistry
-    from impacket.nmb import NetBIOSTimeout
-    from impacket.dcerpc import atsvc
-    from impacket.dcerpc import dcerpc
-    from impacket.dcerpc import ndrutils
-    from impacket.dcerpc.samr import *
-    from impacket.dcerpc.v5 import epm
-    from impacket.dcerpc.v5 import rpcrt
-    from impacket.dcerpc.v5 import rrp
-    from impacket.dcerpc.v5 import scmr
-    from impacket.dcerpc.v5 import srvs
-    from impacket.dcerpc.v5 import transport
-    from impacket.dcerpc.v5.dtypes import NULL
-    from impacket.ese import ESENT_DB
-    from impacket.examples import remcomsvc, serviceinstall
     from impacket.smb3structs import SMB2_DIALECT_002
     from impacket.smb3structs import SMB2_DIALECT_21
-    from impacket.smbconnection import *
-    from impacket.winregistry import hexdump
+    from impacket.smbconnection import SMB_DIALECT
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
@@ -81,17 +23,6 @@ except ImportError:
                      + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
                      + '\npython setup.py build\nsudo python setup.py install\n')
     sys.exit(255)
-
-try:
-    from Crypto.Cipher import DES, ARC4, AES
-    from Crypto.Hash import HMAC, MD4
-except ImportError:
-    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
-                     + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
-    sys.exit(255)
-
-from lib.exceptions import *
-from lib.logger import logger
 
 keimpx_path = ''
 
@@ -218,7 +149,7 @@ def is_local_admin():
         _ = os.geteuid()
 
         isAdmin = isinstance(_, (int, float, long)) and _ == 0
-    elif subprocess.mswindows:
+    elif sys.platform.lower() == 'win32':
         import ctypes
 
         _ = ctypes.windll.shell32.IsUserAnAdmin()

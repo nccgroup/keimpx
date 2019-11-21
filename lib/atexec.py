@@ -2,7 +2,26 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+from lib.common import DataStore
+from lib.logger import logger
+import shlex
+import random
+import os
+import sys
+import time
+import string
+
+try:
+    from impacket.dcerpc import atsvc
+    from impacket.dcerpc import ndrutils
+    from impacket.smbconnection import ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 ###############################################################
@@ -28,7 +47,7 @@ class AtSvc(object):
 
         self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
         self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (
-        os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
+            os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
         self.__atsvc_connect()
 
         logger.debug('Creating scheduled task with command: %s' % self.__at_command)

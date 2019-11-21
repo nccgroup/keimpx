@@ -2,13 +2,37 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+import os
+import sys
+import random
+import string
+import time
+import glob
+import socket
+from lib.common import DataStore, check_dialect, read_input, missingShare, missingFile, keimpx_path
+from lib.logger import logger
 from lib.atexec import AtSvc
-from lib.common import *
 from lib.psexec import PsExec
 from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
 from lib.secretsdump import SecretsDump
 from lib.services import SvcCtl
+from telnetlib import Telnet
+
+try:
+    from impacket import nt_errors
+    from impacket.dcerpc.v5 import rpcrt
+    from impacket.dcerpc.v5 import srvs
+    from impacket.dcerpc.v5 import transport
+    from impacket.dcerpc.v5.dtypes import NULL
+    from impacket.smbconnection import SMBConnection, SessionError, ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 #######################################################
@@ -18,14 +42,14 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def __init__(self, target, credential, local_name):
         SecretsDump.__init__(self)
 
-        self.__dstip = target.getHost()
-        self.__dstport = target.getPort()
-        self.__user = credential.getUser()
-        self.__password = credential.getPassword()
-        self.__lmhash = credential.getLMhash()
-        self.__nthash = credential.getNThash()
-        self.__domain = credential.getDomain()
-        self.__is_admin = credential.isAdmin()
+        self.__dstip = target.get_host()
+        self.__dstport = target.get_port()
+        self.__user = credential.get_user()
+        self.__password = credential.get_password()
+        self.__lmhash = credential.get_lm_hash()
+        self.__nthash = credential.get_nt_hash()
+        self.__domain = credential.get_domain()
+        self.__is_admin = credential.is_admin()
         self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
@@ -43,7 +67,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.smbserver_share = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
 
         self.connect()
-        logger.debug('Connection to host %s established' % target.getIdentity())
+        logger.debug('Connection to host %s established' % target.get_identity())
 
         self.login()
         logger.debug('Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
@@ -325,8 +349,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         for f in files:
             if display is True:
                 print '%s %8s %10d %s' % (
-                time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(),
-                f.get_longname())
+                    time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(),
+                    f.get_longname())
 
             self.completion.append((f.get_longname(), f.is_directory(), f.get_filesize()))
 

@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from lib.logger import logger
 
 
 def stdoutencode(data):

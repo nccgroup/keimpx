@@ -2,8 +2,43 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
-from lib.structures import *
+import time
+import random
+import hashlib
+import sys
+import string
+from struct import pack
+from lib.common import DataStore, RemoteFile, registryKey
+from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
+                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID)
+from lib.logger import logger
+
+try:
+    from impacket import nt_errors
+    from impacket import ntlm
+    from impacket import winregistry
+    from impacket.dcerpc.v5 import rrp
+    from impacket.dcerpc.v5 import transport
+    from impacket.ese import ESENT_DB
+    from impacket.winregistry import hexdump
+    from impacket.smbconnection import ntpath, SessionError
+    from impacket.structure import Structure
+
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
+try:
+    from Crypto.Cipher import DES, ARC4, AES
+    from Crypto.Hash import HMAC, MD4, MD5
+except ImportError:
+    sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
+                     + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
+    sys.exit(255)
 
 
 ####################################################################

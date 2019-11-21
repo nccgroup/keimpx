@@ -2,7 +2,26 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+import cmd
+import random
+import string
+import os
+import tempfile
+import sys
+from lib.common import DataStore
+from lib.logger import logger
+from subprocess import PIPE, Popen, STDOUT
+
+try:
+    from impacket.dcerpc.v5 import scmr
+    from impacket.smbconnection import ntpath
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 ################################################################

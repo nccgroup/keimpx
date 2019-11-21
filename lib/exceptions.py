@@ -2,6 +2,7 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+
 class keimpxError(Exception):
     pass
 

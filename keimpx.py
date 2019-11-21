@@ -53,12 +53,46 @@ SUCH DAMAGE.
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.3-dev'
 
+import sys
 import os
 import re
-
-from lib.common import *
+import binascii
+import threading
+import warnings
+import socket
+from threading import Thread
+from lib.logger import logger
+from lib.common import remove_comments, set_verbosity, read_input
+from optparse import OptionError, OptionParser
+from lib.exceptions import keimpxError, credentialsError, targetError
 from lib.interactiveshell import InteractiveShell
 from lib.smbshell import SMBShell
+
+try:
+    import pyreadline as readline
+
+    have_readline = True
+except ImportError:
+    try:
+        import readline
+
+        have_readline = True
+    except ImportError:
+        have_readline = False
+try:
+    from impacket.nmb import NetBIOSTimeout
+    from impacket.dcerpc.v5 import rpcrt
+    from impacket.dcerpc.v5 import scmr
+    from impacket.dcerpc.v5 import transport
+    from impacket.smbconnection import SMBConnection, SessionError
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
+
 
 added_credentials = set()
 added_targets = set()

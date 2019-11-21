@@ -2,7 +2,22 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from lib.common import *
+
+import sys
+import array
+from time import localtime, strftime, gmtime
+from struct import unpack
+
+try:
+    from impacket import ImpactPacket
+    from impacket.dcerpc.samr import SAMROpenDomainHeader, SAMRRespOpenDomainHeader
+except ImportError:
+    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
+                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
+                     + 'version of the library\ncd /tmp'
+                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
+                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.exit(255)
 
 
 ########################################################################
@@ -24,7 +39,6 @@ def d2b(a):
 
 
 def display_time(filetime_high, filetime_low, minutes_utc=0):
-    import __builtins__
     d = filetime_low + (filetime_high) * 16 ** 8  # convert to 64bit int
     d *= 1.0e-7  # convert to seconds
     d -= 11644473600  # remove 3389 years?
