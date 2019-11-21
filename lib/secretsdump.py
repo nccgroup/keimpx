@@ -372,7 +372,7 @@ class SAMHashes(OfflineRegistry):
         QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
         DIGITS = b"0123456789012345678901234567890123456789\0"
 
-        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))
+        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
 
         domainData = DOMAIN_ACCOUNT_F(F)
 
@@ -427,17 +427,18 @@ class SAMHashes(OfflineRegistry):
 
         logger.info('Dumping local SAM hashes (uid:rid:lmhash:nthash)')
         self.getHBootKey()
-
+        logger.info('Break 1')
         usersKey = 'SAM\\Domains\\Account\\Users'
 
         # Enumerate all the RIDs
         rids = self.enumKey(usersKey)
+        logger.info('break 2')
         # Remove the Names item
         try:
             rids.remove('Names')
         except:
             pass
-
+        logger.info('break 3')
         for rid in rids:
             userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
             rid = int(rid, 16)
