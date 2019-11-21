@@ -4,10 +4,10 @@
 
 import sys
 from lib.logger import logger
-from polenum import DCERPCSamr
+from lib.polenum import DCERPCSamr
 
 try:
-    from impacket.dcerpc.samr import MSRPC_UUID_SAMR, MSRPCUserInfo, DCERPCSamr
+    from impacket.dcerpc.samr import MSRPC_UUID_SAMR, MSRPCUserInfo
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
                      + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
