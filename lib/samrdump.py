@@ -4,6 +4,7 @@
 
 import sys
 from lib.logger import logger
+from polenum import DCERPCSamr
 
 try:
     from impacket.dcerpc.samr import MSRPC_UUID_SAMR, MSRPCUserInfo, DCERPCSamr
