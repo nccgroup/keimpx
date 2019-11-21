@@ -417,7 +417,7 @@ class SAMHashes(OfflineRegistry):
 
         return decryptedHash
 
-    def dump(self):
+    def dumpSAM(self):
         NTPASSWORD = b"NTPASSWORD\0"
         LMPASSWORD = b"LMPASSWORD\0"
 
@@ -483,7 +483,7 @@ class SAMHashes(OfflineRegistry):
             self.__itemsFound[rid] = answer
             self.__perSecretCallback(answer)
 
-    def export(self, baseFileName, openFileFunc=None):
+    def exportSAM(self, baseFileName, openFileFunc=None):
         if len(self.__itemsFound) > 0:
             items = sorted(self.__itemsFound)
             fileName = baseFileName + '.sam'
