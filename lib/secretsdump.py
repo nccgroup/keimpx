@@ -10,9 +10,6 @@ import string
 import ntpath
 from binascii import hexlify
 from struct import pack
-
-from impacket.smbserver import openFile
-
 from lib.common import DataStore, RemoteFile
 from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
                             LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID,
@@ -30,6 +27,8 @@ try:
     from impacket.winregistry import hexdump
     from impacket.smbconnection import SessionError
     from impacket.structure import Structure
+    from impacket.smbserver import openFile
+    from impacket.crypto import transformKey
 
 except ImportError:
     sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
@@ -380,15 +379,11 @@ class SAMHashes(OfflineRegistry):
             samKeyData = SAM_KEY_DATA(domainData['Key0'])
 
             rc4Key = self.MD5(samKeyData['Salt'] + QWERTY + self.__bootKey + DIGITS)
-            logger.info('break5')
             rc4 = ARC4.new(rc4Key)
-            logger.info('break6')
             self.__hashedBootKey = rc4.encrypt(samKeyData['Key'] + samKeyData['CheckSum'])
-            logger.info('break7')
 
             # Verify key with checksum
             checkSum = self.MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
-            logger.info('break8')
 
             if checkSum != self.__hashedBootKey[16:]:
                 raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
@@ -1106,10 +1101,7 @@ class CryptoCommon:
         key = pack('<L',baseKey)
         key1 = [key[0] , key[1] , key[2] , key[3] , key[0] , key[1] , key[2]]
         key2 = [key[3] , key[0] , key[1] , key[2] , key[3] , key[0] , key[1]]
-        if PY2:
-            return transformKey(b''.join(key1)),transformKey(b''.join(key2))
-        else:
-            return transformKey(bytes(key1)),transformKey(bytes(key2))
+        return transformKey(bytes(key1)),transformKey(bytes(key2))
 
     @staticmethod
     def decryptAES(key, value, iv=b'\x00'*16):
