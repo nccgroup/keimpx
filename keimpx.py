@@ -976,7 +976,7 @@ def main():
         choice = read_input(msg, counter)
         user_credentials = credentials_dict[int(choice)]
 
-        if mswindows is True and have_readline:
+        if sys.platform.lower() == 'win32' and have_readline:
             try:
                 _outputfile = readline.GetOutputFile()
             except AttributeError:
