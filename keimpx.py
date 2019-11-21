@@ -244,7 +244,7 @@ class CredentialsTarget:
 
     def get_identity(self):
         if self.domain:
-            return '%s:%s@%s %s' % (self.host, self.port, self.domain, '(admin user)' if self.is_admin() else '')
+            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
         else:
             return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
 
