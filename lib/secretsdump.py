@@ -444,7 +444,7 @@ class SAMHashes(OfflineRegistry):
                 ntHash = ntlm.NTOWFv1('', '')
 
             answer = "%s:%d:%s:%s:::" % (
-            userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
+                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
             self.__itemsFound[rid] = answer
             self.__perSecretCallback(answer)
 
@@ -1066,42 +1066,24 @@ class CryptoCommon:
         # Note that because I is in little-endian byte order, I[0] is the least significant byte.
         # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
         # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
-        key = pack('<L',baseKey)
-        key1 = [key[0] , key[1] , key[2] , key[3] , key[0] , key[1] , key[2]]
-        key2 = [key[3] , key[0] , key[1] , key[2] , key[3] , key[0] , key[1]]
-        return transformKey(bytes(key1)),transformKey(bytes(key2))
+        key = pack('<L', baseKey)
+        key1 = [key[0], key[1], key[2], key[3], key[0], key[1], key[2]]
+        key2 = [key[3], key[0], key[1], key[2], key[3], key[0], key[1]]
+        return transformKey(bytes(key1)), transformKey(bytes(key2))
 
     @staticmethod
-    def decryptAES(key, value, iv=b'\x00'*16):
+    def decryptAES(key, value, iv=b'\x00' * 16):
         plainText = b''
-        if iv != b'\x00'*16:
-            aes256 = AES.new(key,AES.MODE_CBC, iv)
+        if iv != b'\x00' * 16:
+            aes256 = AES.new(key, AES.MODE_CBC, iv)
 
         for index in range(0, len(value), 16):
-            if iv == b'\x00'*16:
-                aes256 = AES.new(key,AES.MODE_CBC, iv)
-            cipherBuffer = value[index:index+16]
+            if iv == b'\x00' * 16:
+                aes256 = AES.new(key, AES.MODE_CBC, iv)
+            cipherBuffer = value[index:index + 16]
             # Pad buffer to 16 bytes
             if len(cipherBuffer) < 16:
-                cipherBuffer += b'\x00' * (16-len(cipherBuffer))
+                cipherBuffer += b'\x00' * (16 - len(cipherBuffer))
             plainText += aes256.decrypt(cipherBuffer)
 
         return plainText
-
-    # Common crypto stuff used over different classes
-    def transformKey(self, InputKey):
-        # Section 2.2.11.1.2 Encrypting a 64-Bit Block with a 7-Byte Key
-        OutputKey = []
-        OutputKey.append(chr(ord(InputKey[0]) >> 0x01))
-        OutputKey.append(chr(((ord(InputKey[0]) & 0x01) << 6) | (ord(InputKey[1]) >> 2)))
-        OutputKey.append(chr(((ord(InputKey[1]) & 0x03) << 5) | (ord(InputKey[2]) >> 3)))
-        OutputKey.append(chr(((ord(InputKey[2]) & 0x07) << 4) | (ord(InputKey[3]) >> 4)))
-        OutputKey.append(chr(((ord(InputKey[3]) & 0x0F) << 3) | (ord(InputKey[4]) >> 5)))
-        OutputKey.append(chr(((ord(InputKey[4]) & 0x1F) << 2) | (ord(InputKey[5]) >> 6)))
-        OutputKey.append(chr(((ord(InputKey[5]) & 0x3F) << 1) | (ord(InputKey[6]) >> 7)))
-        OutputKey.append(chr(ord(InputKey[6]) & 0x7F))
-
-        for i in range(8):
-            OutputKey[i] = chr((ord(OutputKey[i]) << 1) & 0xfe)
-
-        return "".join(OutputKey)
