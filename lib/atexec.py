@@ -14,10 +14,10 @@ import ntpath
 
 try:
     from impacket.dcerpc.v5 import atsvc
-    from impacket.dcerpc.v5 import ndrutils
+    from impacket.dcerpc.v5.dtypes import NULL
     from impacket.dcerpc.v5 import tsch
 except ImportError:
-    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+    sys.stderr.write('atexec: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
@@ -56,19 +56,16 @@ class AtSvc(object):
         self.__atInfo['DaysOfMonth'] = 0
         self.__atInfo['DaysOfWeek'] = 0
         self.__atInfo['Flags'] = 0
-        self.__atInfo['Command'] = ndrutils.NDRUniqueStringW()
-        self.__atInfo['Command']['Data'] = (self.__at_command).encode('utf-16le')
+        self.__atInfo['Command'] = ('%%COMSPEC%% /C %s > %%SYSTEMROOT%%\\Temp\\%s 2>&1\x00'
+                                    % (self.__command, self.__tmpFileName))
 
-        resp = self.__at.NetrJobAdd(('\\\\%s' % self.trans.get_dip()), self.__atInfo)
-        jobId = resp['JobID']
+        resp = atsvc.hNetrJobAdd(self.__dce, NULL, self.__atInfo)
+        jobId = resp['pJobID']
 
         # Switching context to TSS
         self.__dce2 = self.__dce.alter_ctx(tsch.MSRPC_UUID_TSCHS)
 
-        # Now atsvc should use that new context
-        self.__at = atsvc.DCERPCAtSvc(self.__dce2)
-
-        resp = self.__at.SchRpcRun('\\At%d' % jobId)
+        resp = tsch.hSchRpcRun(self.__dce2, '\\At%d' % jobId)
         # On the first run, it takes a while the remote target to start executing the job
         # so I'm setting this sleep.. I don't like sleeps.. but this is just an example
         # Best way would be to check the task status before attempting to read the file
@@ -76,8 +73,7 @@ class AtSvc(object):
         time.sleep(3)
 
         # Switching back to the old ctx_id
-        self.__at = atsvc.DCERPCAtSvc(self.__dce)
-        resp = self.__at.NetrJobDel('\\\\%s' % self.trans.get_dip(), jobId, jobId)
+        atsvc.hNetrJobDel(self.__dce, NULL, jobId, jobId)
         self.__tmpFilePath = ntpath.join('Temp', self.__tmpFileName)
         self.transferClient = self.trans.get_smb_connection()
 
@@ -108,7 +104,6 @@ class AtSvc(object):
         self.__dce.set_credentials(*self.trans.get_credentials())
         self.__dce.connect()
         self.__dce.bind(atsvc.MSRPC_UUID_ATSVC)
-        self.__at = atsvc.DCERPCAtSvc(self.__dce)
 
     def __atsvc_disconnect(self):
         '''
