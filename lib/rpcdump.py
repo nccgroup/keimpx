@@ -8,7 +8,6 @@ from lib.logger import logger
 try:
     from impacket import uuid
     from impacket.uuid import uuidtup_to_bin
-    from impacket.dcerpc.v5 import ndrutils
     from impacket.dcerpc.v5 import epm
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
@@ -20,6 +19,7 @@ except ImportError:
 # Code borrowed and adapted from Impacket's rpcdump.py example #
 ################################################################
 class RpcDump(object):
+
     def __init__(self):
         pass
 
@@ -39,8 +39,8 @@ class RpcDump(object):
                 endpoints[tmpUUID] = {}
                 endpoints[tmpUUID]['Bindings'] = list()
 
-            if ndrutils.KNOWN_UUIDS.has_key(uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
-                endpoints[tmpUUID]['EXE'] = ndrutils.KNOWN_UUIDS[uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
+            if epm.KNOWN_UUIDS.has_key(uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
+                endpoints[tmpUUID]['EXE'] = epm.KNOWN_UUIDS[uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
             else:
                 endpoints[tmpUUID]['EXE'] = 'N/A'
 

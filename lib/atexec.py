@@ -15,6 +15,7 @@ import ntpath
 try:
     from impacket.dcerpc.v5 import atsvc
     from impacket.dcerpc.v5 import ndrutils
+    from impacket.dcerpc.v5 import tsch
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
@@ -62,7 +63,7 @@ class AtSvc(object):
         jobId = resp['JobID']
 
         # Switching context to TSS
-        self.__dce2 = self.__dce.alter_ctx(atsvc.MSRPC_UUID_TSS)
+        self.__dce2 = self.__dce.alter_ctx(tsch.MSRPC_UUID_TSCHS)
 
         # Now atsvc should use that new context
         self.__at = atsvc.DCERPCAtSvc(self.__dce2)

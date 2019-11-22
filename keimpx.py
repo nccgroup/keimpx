@@ -130,8 +130,8 @@ class test_login(Thread):
 
     def check_admin(self):
         try:
-            self.__trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename='svcctl',
-                                                  smb_connection=self.smb)
+            self.__trans = transport.SMBTransport(remoteName=self.__dstip, dstport=self.__dstport, filename='svcctl',
+                                                  smb_connection=self.smb, remote_host=self.__dstip)
             self.__trans.connect()
             self.__dce = self.__trans.get_dce_rpc()
             self.__dce.bind(scmr.MSRPC_UUID_SCMR)

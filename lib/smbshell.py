@@ -104,8 +104,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.smb.logoff()
 
     def smb_transport(self, named_pipe):
-        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe,
-                                            smb_connection=self.smb)
+        self.trans = transport.SMBTransport(remoteName=self.__dstip, dstport=self.__dstport, filename=named_pipe,
+                                            smb_connection=self.smb, remote_host=self.__dstip)
 
         try:
             self.trans.connect()
@@ -113,7 +113,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
         except SessionError, e:
-            logger.warn('SMB error: %s' % (e.getErrorString(),))
+            logger.warn('SMB error: %s' % e.getErrorString())
             raise RuntimeError
 
     def info(self, display=True):
