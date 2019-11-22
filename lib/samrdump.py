@@ -7,7 +7,7 @@ from lib.logger import logger
 from lib.polenum import DCERPCSamr
 
 try:
-    from impacket.dcerpc.samr import MSRPC_UUID_SAMR, MSRPCUserInfo
+    from impacket.dcerpc.v5.samr import MSRPC_UUID_SAMR, MSRPCUserInfo
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')

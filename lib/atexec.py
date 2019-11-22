@@ -13,8 +13,8 @@ import string
 import ntpath
 
 try:
-    from impacket.dcerpc import atsvc
-    from impacket.dcerpc import ndrutils
+    from impacket.dcerpc.v5 import atsvc
+    from impacket.dcerpc.v5 import ndrutils
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')

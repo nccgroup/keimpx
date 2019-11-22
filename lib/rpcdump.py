@@ -8,7 +8,7 @@ from lib.logger import logger
 try:
     from impacket import uuid
     from impacket.uuid import uuidtup_to_bin
-    from impacket.dcerpc import ndrutils
+    from impacket.dcerpc.v5 import ndrutils
     from impacket.dcerpc.v5 import epm
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'

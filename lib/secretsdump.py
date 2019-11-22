@@ -36,8 +36,8 @@ except ImportError:
     sys.exit(255)
 
 try:
-    from Crypto.Cipher import DES, ARC4, AES
-    from Crypto.Hash import HMAC, MD4
+    from Cryptodome.Cipher import DES, ARC4, AES
+    from Cryptodome.Hash import HMAC, MD4
 except ImportError:
     sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
                      + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
