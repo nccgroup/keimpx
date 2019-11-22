@@ -5,22 +5,21 @@
 import os
 import shlex
 import sys
+import ntpath
 from lib.logger import logger
-from lib.common import DataStore, missingPermission, is_local_admin, SMBServer
+from lib.common import DataStore, is_local_admin, SMBServer
 from lib.smbexec import SvcShell
 from lib.avservices import AVSERVICES
+from lib.exceptions import missingPermission
 
 try:
     from impacket.dcerpc.v5 import scmr
     from impacket.dcerpc.v5.dtypes import NULL
-    from impacket.smbconnection import ntpath, SessionError
+    from impacket.smbconnection import SessionError
     from impacket.crypto import encryptSecret
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 
@@ -119,9 +118,8 @@ class SvcCtl(object):
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():
-            err = "you need to run keimpx as an administrator. keimpx "
-            err += "needs to listen on TCP port a SMB server for "
-            err += "incoming connection attempts"
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
+                   "server.")
             raise missingPermission(err)
 
         command_and_args = shlex.split(command)
@@ -164,9 +162,8 @@ class SvcCtl(object):
 
     def svcshell(self, mode='SHARE'):
         if mode == 'SERVER' and not is_local_admin():
-            err = "you need to run keimpx as an administrator. keimpx "
-            err += "needs to listen on TCP port a SMB server for "
-            err += "incoming connection attempts"
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
+                   "server.")
             raise missingPermission(err)
 
         self.__scmr_connect()

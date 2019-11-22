@@ -7,11 +7,15 @@ import random
 import hashlib
 import sys
 import string
+import ntpath
+from binascii import hexlify
 from struct import pack
-from lib.common import DataStore, RemoteFile, registryKey
+from lib.common import DataStore, RemoteFile
 from lib.structures import (DOMAIN_ACCOUNT_F, USER_ACCOUNT_V, LSA_SECRET_XP,
-                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID)
+                            LSA_SECRET, LSA_SECRET_BLOB, NL_RECORD, SAMR_RPC_SID,
+                            SAM_KEY_DATA, SAM_HASH, SAM_HASH_AES, SAM_KEY_DATA_AES)
 from lib.logger import logger
+from lib.exceptions import registryKey
 
 try:
     from impacket import nt_errors
@@ -21,20 +25,19 @@ try:
     from impacket.dcerpc.v5 import transport
     from impacket.ese import ESENT_DB
     from impacket.winregistry import hexdump
-    from impacket.smbconnection import ntpath, SessionError
+    from impacket.smbconnection import SessionError
     from impacket.structure import Structure
+    from impacket.smbserver import openFile
+    from impacket.crypto import transformKey
 
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 try:
     from Crypto.Cipher import DES, ARC4, AES
-    from Crypto.Hash import HMAC, MD4, MD5
+    from Crypto.Hash import HMAC, MD4
 except ImportError:
     sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
                      + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
@@ -220,10 +223,10 @@ class RemoteOperations:
 
         return remote_fp
 
-    def get_default_login_account(self):
+    def get_default_loggerin_account(self):
         try:
             ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle,
-                                      'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon')
+                                      'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winloggeron')
             keyHandle = ans['phkResult']
             dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'DefaultUserName')
             username = dataValue[:-1]
@@ -263,38 +266,6 @@ class RemoteOperations:
     def finish(self):
         self.__restore()
         self.__rrp.disconnect()
-
-
-class CryptoCommon:
-    # Common crypto stuff used over different classes
-    def transformKey(self, InputKey):
-        # Section 2.2.11.1.2 Encrypting a 64-Bit Block with a 7-Byte Key
-        OutputKey = []
-        OutputKey.append(chr(ord(InputKey[0]) >> 0x01))
-        OutputKey.append(chr(((ord(InputKey[0]) & 0x01) << 6) | (ord(InputKey[1]) >> 2)))
-        OutputKey.append(chr(((ord(InputKey[1]) & 0x03) << 5) | (ord(InputKey[2]) >> 3)))
-        OutputKey.append(chr(((ord(InputKey[2]) & 0x07) << 4) | (ord(InputKey[3]) >> 4)))
-        OutputKey.append(chr(((ord(InputKey[3]) & 0x0F) << 3) | (ord(InputKey[4]) >> 5)))
-        OutputKey.append(chr(((ord(InputKey[4]) & 0x1F) << 2) | (ord(InputKey[5]) >> 6)))
-        OutputKey.append(chr(((ord(InputKey[5]) & 0x3F) << 1) | (ord(InputKey[6]) >> 7)))
-        OutputKey.append(chr(ord(InputKey[6]) & 0x7F))
-
-        for i in range(8):
-            OutputKey[i] = chr((ord(OutputKey[i]) << 1) & 0xfe)
-
-        return "".join(OutputKey)
-
-    def deriveKey(self, baseKey):
-        # 2.2.11.1.3 Deriving Key1 and Key2 from a Little-Endian, Unsigned Integer Key
-        # Let I be the little-endian, unsigned integer.
-        # Let I[X] be the Xth byte of I, where I is interpreted as a zero-base-index array of bytes.
-        # Note that because I is in little-endian byte order, I[0] is the least significant byte.
-        # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
-        # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
-        key = pack('<L', baseKey)
-        key1 = key[0] + key[1] + key[2] + key[3] + key[0] + key[1] + key[2]
-        key2 = key[3] + key[0] + key[1] + key[2] + key[3] + key[0] + key[1]
-        return self.transformKey(key1), self.transformKey(key2)
 
 
 class OfflineRegistry:
@@ -346,100 +317,133 @@ class OfflineRegistry:
 
 
 class SAMHashes(OfflineRegistry):
-    def __init__(self, samFile, bootKey):
+    def __init__(self, samFile, bootKey, isRemote=False, perSecretCallback=lambda secret: _print_helper(secret)):
         OfflineRegistry.__init__(self, samFile)
         self.__samFile = samFile
-        self.__hashedBootKey = ''
+        self.__hashedBootKey = b''
         self.__bootKey = bootKey
         self.__cryptoCommon = CryptoCommon()
         self.__itemsFound = {}
+        self.__perSecretCallback = perSecretCallback
 
-    def __getHBootKey(self):
+    def MD5(self, data):
+        md5 = hashlib.new('md5')
+        md5.update(data)
+        return md5.digest()
+
+    def getHBootKey(self):
         logger.debug('Calculating HashedBootKey from SAM')
-        QWERTY = "!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
-        DIGITS = "0123456789012345678901234567890123456789\0"
+        QWERTY = b"!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\0"
+        DIGITS = b"0123456789012345678901234567890123456789\0"
 
-        F = self.getValue(ntpath.join('SAM\Domains\Account', 'F'))[1]
+        F = self.getValue(ntpath.join(r'SAM\Domains\Account', 'F'))[1]
 
         domainData = DOMAIN_ACCOUNT_F(F)
 
-        rc4Key = MD5(domainData['Key0']['Salt'] + QWERTY + self.__bootKey + DIGITS)
+        if domainData['Key0'][0:1] == b'\x01':
+            samKeyData = SAM_KEY_DATA(domainData['Key0'])
 
-        rc4 = ARC4.new(rc4Key)
-        self.__hashedBootKey = rc4.encrypt(domainData['Key0']['Key'] + domainData['Key0']['CheckSum'])
+            rc4Key = self.MD5(samKeyData['Salt'] + QWERTY + self.__bootKey + DIGITS)
+            rc4 = ARC4.new(rc4Key)
+            self.__hashedBootKey = rc4.encrypt(samKeyData['Key'] + samKeyData['CheckSum'])
 
-        # Verify key with checksum
-        checkSum = MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
+            # Verify key with checksum
+            checkSum = self.MD5(self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
 
-        if checkSum != self.__hashedBootKey[16:]:
-            raise Exception('hashedBootKey CheckSum failed')
+            if checkSum != self.__hashedBootKey[16:]:
+                raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
 
-    def __decryptHash(self, rid, cryptedHash, constant):
+        elif domainData['Key0'][0:1] == b'\x02':
+            # This is Windows 2016 TP5 on in theory (it is reported that some W10 and 2012R2 might behave this way also)
+            samKeyData = SAM_KEY_DATA_AES(domainData['Key0'])
+
+            self.__hashedBootKey = self.__cryptoCommon.decryptAES(self.__bootKey,
+                                                                  samKeyData['Data'][:samKeyData['DataLen']],
+                                                                  samKeyData['Salt'])
+
+    def __decryptHash(self, rid, cryptedHash, constant, newStyle=False):
         # Section 2.2.11.1.1 Encrypting an NT or LM Hash Value with a Specified Key
         # plus hashedBootKey stuff
         Key1, Key2 = self.__cryptoCommon.deriveKey(rid)
+
         Crypt1 = DES.new(Key1, DES.MODE_ECB)
         Crypt2 = DES.new(Key2, DES.MODE_ECB)
-        rc4Key = MD5(self.__hashedBootKey[:0x10] + pack("<L", rid) + constant)
-        rc4 = ARC4.new(rc4Key)
-        key = rc4.encrypt(cryptedHash)
+
+        if newStyle is False:
+            rc4Key = self.MD5(self.__hashedBootKey[:0x10] + pack("<L", rid) + constant)
+            rc4 = ARC4.new(rc4Key)
+            key = rc4.encrypt(cryptedHash['Hash'])
+        else:
+            key = self.__cryptoCommon.decryptAES(self.__hashedBootKey[:0x10], cryptedHash['Hash'], cryptedHash['Salt'])[
+                  :16]
+
         decryptedHash = Crypt1.decrypt(key[:8]) + Crypt2.decrypt(key[8:])
 
         return decryptedHash
 
     def dumpSAM(self):
-        NTPASSWORD = 'NTPASSWORD\0'
-        LMPASSWORD = 'LMPASSWORD\0'
+        NTPASSWORD = b"NTPASSWORD\0"
+        LMPASSWORD = b"LMPASSWORD\0"
 
         if self.__samFile is None:
             # No SAM file provided
             return
 
-        logger.info('Dumping local SAM hashes (UID:RID:LMhash:NThash), wait..')
-        self.__getHBootKey()
-
+        logger.info('Dumping local SAM hashes (uid:rid:lmhash:nthash)')
+        self.getHBootKey()
         usersKey = 'SAM\\Domains\\Account\\Users'
 
         # Enumerate all the RIDs
         rids = self.enumKey(usersKey)
-
         # Remove the Names item
         try:
             rids.remove('Names')
         except:
             pass
-
         for rid in rids:
             userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
             rid = int(rid, 16)
-            baseOffset = len(USER_ACCOUNT_V())
+
             V = userAccount['Data']
+
             userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
                 'utf-16le')
 
-            if userAccount['LMHashLength'] == 20:
-                encLMHash = V[userAccount['LMHashOffset'] + 4:userAccount['LMHashOffset'] + userAccount['LMHashLength']]
+            encNTHash = b''
+            if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
+                # Old Style hashes
+                newStyle = False
+                if userAccount['LMHashLength'] == 20:
+                    encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                if userAccount['NTHashLength'] == 20:
+                    encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
             else:
-                encLMHash = ''
+                # New Style hashes
+                newStyle = True
+                if userAccount['LMHashLength'] == 24:
+                    encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-            if userAccount['NTHashLength'] == 20:
-                encNTHash = V[userAccount['NTHashOffset'] + 4:userAccount['NTHashOffset'] + userAccount['NTHashLength']]
+            logger.debug('NewStyle hashes is: %s' % newStyle)
+            if userAccount['LMHashLength'] >= 20:
+                lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
             else:
-                encNTHash = ''
+                lmHash = b''
 
-            lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD)
-            ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD)
+            if encNTHash != b'':
+                ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
+            else:
+                ntHash = b''
 
-            if lmHash == '':
+            if lmHash == b'':
                 lmHash = ntlm.LMOWFv1('', '')
-
-            if ntHash == '':
+            if ntHash == b'':
                 ntHash = ntlm.NTOWFv1('', '')
 
-            answer = "%s:%d:%s:%s:::" % (userName, rid, lmHash.encode('hex'), ntHash.encode('hex'))
+            answer = "%s:%d:%s:%s:::" % (
+                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
             self.__itemsFound[rid] = answer
-
-            print answer
+            self.__perSecretCallback(answer)
 
     def exportSAM(self):
         if len(self.__itemsFound) > 0:
@@ -503,7 +507,7 @@ class LSASecrets(OfflineRegistry):
         for i in range(0, len(value), 8):
             cipherText = value[:8]
             tmpStrKey = key0[:7]
-            tmpKey = self.__cryptoCommon.transformKey(tmpStrKey)
+            tmpKey = transformKey(tmpStrKey)
             Crypt1 = DES.new(tmpKey, DES.MODE_ECB)
             plainText += Crypt1.decrypt(cipherText)
             cipherText = cipherText[8:]
@@ -588,7 +592,7 @@ class LSASecrets(OfflineRegistry):
             # No SECURITY file provided
             return
 
-        logger.info('Dumping cached domain logon information (UID:encryptedHash:longDomain:domain), wait..')
+        logger.info('Dumping cached domain loggeron information (UID:encryptedHash:longDomain:domain), wait..')
 
         # Let's first see if there are cached entries
         values = self.enumValues('\\Cache')
@@ -668,7 +672,7 @@ class LSASecrets(OfflineRegistry):
                 secret += strDecoded
 
         elif upperName.startswith('DEFAULTPASSWORD'):
-            # defaults password for winlogon
+            # defaults password for winloggeron
             # Let's first try to decode the secret
             try:
                 strDecoded = secretItem.decode('utf-16le')
@@ -676,7 +680,7 @@ class LSASecrets(OfflineRegistry):
                 pass
             else:
                 # We have to get the account this password is for
-                account = self.get_default_login_account()
+                account = self.get_default_loggerin_account()
 
                 if account is None:
                     secret = '(Unknown User) '
@@ -773,10 +777,10 @@ class NTDSHashes(object):
         'userAccountControl': 'ATTj589832',
         'primaryGroupID': 'ATTj589922',
         'accountExpires': 'ATTq589983',
-        'logonCount': 'ATTj589993',
+        'loggeronCount': 'ATTj589993',
         'sAMAccountName': 'ATTm590045',
         'sAMAccountType': 'ATTj590126',
-        'lastLogonTimestamp': 'ATTq589876',
+        'lastloggeronTimestamp': 'ATTq589876',
         'userPrincipalName': 'ATTm590480',
         'unicodePwd': 'ATTk589914',
         'dBCSPwd': 'ATTk589879',
@@ -1044,3 +1048,39 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
     def cleanup(self):
         logger.info('Cleaning up..')
         self.finish()
+
+
+def _print_helper(*args, **kwargs):
+    print(args[-1])
+
+
+class CryptoCommon:
+    # Common crypto stuff used over different classes
+    def deriveKey(self, baseKey):
+        # 2.2.11.1.3 Deriving Key1 and Key2 from a Little-Endian, Unsigned Integer Key
+        # Let I be the little-endian, unsigned integer.
+        # Let I[X] be the Xth byte of I, where I is interpreted as a zero-base-index array of bytes.
+        # Note that because I is in little-endian byte order, I[0] is the least significant byte.
+        # Key1 is a concatenation of the following values: I[0], I[1], I[2], I[3], I[0], I[1], I[2].
+        # Key2 is a concatenation of the following values: I[3], I[0], I[1], I[2], I[3], I[0], I[1]
+        key = pack('<L', baseKey)
+        key1 = [key[0], key[1], key[2], key[3], key[0], key[1], key[2]]
+        key2 = [key[3], key[0], key[1], key[2], key[3], key[0], key[1]]
+        return transformKey(bytes(key1)), transformKey(bytes(key2))
+
+    @staticmethod
+    def decryptAES(key, value, iv=b'\x00' * 16):
+        plainText = b''
+        if iv != b'\x00' * 16:
+            aes256 = AES.new(key, AES.MODE_CBC, iv)
+
+        for index in range(0, len(value), 16):
+            if iv == b'\x00' * 16:
+                aes256 = AES.new(key, AES.MODE_CBC, iv)
+            cipherBuffer = value[index:index + 16]
+            # Pad buffer to 16 bytes
+            if len(cipherBuffer) < 16:
+                cipherBuffer += b'\x00' * (16 - len(cipherBuffer))
+            plainText += aes256.decrypt(cipherBuffer)
+
+        return plainText

@@ -3,7 +3,6 @@
 # -*- Mode: python -*-
 
 import ConfigParser
-import hashlib
 import logging
 import os
 import sys
@@ -17,11 +16,8 @@ try:
     from impacket.smb3structs import SMB2_DIALECT_21
     from impacket.smbconnection import SMB_DIALECT
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 keimpx_path = ''
@@ -129,13 +125,6 @@ class RemoteFile():
 
     def __str__(self):
         return '%s\\%s' % (self.__share, self.__filename)
-
-
-def MD5(data):
-    md5 = hashlib.new('md5')
-    md5.update(data)
-
-    return md5.digest()
 
 
 def is_local_admin():

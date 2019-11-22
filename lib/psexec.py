@@ -22,11 +22,8 @@ try:
     from impacket import smb
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 
@@ -163,7 +160,7 @@ class Pipes(Thread):
             lock.acquire()
             self.server = SMBConnection('*SMBSERVER', self.transport.get_smb_connection().getRemoteHost(),
                                         sess_port=self.port)
-            user, passwd, domain, lm, nt = self.credentials
+            user, passwd, domain, lm, nt, _, _, _ = self.credentials
             self.server.login(user, passwd, domain, lm, nt)
             lock.release()
             self.tid = self.server.connectTree('IPC$')

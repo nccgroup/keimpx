@@ -86,13 +86,9 @@ try:
     from impacket.dcerpc.v5 import transport
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
-
 
 added_credentials = set()
 added_targets = set()
@@ -116,9 +112,9 @@ class test_login(Thread):
         Thread.__init__(self)
 
         self.__target = target
-        self.__dstip = self.__target.getHost()
-        self.__dstport = self.__target.getPort()
-        self.__target_id = self.__target.getIdentity()
+        self.__dstip = self.__target.get_host()
+        self.__dstport = self.__target.get_port()
+        self.__target_id = self.__target.get_identity()
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
         self.__srcfile = conf.name
         self.__timeout = 3
@@ -159,7 +155,8 @@ class test_login(Thread):
             logger.info('Assessing host %s' % self.__target_id)
 
             for credential in credentials:
-                user, password, lmhash, nthash = credential.getCredentials()
+                user, password, lmhash, nthash = credential.get_credentials()
+                password_str = None
 
                 if password != '' or (password == '' and lmhash == '' and nthash == ''):
                     password_str = password or 'BLANK'
@@ -175,7 +172,7 @@ class test_login(Thread):
                     is_admin = None
 
                     if domain:
-                        user_str = '%s\%s' % (domain, user)
+                        user_str = '%s\\%s' % (domain, user)
                     else:
                         user_str = user
 
@@ -208,16 +205,16 @@ class test_login(Thread):
                             user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
 
-                    credential.addTarget(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
-                    self.__target.addCredential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
+                    credential.add_target(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
+                    self.__target.add_credential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
 
                     if status is True:
                         break
 
-            logger.info('Assessment on host %s finished' % self.__target.getIdentity())
+            logger.info('Assessment on host %s finished' % self.__target.get_identity())
         except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
             if not stop_threads[0]:
-                logger.warn('Connection to host %s failed (%s)' % (self.__target.getIdentity(), str(e)))
+                logger.warn('Connection to host %s failed (%s)' % (self.__target.get_identity(), str(e)))
 
         pool_thread.release()
 
@@ -229,77 +226,84 @@ class CredentialsTarget:
         self.domain = domain
         self.status = status
         self.error_code = error_code
-        self.is_admin = is_admin
+        self.is_admin_bool = is_admin
 
-    def getHost(self):
+    def get_host(self):
         return self.host
 
-    def getPort(self):
+    def get_port(self):
         return self.port
 
-    def getStatus(self):
+    def get_status(self):
         return self.status
 
-    def isAdmin(self):
-        return self.is_admin
+    def is_admin(self):
+        return self.is_admin_bool
 
-    def getIdentity(self):
+    def get_identity(self):
         if self.domain:
-            return '%s:%s@%s %s' % (self.host, self.port, self.domain, '(admin user)' if self.isAdmin() else '')
+            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
         else:
-            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.isAdmin() else '')
+            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
 
 
 class Credentials:
-    def __init__(self, user, password='', lmhash='', nthash=''):
+    def __init__(self, user, password='', lmhash='', nthash='', domain = ''):
         self.user = user
         self.password = password
         self.lmhash = lmhash
         self.nthash = nthash
+        self.domain = domain
 
         # All targets where these credentials pair have been tested
         # List of CredentialsTarget() objects
         self.tested_targets = []
 
-    def getUser(self):
+    def get_user(self):
         return self.user
 
-    def getPassword(self):
+    def get_password(self):
         return self.password
 
-    def getLMhash(self):
+    def get_lm_hash(self):
         return self.lmhash
 
-    def getNThash(self):
+    def get_nt_hash(self):
         return self.nthash
 
-    def getIdentity(self):
+    def get_identity(self):
         if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
+            if self.domain != '':
+                return '%s\\%s/%s:%s' % (self.domain, self.user, self.lmhash, self.nthash)
+            else:
+                return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
         else:
-            return '%s/%s' % (self.user, self.password or 'BLANK')
+            if self.domain != '':
+                return '%s\\%s/%s' % (self.domain, self.user, self.password or 'BLANK')
+            else:
+                return '%s/%s' % (self.user, self.password or 'BLANK')
 
-    def getCredentials(self):
+    def get_credentials(self):
         if self.lmhash != '' and self.nthash != '':
             return self.user, self.password, self.lmhash, self.nthash
         else:
             return self.user, self.password, '', ''
 
-    def addTarget(self, host, port, domain, status, error_code, is_admin):
+    def add_target(self, host, port, domain, status, error_code, is_admin):
         self.tested_targets.append(CredentialsTarget(host, port, domain, status, error_code, is_admin))
 
-    def getTargets(self, valid_only=False):
+    def get_targets(self, valid_only=False):
         _ = []
 
         for tested_target in self.tested_targets:
-            if (valid_only and tested_target.getStatus() is True) \
+            if (valid_only and tested_target.get_status() is True) \
                     or not valid_only:
                 _.append(tested_target)
 
         return _
 
-    def getValidTargets(self):
-        return self.getTargets(True)
+    def get_valid_targets(self):
+        return self.get_targets(True)
 
 
 class TargetCredentials:
@@ -311,39 +315,39 @@ class TargetCredentials:
         self.domain = domain
         self.status = status
         self.error_code = error_code
-        self.is_admin = is_admin
+        self.is_admin_bool = is_admin
 
-    def getUser(self):
+    def get_user(self):
         return self.user
 
-    def getPassword(self):
+    def get_password(self):
         return self.password
 
-    def getLMhash(self):
+    def get_lm_hash(self):
         return self.lmhash
 
-    def getNThash(self):
+    def get_nt_hash(self):
         return self.nthash
 
-    def getDomain(self):
+    def get_domain(self):
         return self.domain
 
-    def getStatus(self):
+    def get_status(self):
         return self.status
 
-    def isAdmin(self):
-        return self.is_admin
+    def is_admin(self):
+        return self.is_admin_bool
 
-    def getIdentity(self):
+    def get_identity(self):
         if self.domain:
-            _ = '%s\%s' % (self.domain, self.user)
+            _ = '%s\\%s' % (self.domain, self.user)
         else:
             _ = self.user
 
         if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s %s' % (_, self.lmhash, self.nthash, '(admin user)' if self.isAdmin() else '')
+            return '%s/%s:%s %s' % (_, self.lmhash, self.nthash, '(admin user)' if self.is_admin() else '')
         else:
-            return '%s/%s %s' % (_, self.password or 'BLANK', '(admin user)' if self.isAdmin() else '')
+            return '%s/%s %s' % (_, self.password or 'BLANK', '(admin user)' if self.is_admin() else '')
 
 
 class Target:
@@ -355,31 +359,31 @@ class Target:
         # List of TargetCredentials() objects
         self.tested_credentials = []
 
-    def getHost(self):
+    def get_host(self):
         return self.target
 
-    def getPort(self):
+    def get_port(self):
         return self.port
 
-    def getIdentity(self):
+    def get_identity(self):
         return '%s:%d' % (self.target, self.port)
 
-    def addCredential(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
+    def add_credential(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
         self.tested_credentials.append(
             TargetCredentials(user, password, lmhash, nthash, domain, status, error_code, is_admin))
 
-    def getCredentials(self, valid_only=False):
+    def get_credentials(self, valid_only=False):
         _ = []
 
         for tested_credential in self.tested_credentials:
-            if (valid_only and tested_credential.getStatus() is True) \
+            if (valid_only and tested_credential.get_status() is True) \
                     or not valid_only:
                 _.append(tested_credential)
 
         return _
 
-    def getValidCredentials(self):
-        return self.getCredentials(True)
+    def get_valid_credentials(self):
+        return self.get_credentials(True)
 
 
 def add_command(cmd):
@@ -410,30 +414,30 @@ def parse_list_file(filename):
 
 
 def get_admin_credentials(target):
-    for credentials in target.getValidCredentials():
-        if credentials.isAdmin():
+    for credentials in target.get_valid_credentials():
+        if credentials.is_admin():
             return credentials
 
     return False
 
 
-def oscmdlist():
+def os_cmd_list():
     parse_list_file(conf.oscmdlist)
     targets_tuple = ()
 
     for target in targets:
         admin_credentials = None
 
-        if len(target.getValidCredentials()) == 0:
+        if len(target.get_valid_credentials()) == 0:
             continue
         else:
             admin_credentials = get_admin_credentials(target)
 
         if admin_credentials is False:
-            admin_credentials = target.getValidCredentials()[0]
-            logger.warn('No admin user identified for target %s, some commands will not work' % target.getIdentity())
+            admin_credentials = target.get_valid_credentials()[0]
+            logger.warn('No admin user identified for target %s, some commands will not work' % target.get_identity())
 
-        logger.info('Executing OS commands on %s with user %s' % (target.getIdentity(), admin_credentials.getUser()))
+        logger.info('Executing OS commands on %s with user %s' % (target.get_identity(), admin_credentials.getUser()))
         smb_shell = SMBShell(target, admin_credentials, conf.name)
 
         if len(commands) > 0:
@@ -462,21 +466,21 @@ def oscmdlist():
                 print '----------8<----------'
 
 
-def smbcmdlist():
+def smb_cmd_list():
     parse_list_file(conf.smbcmdlist)
     targets_tuple = ()
 
     for target in targets:
-        if len(target.getValidCredentials()) == 0:
+        if len(target.get_valid_credentials()) == 0:
             continue
         else:
             admin_credentials = get_admin_credentials(target)
 
         if admin_credentials is False:
-            admin_credentials = target.getValidCredentials()[0]
-            logger.warn('No admin user identified for target %s, some commands will not work' % target.getIdentity())
+            admin_credentials = target.get_valid_credentials()[0]
+            logger.warn('No admin user identified for target %s, some commands will not work' % target.get_identity())
 
-        logger.info('Executing SMB commands on %s with user %s' % (target.getIdentity(), admin_credentials.getUser()))
+        logger.info('Executing SMB commands on %s with user %s' % (target.get_identity(), admin_credentials.getUser()))
         shell = InteractiveShell(target, admin_credentials, conf.name)
 
         if len(commands) > 0:
@@ -583,16 +587,16 @@ def parse_credentials_file(filename):
 def parse_credentials(credentials_line):
     credentials_line = credentials_line.replace('NO PASSWORD*********************', '00000000000000000000000000000000')
 
-    fgdumpmatch = re.compile('^(\S+?):(.*?:?)([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
+    fgdumpmatch = re.compile(r'^(\S+?):(.*?:?)([0-9a-fA-F]{32}):([0-9a-fA-F]{32}):.*?:.*?:\s*$')
     fgdump = fgdumpmatch.match(credentials_line)
 
-    wcematch = re.compile('^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
+    wcematch = re.compile(r'^(\S+?):.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     wce = wcematch.match(credentials_line)
 
-    cainmatch = re.compile('^(\S+?):.*?:.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
+    cainmatch = re.compile(r'^(\S+?):.*?:.*?:([0-9a-fA-F]{32}):([0-9a-fA-F]{32})\s*$')
     cain = cainmatch.match(credentials_line)
 
-    plaintextpassmatch = re.compile('^(\S+?)\s+(\S*?)$')
+    plaintextpassmatch = re.compile(r'^(\S+?)\s+(\S*?)$')
     plain = plaintextpassmatch.match(credentials_line)
 
     # Credentials with hashes (pwdump/pwdumpx/fgdump/pass-the-hash output format)
@@ -633,7 +637,7 @@ def parse_credentials(credentials_line):
         raise credentialsError, 'credentials error'
 
 
-def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
+def add_credentials(user=None, password='', lmhash='', nthash='', domain='', line=None):
     global added_credentials
     global credentials
 
@@ -644,19 +648,20 @@ def add_credentials(user=None, password='', lmhash='', nthash='', line=None):
             if user.count('\\') == 1:
                 _, user = user.split('\\')
                 add_domain(_)
+                domain = _
         except credentialsError, _:
             logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return
 
-    if (user, password, lmhash, nthash) in added_credentials:
+    if (user, password, lmhash, nthash, domain) in added_credentials:
         return
     elif user is not None:
-        added_credentials.add((user, password, lmhash, nthash))
+        added_credentials.add((user, password, lmhash, nthash, domain))
 
-        credential = Credentials(user, password, lmhash, nthash)
+        credential = Credentials(user, password, lmhash, nthash, domain)
         credentials.append(credential)
 
-        logger.debug('Parsed credentials: %s' % credential.getIdentity())
+        logger.debug('Parsed credentials: %s' % credential.get_identity())
 
 
 def set_credentials():
@@ -664,7 +669,7 @@ def set_credentials():
 
     if conf.user is not None:
         logger.debug('Loading credentials from command line')
-        add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '')
+        add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '', conf.domain or '')
 
     if conf.credsfile is not None:
         logger.debug('Loading credentials from file %s' % conf.credsfile)
@@ -697,14 +702,14 @@ def parse_targets_file(filename):
 
 
 def parse_target(target_line):
-    targetmatch = re.compile('^([0-9a-zA-Z\-\_\.]+)(:(\d+))?')
+    targetmatch = re.compile(r'^([0-9a-zA-Z\-_.]+)(:(\d+))?')
     h = targetmatch.match(str(target_line))
 
     if h and h.group(3):
         host = h.group(1)
         port = h.group(3)
 
-        if port.isdigit() and int(port) > 0 and int(port) <= 65535:
+        if port.isdigit() and 0 < int(port) <= 65535:
             return host, int(port)
         else:
             return host, conf.port
@@ -735,7 +740,7 @@ def add_target(line):
         target = Target(host, port)
         targets.append(target)
 
-        logger.debug('Parsed target: %s' % target.getIdentity())
+        logger.debug('Parsed target: %s' % target.get_identity())
 
 
 def addr_to_int(value):
@@ -885,7 +890,7 @@ def main():
             current.daemon = True
             current.start()
 
-        while (threading.activeCount() > 1):
+        while threading.activeCount() > 1:
             a = 'Caughtit'
             pass
 
@@ -898,44 +903,44 @@ def main():
         except KeyboardInterrupt:
             print
             logger.info('User aborted')
-            os._exit(1)
+            exit(1)
 
     if successes == 0:
         print '\nNo credentials worked on any target\n'
-        os._exit(0)
+        exit(0)
 
     print '\nThe credentials worked in total %d times\n' % successes
     print 'TARGET SORTED RESULTS:\n'
 
     for target in targets:
-        valid_credentials = target.getValidCredentials()
+        valid_credentials = target.get_valid_credentials()
 
         if len(valid_credentials) > 0:
-            print target.getIdentity()
+            print target.get_identity()
 
             for valid_credential in valid_credentials:
-                print '  %s' % valid_credential.getIdentity()
+                print '  %s' % valid_credential.get_identity()
 
             print
 
     print '\nUSER SORTED RESULTS:\n'
 
     for credential in credentials:
-        valid_credentials = credential.getValidTargets()
+        valid_credentials = credential.get_valid_targets()
 
         if len(valid_credentials) > 0:
-            print credential.getIdentity()
+            print credential.get_identity()
 
             for valid_credential in valid_credentials:
-                print '  %s' % valid_credential.getIdentity()
+                print '  %s' % valid_credential.get_identity()
 
             print
 
     if conf.smbcmdlist is not None:
-        smbcmdlist()
+        smb_cmd_list()
 
     if conf.oscmdlist is not None:
-        oscmdlist()
+        os_cmd_list()
 
     if conf.batch or conf.smbcmdlist or conf.oscmdlist:
         return
@@ -952,11 +957,11 @@ def main():
         msg = 'Which target do you want to connect to?'
 
         for target in targets:
-            valid_credentials = target.getValidCredentials()
+            valid_credentials = target.get_valid_credentials()
 
             if len(valid_credentials) > 0:
                 counter += 1
-                msg += '\n[%d] %s%s' % (counter, target.getIdentity(), ' (default)' if counter == 1 else '')
+                msg += '\n[%d] %s%s' % (counter, target.get_identity(), ' (default)' if counter == 1 else '')
                 targets_dict[counter] = (target, valid_credentials)
 
         msg += '\n> '
@@ -969,7 +974,7 @@ def main():
 
         for credential in valid_credentials:
             counter += 1
-            msg += '\n[%d] %s%s' % (counter, credential.getIdentity(), ' (default)' if counter == 1 else '')
+            msg += '\n[%d] %s%s' % (counter, credential.get_identity(), ' (default)' if counter == 1 else '')
             credentials_dict[counter] = credential
 
         msg += '\n> '
@@ -1017,6 +1022,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print
         logger.info('User aborted')
-        os._exit(1)
+        exit(1)
 
-    os._exit(0)
+    exit(0)

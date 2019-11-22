@@ -9,11 +9,8 @@ try:
     from impacket.structure import Structure
 
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 
@@ -54,7 +51,7 @@ class DOMAIN_ACCOUNT_F(Structure):
         ('ServerRole', '<H=0'),
         ('UasCompatibilityRequired', '<H=0'),
         ('Unknown3', '<Q=0'),
-        ('Key0', ':', SAM_KEY_DATA),
+        ('Key0', ':'),
         # Commenting this, not needed and not present on Windows 2000 SP0
         #        ('Key1',':', SAM_KEY_DATA),
         #        ('Unknown4','<L=0'),
@@ -173,4 +170,44 @@ class LSA_SECRET_XP(Structure):
         ('Version', '<L=0'),
         ('_Secret', '_-Secret', 'self["Length"]'),
         ('Secret', ':'),
+    )
+
+
+class SAM_KEY_DATA(Structure):
+    structure = (
+        ('Revision', '<L=0'),
+        ('Length', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Key', '16s=b""'),
+        ('CheckSum', '16s=b""'),
+        ('Reserved', '<Q=0'),
+    )
+
+
+class SAM_HASH(Structure):
+    structure = (
+        ('PekID', '<H=0'),
+        ('Revision', '<H=0'),
+        ('Hash', '16s=b""'),
+    )
+
+
+class SAM_HASH_AES(Structure):
+    structure = (
+        ('PekID', '<H=0'),
+        ('Revision', '<H=0'),
+        ('DataOffset', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Hash', ':'),
+    )
+
+
+class SAM_KEY_DATA_AES(Structure):
+    structure = (
+        ('Revision', '<L=0'),
+        ('Length', '<L=0'),
+        ('CheckSumLen', '<L=0'),
+        ('DataLen', '<L=0'),
+        ('Salt', '16s=b""'),
+        ('Data', ':'),
     )
