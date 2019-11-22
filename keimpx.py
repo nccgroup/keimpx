@@ -86,11 +86,8 @@ try:
     from impacket.dcerpc.v5 import transport
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
-    sys.stderr.write('You need to install Python Impacket library first.\nGet it from Core Security\'s Google Code'
-                     + 'repository:\nsudo apt-get -y remove python-impacket # to remove the system-installed outdated'
-                     + 'version of the library\ncd /tmp'
-                     + '\nsvn checkout http://impacket.googlecode.com/svn/trunk/ impacket\ncd impacket'
-                     + '\npython setup.py build\nsudo python setup.py install\n')
+    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 added_credentials = set()
@@ -159,6 +156,7 @@ class test_login(Thread):
 
             for credential in credentials:
                 user, password, lmhash, nthash = credential.get_credentials()
+                password_str = None
 
                 if password != '' or (password == '' and lmhash == '' and nthash == ''):
                     password_str = password or 'BLANK'
@@ -174,7 +172,7 @@ class test_login(Thread):
                     is_admin = None
 
                     if domain:
-                        user_str = '%s\%s' % (domain, user)
+                        user_str = '%s\\%s' % (domain, user)
                     else:
                         user_str = user
 
@@ -342,7 +340,7 @@ class TargetCredentials:
 
     def get_identity(self):
         if self.domain:
-            _ = '%s\%s' % (self.domain, self.user)
+            _ = '%s\\%s' % (self.domain, self.user)
         else:
             _ = self.user
 
@@ -704,14 +702,14 @@ def parse_targets_file(filename):
 
 
 def parse_target(target_line):
-    targetmatch = re.compile('^([0-9a-zA-Z\-\_\.]+)(:(\d+))?')
+    targetmatch = re.compile(r'^([0-9a-zA-Z\-_.]+)(:(\d+))?')
     h = targetmatch.match(str(target_line))
 
     if h and h.group(3):
         host = h.group(1)
         port = h.group(3)
 
-        if port.isdigit() and int(port) > 0 and int(port) <= 65535:
+        if port.isdigit() and 0 < int(port) <= 65535:
             return host, int(port)
         else:
             return host, conf.port
@@ -905,11 +903,11 @@ def main():
         except KeyboardInterrupt:
             print
             logger.info('User aborted')
-            os._exit(1)
+            exit(1)
 
     if successes == 0:
         print '\nNo credentials worked on any target\n'
-        os._exit(0)
+        exit(0)
 
     print '\nThe credentials worked in total %d times\n' % successes
     print 'TARGET SORTED RESULTS:\n'
@@ -1024,6 +1022,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print
         logger.info('User aborted')
-        os._exit(1)
+        exit(1)
 
-    os._exit(0)
+    exit(0)
