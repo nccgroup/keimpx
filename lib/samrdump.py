@@ -186,10 +186,22 @@ class Samr(object):
                 except ValueError:
                     pass
 
+                pwdCanChange = (info['PasswordCanChange']['HighPart'] << 32) + info['PasswordCanChange']['LowPart']
+                if pwdCanChange == 0:
+                    pwdCanChange = '<never>'
+                else:
+                    pwdCanChange = str(datetime.fromtimestamp(self.getUnixTime(pwdCanChange)))
+
                 try:
-                    print '  Password can change: %s' % info['PasswordCanChange']
+                    print '  Password can change: %s' % pwdCanChange
                 except ValueError:
                     pass
+
+                pwdMustChange = (info['PasswordMustChange']['HighPart'] << 32) + info['PasswordMustChange']['LowPart']
+                if pwdMustChange == 0:
+                    pwdMustChange = '<never>'
+                else:
+                    pwdMustChange = str(datetime.fromtimestamp(self.getUnixTime(pwdMustChange)))
 
                 try:
                     print '  Password must change: %s' % info['PasswordMustChange']
@@ -202,42 +214,42 @@ class Samr(object):
                     pass
 
                 try:
-                    print '  Full name: %d' % info['FullName']
+                    print '  Full name: %s' % info['FullName']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Home directory: %d' % info['HomeDirectory']
+                    print '  Home directory: %s' % info['HomeDirectory']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Home directory drive: %d' % info['HomeDirectoryDrive']
+                    print '  Home directory drive: %s' % info['HomeDirectoryDrive']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Script path: %d' % info['ScriptPath']
+                    print '  Script path: %s' % info['ScriptPath']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Profile path: %d' % info['ProfilePath']
+                    print '  Profile path: %s' % info['ProfilePath']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Admin comment: %d' % info['AdminComment']
+                    print '  Admin comment: %s' % info['AdminComment']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Workstations: %d' % info['WorkStations']
+                    print '  Workstations: %s' % info['WorkStations']
                 except ValueError:
                     pass
 
                 try:
-                    print '  User comment: %d' % info['UserComment']
+                    print '  User comment: %s' % info['UserComment']
                 except ValueError:
                     pass
 
