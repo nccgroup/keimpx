@@ -76,7 +76,7 @@ class Samr(object):
 
             logger.info('Looking up users in domain %s' % domain_name)
 
-            resp = samr.hSamrLookupDomainInSamServer(self.__dce, self.__mgr_handle, domain)
+            resp = samr.hSamrLookupDomainInSamServer(self.__dce, self.__mgr_handle, domain_name)
             resp = samr.hSamrOpenDomain(self.__dce, serverHandle=self.__mgr_handle, domainId=resp['DomainId'])
             self.__domain_context_handle = resp['DomainHandle']
             resp = self.__samr.enumusers(self.__domain_context_handle)
