@@ -18,6 +18,7 @@ try:
     from impacket.nmb import NetBIOSTimeout
     from impacket.smbconnection import SessionError
 except ImportError:
+    sys.stderr.write('interactiveshell: Impacket import error')
     sys.stderr.write('interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)

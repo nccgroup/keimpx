@@ -12,6 +12,7 @@ try:
     from impacket.nt_errors import STATUS_MORE_ENTRIES
     from impacket.dcerpc.v5.rpcrt import DCERPCException
 except ImportError:
+    sys.stderr.write('samrdump: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)

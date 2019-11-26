@@ -22,6 +22,7 @@ try:
     from impacket import smb
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
+    sys.stderr.write('psexec: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)

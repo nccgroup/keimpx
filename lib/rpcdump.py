@@ -10,6 +10,7 @@ try:
     from impacket.uuid import uuidtup_to_bin
     from impacket.dcerpc.v5 import epm
 except ImportError:
+    sys.stderr.write('rpcdump: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)

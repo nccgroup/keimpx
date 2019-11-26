@@ -18,6 +18,7 @@ try:
     from impacket.smbconnection import SessionError
     from impacket.crypto import encryptSecret
 except ImportError:
+    sys.stderr.write('services: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
