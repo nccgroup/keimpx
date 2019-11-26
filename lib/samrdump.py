@@ -265,7 +265,7 @@ class Samr(object):
             if usrdomain and usrdomain.upper() != domain_name.upper():
                 continue
 
-            logger.info('Looking up password policy in domain %s' % domain_name)
+            print 'Looking up password policy in domain %s' % domain_name
 
             resp = samr.hSamrLookupDomainInSamServer(self.__dce, serverHandle=self.__mgr_handle, name=domain_name)
             if resp['ErrorCode'] != 0:
