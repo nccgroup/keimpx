@@ -4,10 +4,11 @@
 
 import sys
 from lib.logger import logger
-from lib.polenum import DCERPCSamr
 
 try:
-    from impacket.dcerpc.v5.samr import MSRPC_UUID_SAMR, MSRPCUserInfo
+    from impacket.dcerpc.v5 import samr
+    from impacket.nt_errors import STATUS_MORE_ENTRIES
+    from impacket.dcerpc.v5.rpcrt import DCERPCException
 except ImportError:
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
@@ -48,19 +49,15 @@ class Samr(object):
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
         self.__dce = self.trans.get_dce_rpc()
-        self.__dce.bind(MSRPC_UUID_SAMR)
-        self.__samr = DCERPCSamr(self.__dce)
-        self.__resp = self.__samr.connect()
-        self.__mgr_handle = self.__resp.get_context_handle()
+        self.__dce.bind(samr.MSRPC_UUID_SAMR)
+        self.__resp = samr.hSamrConnect(self.__dce)
+        self.__mgr_handle = self.__resp['ServerHandle']
 
     def __samr_disconnect(self):
         '''
         Disconnect from samr named pipe
         '''
         logger.debug('Disconnecting from the SAMR named pipe')
-
-        if self.__mgr_handle:
-            data = self.__samr.closerequest(self.__mgr_handle)
 
         self.__dce.disconnect()
 
@@ -78,14 +75,40 @@ class Samr(object):
 
             logger.info('Looking up users in domain %s' % domain_name)
 
-            resp = self.__samr.lookupdomain(self.__mgr_handle, domain)
-            resp = self.__samr.opendomain(self.__mgr_handle, resp.get_domain_sid())
-            self.__domain_context_handle = resp.get_context_handle()
+            resp = samr.hSamrLookupDomainInSamServer(self.__dce, self.__mgr_handle, domain)
+            resp = samr.hSamrOpenDomain(self.__dce, serverHandle=self.__mgr_handle, domainId=resp['DomainId'])
+            self.__domain_context_handle = resp['DomainHandle']
             resp = self.__samr.enumusers(self.__domain_context_handle)
 
+            status = STATUS_MORE_ENTRIES
+            enum_context = 0
+            while status == STATUS_MORE_ENTRIES:
+                try:
+                    resp = samr.hSamrEnumerateUsersInDomain(self.__dce, self.__domain_context_handle,
+                                                            enumerationContext=enum_context)
+                except DCERPCException as e:
+                    if str(e).find('STATUS_MORE_ENTRIES') < 0:
+                        raise
+                    resp = e.get_packet()
+
+                for user in resp['Buffer']['Buffer']:
+                    r = samr.hSamrOpenUser(self.__dce, self.__domain_context_handle,
+                                           samr.MAXIMUM_ALLOWED, user['RelativeId'])
+                    logger.debug('Found user %s (UID: %d)' % (user['Name'], user['RelativeId']))
+                    info = samr.hSamrQueryInformationUser2(self.__dce, r['UserHandle'],
+                                                           samr.USER_INFORMATION_CLASS.UserAllInformation)
+                    entry = (user['Name'], user['RelativeId'], info['Buffer']['All'])
+                    self.users_list.add(entry)
+                    samr.hSamrCloseHandle(self.__dce, r['UserHandle'])
+
+                enum_context = resp['EnumerationContext']
+                status = resp['ErrorCode']
+
+            '''
             done = False
 
             while done is False:
+                
                 for user in resp.get_users().elements():
                     uname = user.get_name().encode(encoding, 'replace')
                     uid = user.get_id()
@@ -104,6 +127,7 @@ class Samr(object):
                     resp = self.__samr.enumusers(self.__domain_context_handle, resp.get_resume_handle())
                 else:
                     done = True
+            '''
 
             if self.users_list:
                 num = len(self.users_list)
@@ -116,57 +140,102 @@ class Samr(object):
 
                 print user
                 print '  User ID: %d' % uid
-                print '  Group ID: %d' % info.get_group_id()
-                print '  Enabled: %s' % ('False', 'True')[info.is_enabled()]
+                print '  Group ID: %d' % info['PrimaryGroupId']
+                if info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED:
+                    account_disabled = 'True'
+                else:
+                    account_disabled = 'False'
+                print '  Enabled: %s' % account_disabled
 
                 try:
-                    print '  Logon count: %d' % info.get_logon_count()
+                    print '  Logon count: %d' % info['LogonCount']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Last Logon: %s' % info.get_logon_time()
+                    print '  Last Logon: %s' % info['LastLogon']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Last Logoff: %s' % info.get_logoff_time()
+                    print '  Last Logoff: %s' % info['LastLogoff']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Kickoff: %s' % info.get_kickoff_time()
+                    print '  Last password set: %s' % info['PasswordLastSet']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Last password set: %s' % info.get_pwd_last_set()
+                    print '  Password expired: %d' % info['PasswordExpired']
+                except ValueError:
+                    pass
+
+                if info['UserAccountControl'] & samr.USER_DONT_EXPIRE_PASSWORD:
+                    dont_expire = 'True'
+                else:
+                    dont_expire = 'False'
+
+                try:
+                    print '  Password does not expire: %d' % dont_expire
                 except ValueError:
                     pass
 
                 try:
-                    print '  Password can change: %s' % info.get_pwd_can_change()
+                    print '  Password can change: %s' % info['PasswordCanChange']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Password must change: %s' % info.get_pwd_must_change()
+                    print '  Password must change: %s' % info['PasswordMustChange']
                 except ValueError:
                     pass
 
                 try:
-                    print '  Bad password count: %d' % info.get_bad_pwd_count()
+                    print '  Bad password count: %d' % info['BadPasswordCount']
                 except ValueError:
                     pass
 
-                items = info.get_items()
+                try:
+                    print '  Full name: %d' % info['FullName']
+                except ValueError:
+                    pass
 
-                for i in MSRPCUserInfo.ITEMS.keys():
-                    name = items[MSRPCUserInfo.ITEMS[i]].get_name()
-                    name = name.encode(encoding, 'replace')
+                try:
+                    print '  Home directory: %d' % info['HomeDirectory']
+                except ValueError:
+                    pass
 
-                    if name:
-                        print '  %s: %s' % (i, name)
+                try:
+                    print '  Home directory drive: %d' % info['HomeDirectoryDrive']
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Script path: %d' % info['ScriptPath']
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Profile path: %d' % info['ProfilePath']
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Admin comment: %d' % info['AdminComment']
+                except ValueError:
+                    pass
+
+                try:
+                    print '  Workstations: %d' % info['WorkStations']
+                except ValueError:
+                    pass
+
+                try:
+                    print '  User comment: %d' % info['UserComment']
+                except ValueError:
+                    pass
 
             self.users_list = set()
 
@@ -196,15 +265,14 @@ class Samr(object):
         """
         logger.info('Enumerating domains')
 
-        resp = self.__samr.enumdomains(self.__mgr_handle)
-        domains = resp.get_domains().elements()
+        resp = samr.hSamrEnumerateDomainsInSamServer(self.__dce, self.__mgr_handle)
+        domains = resp['Buffer']['Buffer']
 
         if display is True:
             print 'Domains:'
 
-        for domain in range(0, resp.get_entries_num()):
-            domain = domains[domain]
-            domain_name = domain.get_name()
+        for domain in domains:
+            domain_name = domain['Name']
 
             if domain_name not in self.domains_dict:
                 self.domains_dict[domain_name] = domain
