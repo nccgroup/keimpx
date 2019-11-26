@@ -49,7 +49,7 @@ class Samr(object):
         self.smb_transport('samr')
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
-        self.__dce = self.trans.get_self.__dce_rpc()
+        self.__dce = self.trans.get__dce_rpc()
         self.__dce.bind(samr.MSRPC_UUID_SAMR)
         self.__resp = samr.hSamrConnect(self.__dce)
         self.__mgr_handle = self.__resp['ServerHandle']
