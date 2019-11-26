@@ -79,7 +79,6 @@ class Samr(object):
             resp = samr.hSamrLookupDomainInSamServer(self.__dce, self.__mgr_handle, domain_name)
             resp = samr.hSamrOpenDomain(self.__dce, serverHandle=self.__mgr_handle, domainId=resp['DomainId'])
             self.__domain_context_handle = resp['DomainHandle']
-            resp = self.__samr.enumusers(self.__domain_context_handle)
 
             status = STATUS_MORE_ENTRIES
             enum_context = 0
