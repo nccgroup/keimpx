@@ -197,14 +197,17 @@ class Samr(object):
                 except ValueError:
                     pass
 
-                pwdMustChange = (info['PasswordMustChange']['HighPart'] << 32) + info['PasswordMustChange']['LowPart']
-                if pwdMustChange == 0:
+                try:
+                    pwdMustChange = (info['PasswordMustChange']['HighPart'] << 32) + info['PasswordMustChange']['LowPart']
+                    if pwdMustChange == 0:
+                        pwdMustChange = '<never>'
+                    else:
+                        pwdMustChange = str(datetime.fromtimestamp(self.getUnixTime(pwdMustChange)))
+                except:
                     pwdMustChange = '<never>'
-                else:
-                    pwdMustChange = str(datetime.fromtimestamp(self.getUnixTime(pwdMustChange)))
 
                 try:
-                    print '  Password must change: %s' % info['PasswordMustChange']
+                    print '  Password must change: %s' % pwdMustChange
                 except ValueError:
                     pass
 
