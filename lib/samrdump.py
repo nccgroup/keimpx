@@ -66,7 +66,7 @@ class Samr(object):
         '''
         Enumerate users on the system
         '''
-        self.__samr_domains(False)
+        self.__samr_domains(True)
 
         encoding = sys.getdefaultencoding()
 
