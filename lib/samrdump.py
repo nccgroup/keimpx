@@ -133,13 +133,25 @@ class Samr(object):
                 except ValueError:
                     pass
 
+                lastLogon = (info['LastLogon']['HighPart'] << 32) + info['LastLogon']['LowPart']
+                if lastLogon == 0:
+                    lastLogon = '<never>'
+                else:
+                    lastLogon = str(datetime.fromtimestamp(self.getUnixTime(lastLogon)))
+
                 try:
-                    print '  Last Logon: %s' % info['LastLogon']
+                    print '  Last Logon: %s' % lastLogon
                 except ValueError:
                     pass
 
+                lastLogoff = (info['LastLogoff']['HighPart'] << 32) + info['LastLogoff']['LowPart']
+                if lastLogoff == 0:
+                    lastLogoff = '<never>'
+                else:
+                    lastLogoff = str(datetime.fromtimestamp(self.getUnixTime(lastLogoff)))
+
                 try:
-                    print '  Last Logoff: %s' % info['LastLogoff']
+                    print '  Last Logoff: %s' % lastLogoff
                 except ValueError:
                     pass
 
@@ -154,8 +166,13 @@ class Samr(object):
                 except ValueError:
                     pass
 
+                if info['PasswordExpired'] == 0:
+                    password_expired = 'False'
+                elif info['PasswordExpired'] == 1:
+                    password_expired = 'True'
+
                 try:
-                    print '  Password expired: %d' % info['PasswordExpired']
+                    print '  Password expired: %s' % password_expired
                 except ValueError:
                     pass
 
@@ -165,7 +182,7 @@ class Samr(object):
                     dont_expire = 'False'
 
                 try:
-                    print '  Password does not expire: %d' % dont_expire
+                    print '  Password does not expire: %s' % dont_expire
                 except ValueError:
                     pass
 
