@@ -33,7 +33,7 @@ class RpcDump(object):
 
         # Let's groups the UUIDs
         for entry in entries:
-            binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.get_dip())
+            binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.getRemoteName())
             tmpUUID = str(entry['tower']['Floors'][0])
 
             if endpoints.has_key(tmpUUID) is not True:
@@ -97,7 +97,7 @@ class RpcDump(object):
 
     def __fetchList(self):
         entries = []
-        resp = epm.hept_lookup(self.trans.get_dip())
+        resp = epm.hept_lookup(self.trans.getRemoteName())
         self.__rpc_disconnect()
 
         return resp
