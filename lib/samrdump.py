@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
-
+import datetime
 import sys
 from time import strftime, gmtime
 
@@ -25,6 +25,12 @@ class Samr(object):
 
     def __init__(self):
         pass
+
+    @staticmethod
+    def getUnixTime(t):
+        t -= 116444736000000000
+        t /= 10000000
+        return t
 
     def users(self, usrdomain):
         self.__samr_connect()
@@ -86,7 +92,7 @@ class Samr(object):
                 try:
                     resp = samr.hSamrEnumerateUsersInDomain(self.__dce, self.__domain_context_handle,
                                                             enumerationContext=enum_context)
-                except self.__dceRPCException as e:
+                except DCERPCException as e:
                     if str(e).find('STATUS_MORE_ENTRIES') < 0:
                         raise
                     resp = e.get_packet()
@@ -137,8 +143,14 @@ class Samr(object):
                 except ValueError:
                     pass
 
+                pwdLastSet = (info['PasswordLastSet']['HighPart'] << 32) + info['PasswordLastSet']['LowPart']
+                if pwdLastSet == 0:
+                    pwdLastSet = '<never>'
+                else:
+                    pwdLastSet = str(datetime.fromtimestamp(self.getUnixTime(pwdLastSet)))
+
                 try:
-                    print '  Last password set: %s' % info['PasswordLastSet']
+                    print '  Last password set: %s' % pwdLastSet
                 except ValueError:
                     pass
 
