@@ -8,7 +8,7 @@ from time import strftime, gmtime
 from lib.logger import logger
 
 try:
-    from impacket.self.__dcerpc.v5 import samr
+    from impacket.dcerpc.v5 import samr
     from impacket.nt_errors import STATUS_MORE_ENTRIES
     from impacket.dcerpc.v5.rpcrt import DCERPCException
 except ImportError:
@@ -49,9 +49,9 @@ class Samr(object):
         self.smb_transport('samr')
 
         logger.debug('Binding on Security Account Manager (SAM) interface')
-        self.__self.__dce = self.trans.get_self.__dce_rpc()
-        self.__self.__dce.bind(samr.MSRPC_UUID_SAMR)
-        self.__resp = samr.hSamrConnect(self.__self.__dce)
+        self.__dce = self.trans.get_self.__dce_rpc()
+        self.__dce.bind(samr.MSRPC_UUID_SAMR)
+        self.__resp = samr.hSamrConnect(self.__dce)
         self.__mgr_handle = self.__resp['ServerHandle']
 
     def __samr_disconnect(self):
@@ -60,7 +60,7 @@ class Samr(object):
         '''
         logger.debug('Disconnecting from the SAMR named pipe')
 
-        self.__self.__dce.disconnect()
+        self.__dce.disconnect()
 
     def __samr_users(self, usrdomain=None):
         '''
@@ -76,8 +76,8 @@ class Samr(object):
 
             logger.info('Looking up users in domain %s' % domain_name)
 
-            resp = samr.hSamrLookupDomainInSamServer(self.__self.__dce, self.__mgr_handle, domain)
-            resp = samr.hSamrOpenDomain(self.__self.__dce, serverHandle=self.__mgr_handle, domainId=resp['DomainId'])
+            resp = samr.hSamrLookupDomainInSamServer(self.__dce, self.__mgr_handle, domain)
+            resp = samr.hSamrOpenDomain(self.__dce, serverHandle=self.__mgr_handle, domainId=resp['DomainId'])
             self.__domain_context_handle = resp['DomainHandle']
             resp = self.__samr.enumusers(self.__domain_context_handle)
 
@@ -85,7 +85,7 @@ class Samr(object):
             enum_context = 0
             while status == STATUS_MORE_ENTRIES:
                 try:
-                    resp = samr.hSamrEnumerateUsersInDomain(self.__self.__dce, self.__domain_context_handle,
+                    resp = samr.hSamrEnumerateUsersInDomain(self.__dce, self.__domain_context_handle,
                                                             enumerationContext=enum_context)
                 except self.__dceRPCException as e:
                     if str(e).find('STATUS_MORE_ENTRIES') < 0:
@@ -93,14 +93,14 @@ class Samr(object):
                     resp = e.get_packet()
 
                 for user in resp['Buffer']['Buffer']:
-                    r = samr.hSamrOpenUser(self.__self.__dce, self.__domain_context_handle,
+                    r = samr.hSamrOpenUser(self.__dce, self.__domain_context_handle,
                                            samr.MAXIMUM_ALLOWED, user['RelativeId'])
                     logger.debug('Found user %s (UID: %d)' % (user['Name'], user['RelativeId']))
-                    info = samr.hSamrQueryInformationUser2(self.__self.__dce, r['UserHandle'],
+                    info = samr.hSamrQueryInformationUser2(self.__dce, r['UserHandle'],
                                                            samr.USER_INFORMATION_CLASS.UserAllInformation)
                     entry = (user['Name'], user['RelativeId'], info['Buffer']['All'])
                     self.users_list.add(entry)
-                    samr.hSamrCloseHandle(self.__self.__dce, r['UserHandle'])
+                    samr.hSamrCloseHandle(self.__dce, r['UserHandle'])
 
                 enum_context = resp['EnumerationContext']
                 status = resp['ErrorCode']
@@ -308,7 +308,7 @@ class Samr(object):
         """
         logger.info('Enumerating domains')
 
-        resp = samr.hSamrEnumerateDomainsInSamServer(self.__self.__dce, self.__mgr_handle)
+        resp = samr.hSamrEnumerateDomainsInSamServer(self.__dce, self.__mgr_handle)
         domains = resp['Buffer']['Buffer']
 
         if display is True:
