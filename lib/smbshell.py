@@ -532,6 +532,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                     logger.warn('Access denied to upload %s due to share access flags' % destfile)
                 else:
                     logger.error('Unable to upload file: %s' % (e.getErrorString(),))
+            except Exception as e:
+                logger.error(str(e))
 
             fp.close()
 
