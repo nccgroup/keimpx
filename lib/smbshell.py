@@ -503,6 +503,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             files = [pathname]
             logger.debug('no glob')
 
+        logger.debug(pathname)
+        logger.debug(files)
+
         for filename in files:
             try:
                 if isinstance(filename, basestring):
