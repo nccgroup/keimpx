@@ -265,11 +265,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def use(self, share, display=True):
         if not share:
             raise missingShare, 'Share has not been specified'
-        logger.debug('Start use')
 
         if self.tid:
             self.smb.disconnectTree(self.tid)
-            logger.debug('disconnected tree')
 
         try:
             self.share = share.strip('\x00')
@@ -523,7 +521,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
             try:
                 self.smb.putFile(self.share, destfile.decode(sys.stdin.encoding), fp.read)
-                logger.debug('success')
             except SessionError, e:
                 traceback.print_exc()
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
@@ -532,11 +529,6 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                     logger.warn('Access denied to upload %s due to share access flags' % destfile)
                 else:
                     logger.error('Unable to upload file: %s' % (e.getErrorString(),))
-            except Exception as e:
-                traceback.print_exc()
-                logger.error(str(e))
-                logger.debug(self.share)
-                logger.debug(destfile)
 
             fp.close()
 
