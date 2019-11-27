@@ -535,7 +535,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             except Exception as e:
                 logger.error(str(e))
                 logger.debug(self.share)
-                logger.debug(self.destfile)
+                logger.debug(destfile)
 
             fp.close()
 
