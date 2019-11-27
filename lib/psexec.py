@@ -79,7 +79,7 @@ class PsExec(object):
 
         logger.debug('Going to use temporary service %s' % srvname)
 
-        self.deploy(srvname, remcomsvc.RemComSvc(), '', remote_file)
+        self.deploy(srvname, local_file=remcomsvc.RemComSvc(), srvargs='', remote_file=remote_file)
         self.smb_transport('svcctl')
         self.__smb = self.trans.get_smb_connection()
         self.__smb.setTimeout(100000)

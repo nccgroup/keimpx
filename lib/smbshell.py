@@ -528,6 +528,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
             try:
                 self.smb.putFile(self.share, destfile.decode(sys.stdin.encoding), fp.read)
+                logger.debug('success')
             except SessionError, e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to upload %s' % destfile)
