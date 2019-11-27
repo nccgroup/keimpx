@@ -534,6 +534,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                     logger.error('Unable to upload file: %s' % (e.getErrorString(),))
             except Exception as e:
                 logger.error(str(e))
+                logger.debug(self.share)
+                logger.debug(self.destfile)
 
             fp.close()
 
