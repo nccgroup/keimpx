@@ -498,8 +498,10 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
         if isinstance(pathname, basestring):
             files = glob.glob(pathname)
+            logger.debug('globbed pathname')
         else:
             files = [pathname]
+            logger.debug('no glob')
 
         for filename in files:
             try:
@@ -513,8 +515,10 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
             if not destfile or len(files) > 1:
                 destfile = os.path.basename(filename)
+                logger.debug('basename')
 
             destfile = ntpath.join(self.pwd, destfile)
+            logger.debug('join ntpath')
 
             if isinstance(filename, basestring):
                 logger.debug('Uploading file %s to %s..' % (filename, destfile))
