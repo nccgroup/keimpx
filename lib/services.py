@@ -250,7 +250,7 @@ class SvcCtl(object):
 
         self.__pathname = ntpath.join(DataStore.share_path, remote_file)
         scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname,
-                              lpBinaryPathName='%s\x00' % self.__pathname)
+                              lpBinaryPathName='%s\x00' % self.__pathname, dwStartType=scmr.SERVICE_DEMAND_START)
 
     def __scmr_delete(self, srvname):
         '''

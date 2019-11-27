@@ -99,14 +99,14 @@ class PsExec(object):
         LastDataSent = ''
 
         # Create the pipes threads
-        stdin_pipe = RemoteStdInPipe(self.trans, '\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
+        stdin_pipe = RemoteStdInPipe(self.trans, '\\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
                                      smb.FILE_WRITE_DATA | smb.FILE_APPEND_DATA, self.share)
         stdin_pipe.start()
-        stdout_pipe = RemoteStdOutPipe(self.trans, '\%s%s%d' % (RemComSTDOUT, packet['Machine'],
-                                                                packet['ProcessID']), smb.FILE_READ_DATA)
+        stdout_pipe = RemoteStdOutPipe(self.trans, '\\%s%s%d' % (RemComSTDOUT, packet['Machine'],
+                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
         stdout_pipe.start()
-        stderr_pipe = RemoteStdErrPipe(self.trans, '\%s%s%d' % (RemComSTDERR, packet['Machine'],
-                                                                packet['ProcessID']), smb.FILE_READ_DATA)
+        stderr_pipe = RemoteStdErrPipe(self.trans, '\\%s%s%d' % (RemComSTDERR, packet['Machine'],
+                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
         stderr_pipe.start()
 
         # And we stay here till the end
@@ -192,7 +192,7 @@ class RemoteStdOutPipe(Pipes):
                     global LastDataSent
 
                     if ans != LastDataSent:
-                        sys.stdout.write(ans)
+                        sys.stdout.write(ans.decode('cp437'))
                         sys.stdout.flush()
                     else:
                         # Don't echo what I sent, and clear it up
@@ -273,7 +273,7 @@ class RemoteShell(cmd.Cmd):
         return
 
     def default(self, line=''):
-        self.send_data('%s\r\n' % line)
+        self.send_data(line.decode(sys.stdin.encoding).decode('cp437')+'\r\n')
 
     def send_data(self, data, hideOutput=True):
         if hideOutput is True:
@@ -291,5 +291,6 @@ class RemoteStdInPipe(Pipes):
 
     def run(self):
         self.connectPipe()
-        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share)
+        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share,
+                                        self.transport)
         self.remote_shell.cmdloop()

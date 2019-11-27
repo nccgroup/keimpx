@@ -263,9 +263,11 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
     def use(self, share, display=True):
         if not share:
             raise missingShare, 'Share has not been specified'
+        logger.debug('Start use')
 
         if self.tid:
             self.smb.disconnectTree(self.tid)
+            logger.debug('disconnected tree')
 
         try:
             self.share = share.strip('\x00')
