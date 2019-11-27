@@ -525,6 +525,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 self.smb.putFile(self.share, destfile.decode(sys.stdin.encoding), fp.read)
                 logger.debug('success')
             except SessionError, e:
+                traceback.print_exc()
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to upload %s' % destfile)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
@@ -532,10 +533,10 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 else:
                     logger.error('Unable to upload file: %s' % (e.getErrorString(),))
             except Exception as e:
+                traceback.print_exc()
                 logger.error(str(e))
                 logger.debug(self.share)
                 logger.debug(destfile)
-                traceback.print_exc()
 
             fp.close()
 
