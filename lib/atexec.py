@@ -38,56 +38,105 @@ class AtSvc(object):
             logger.warn('This command only works on Windows >= Vista')
             return
 
-        command_and_args = shlex.split(command)
-
-        if os.path.exists(command_and_args[0]):
-            self.use(DataStore.writable_share)
-            self.upload(command_and_args[0])
-
-        self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
-        self.__at_command = '%%COMSPEC%% /C %s > %%SYSTEMROOT%%\\Temp\\%s 2>&1\x00' % (
-            os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
+        self.__tmpFileName = ''.join([random.choice(string.letters) for _ in range(8)]) + '.tmp'
+        self.__at_command = command
         self.__atsvc_connect()
 
-        logger.debug('Creating scheduled task with command: %s' % self.__at_command)
+        xml = """<?xml version="1.0" encoding="UTF-16"?>
+        <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+          <Triggers>
+            <CalendarTrigger>
+              <StartBoundary>2015-07-15T20:35:13.2757294</StartBoundary>
+              <Enabled>true</Enabled>
+              <ScheduleByDay>
+                <DaysInterval>1</DaysInterval>
+              </ScheduleByDay>
+            </CalendarTrigger>
+          </Triggers>
+          <Principals>
+            <Principal id="LocalSystem">
+              <UserId>S-1-5-18</UserId>
+              <RunLevel>HighestAvailable</RunLevel>
+            </Principal>
+          </Principals>
+          <Settings>
+            <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+            <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+            <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+            <AllowHardTerminate>true</AllowHardTerminate>
+            <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+            <IdleSettings>
+              <StopOnIdleEnd>true</StopOnIdleEnd>
+              <RestartOnIdle>false</RestartOnIdle>
+            </IdleSettings>
+            <AllowStartOnDemand>true</AllowStartOnDemand>
+            <Enabled>true</Enabled>
+            <Hidden>true</Hidden>
+            <RunOnlyIfIdle>false</RunOnlyIfIdle>
+            <WakeToRun>false</WakeToRun>
+            <ExecutionTimeLimit>P3D</ExecutionTimeLimit>
+            <Priority>7</Priority>
+          </Settings>
+          <Actions Context="LocalSystem">
+            <Exec>
+              <Command>cmd.exe</Command>
+              <Arguments>/C %s &gt; %%windir%%\\Temp\\%s 2&gt;&amp;1</Arguments>
+            </Exec>
+          </Actions>
+        </Task>
+                """ % (self.__at_command, self.__tmpFileName)
 
-        # Check [MS-TSCH] Section 2.3.4
-        self.__atInfo = atsvc.AT_INFO()
-        self.__atInfo['JobTime'] = 0
-        self.__atInfo['DaysOfMonth'] = 0
-        self.__atInfo['DaysOfWeek'] = 0
-        self.__atInfo['Flags'] = 0
-        self.__atInfo['Command'] = self.__at_command
 
-        resp = atsvc.hNetrJobAdd(self.__dce, NULL, self.__atInfo)
-        jobId = resp['pJobID']
+        taskCreated = False
+        try:
+            logger.info('Creating task \\%s' % self.__tmpFileName)
+            tsch.hSchRpcRegisterTask(self.__dce, '\\%s' % self.__tmpFileName, xml,
+                                     tsch.TASK_CREATE, NULL, tsch.TASK_LOGON_NONE)
+            taskCreated = True
 
-        # Switching context to TSS
-        self.__dce2 = self.__dce.alter_ctx(tsch.MSRPC_UUID_TSCHS)
+            logger.info('Running task \\%s' % self.__tmpFileName)
+            tsch.hSchRpcRun(self.__dce, '\\%s' % self.__tmpFileName)
 
-        resp = tsch.hSchRpcRun(self.__dce2, '\\At%d' % jobId)
-        # On the first run, it takes a while the remote target to start executing the job
-        # so I'm setting this sleep.. I don't like sleeps.. but this is just an example
-        # Best way would be to check the task status before attempting to read the file
-        logger.debug('Wait..')
-        time.sleep(3)
+            done = False
+            while not done:
+                logger.debug('Calling SchRpcGetLastRunInfo for \\%s' % self.__tmpFileName)
+                resp = tsch.hSchRpcGetLastRunInfo(self.__dce, '\\%s' % self.__tmpFileName)
+                if resp['pLastRuntime']['wYear'] != 0:
+                    done = True
+                else:
+                    time.sleep(2)
 
-        # Switching back to the old ctx_id
-        atsvc.hNetrJobDel(self.__dce, NULL, jobId, jobId)
-        self.__tmpFilePath = ntpath.join('Temp', self.__tmpFileName)
+            logger.info('Deleting task \\%s' % self.__tmpFileName)
+            tsch.hSchRpcDelete(self.__dce, '\\%s' % self.__tmpFileName)
+            taskCreated = False
+        except tsch.DCERPCSessionError as e:
+            logger.error(e)
+            e.get_packet().dump()
+        finally:
+            if taskCreated is True:
+                tsch.hSchRpcDelete(self.__dce, '\\%s' % self.__tmpFileName)
+
         self.transferClient = self.trans.get_smb_connection()
-
+        waitOnce = True
         while True:
             try:
-                self.transferClient.getFile(self.share, self.__tmpFilePath, self.__output_callback)
+                logger.info('Attempting to read ADMIN$\\Temp\\%s' % self.__tmpFileName)
+                self.transferClient.getFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName, self.__output_callback())
                 break
-            except Exception, e:
+            except Exception as e:
                 if str(e).find('SHARING') > 0:
                     time.sleep(3)
+                elif str(e).find('STATUS_OBJECT_NAME_NOT_FOUND') >= 0:
+                    if waitOnce is True:
+                        # We're giving it the chance to flush the file before giving up
+                        time.sleep(3)
+                        waitOnce = False
+                    else:
+                        raise
                 else:
                     raise
-
-        self.transferClient.deleteFile(self.share, self.__tmpFilePath)
+        logger.debug('Deleting file ADMIN$\\Temp\\%s' % self.__tmpFileName)
+        self.transferClient.deleteFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName)
         self.__atsvc_disconnect()
 
     def __atsvc_connect(self):
@@ -103,7 +152,7 @@ class AtSvc(object):
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.set_credentials(*self.trans.get_credentials())
         self.__dce.connect()
-        self.__dce.bind(atsvc.MSRPC_UUID_ATSVC)
+        self.__dce.bind(tsch.MSRPC_UUID_TSCHS)
 
     def __atsvc_disconnect(self):
         '''
