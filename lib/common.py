@@ -16,7 +16,8 @@ try:
     from impacket.smb3structs import SMB2_DIALECT_21
     from impacket.smbconnection import SMB_DIALECT
 except ImportError:
-    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+    sys.stderr.write('common: Impacket import error')
+    sys.stderr.write('common: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 

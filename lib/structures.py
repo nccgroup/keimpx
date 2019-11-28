@@ -61,7 +61,7 @@ class DOMAIN_ACCOUNT_F(Structure):
 # Great help from here http://www.beginningtoseethelight.org/ntsecurity/index.htm
 class USER_ACCOUNT_V(Structure):
     structure = (
-        ('Unknown', '12s=""'),
+        ('Unknown', '12s=b""'),
         ('NameOffset', '<L=0'),
         ('NameLength', '<L=0'),
         ('Unknown2', '<L=0'),
@@ -74,7 +74,7 @@ class USER_ACCOUNT_V(Structure):
         ('UserCommentOffset', '<L=0'),
         ('UserCommentLength', '<L=0'),
         ('Unknown4', '<L=0'),
-        ('Unknown5', '12s=""'),
+        ('Unknown5', '12s=b""'),
         ('HomeDirOffset', '<L=0'),
         ('HomeDirLength', '<L=0'),
         ('Unknown6', '<L=0'),
@@ -93,15 +93,15 @@ class USER_ACCOUNT_V(Structure):
         ('HoursAllowedOffset', '<L=0'),
         ('HoursAllowedLength', '<L=0'),
         ('Unknown11', '<L=0'),
-        ('Unknown12', '12s=""'),
+        ('Unknown12', '12s=b""'),
         ('LMHashOffset', '<L=0'),
         ('LMHashLength', '<L=0'),
         ('Unknown13', '<L=0'),
         ('NTHashOffset', '<L=0'),
         ('NTHashLength', '<L=0'),
         ('Unknown14', '<L=0'),
-        ('Unknown15', '24s=""'),
-        ('Data', ':=""'),
+        ('Unknown15', '24s=b""'),
+        ('Data', ':=b""'),
     )
 
 

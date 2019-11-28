@@ -18,6 +18,7 @@ try:
     from impacket.smbconnection import SessionError
     from impacket.crypto import encryptSecret
 except ImportError:
+    sys.stderr.write('services: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
@@ -249,7 +250,7 @@ class SvcCtl(object):
 
         self.__pathname = ntpath.join(DataStore.share_path, remote_file)
         scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname,
-                              lpBinaryPathName='%s\x00' % self.__pathname)
+                              lpBinaryPathName='%s\x00' % self.__pathname, dwStartType=scmr.SERVICE_DEMAND_START)
 
     def __scmr_delete(self, srvname):
         '''

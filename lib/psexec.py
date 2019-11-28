@@ -22,6 +22,7 @@ try:
     from impacket import smb
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
+    sys.stderr.write('psexec: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
@@ -78,7 +79,7 @@ class PsExec(object):
 
         logger.debug('Going to use temporary service %s' % srvname)
 
-        self.deploy(srvname, remcomsvc.RemComSvc(), '', remote_file)
+        self.deploy(srvname, local_file=remcomsvc.RemComSvc(), srvargs='', remote_file=remote_file)
         self.smb_transport('svcctl')
         self.__smb = self.trans.get_smb_connection()
         self.__smb.setTimeout(100000)
@@ -98,14 +99,14 @@ class PsExec(object):
         LastDataSent = ''
 
         # Create the pipes threads
-        stdin_pipe = RemoteStdInPipe(self.trans, '\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
+        stdin_pipe = RemoteStdInPipe(self.trans, '\\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
                                      smb.FILE_WRITE_DATA | smb.FILE_APPEND_DATA, self.share)
         stdin_pipe.start()
-        stdout_pipe = RemoteStdOutPipe(self.trans, '\%s%s%d' % (RemComSTDOUT, packet['Machine'],
-                                                                packet['ProcessID']), smb.FILE_READ_DATA)
+        stdout_pipe = RemoteStdOutPipe(self.trans, '\\%s%s%d' % (RemComSTDOUT, packet['Machine'],
+                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
         stdout_pipe.start()
-        stderr_pipe = RemoteStdErrPipe(self.trans, '\%s%s%d' % (RemComSTDERR, packet['Machine'],
-                                                                packet['ProcessID']), smb.FILE_READ_DATA)
+        stderr_pipe = RemoteStdErrPipe(self.trans, '\\%s%s%d' % (RemComSTDERR, packet['Machine'],
+                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
         stderr_pipe.start()
 
         # And we stay here till the end
@@ -191,7 +192,7 @@ class RemoteStdOutPipe(Pipes):
                     global LastDataSent
 
                     if ans != LastDataSent:
-                        sys.stdout.write(ans)
+                        sys.stdout.write(ans.decode('cp437'))
                         sys.stdout.flush()
                     else:
                         # Don't echo what I sent, and clear it up
@@ -272,7 +273,7 @@ class RemoteShell(cmd.Cmd):
         return
 
     def default(self, line=''):
-        self.send_data('%s\r\n' % line)
+        self.send_data(line.decode(sys.stdin.encoding).decode('cp437')+'\r\n')
 
     def send_data(self, data, hideOutput=True):
         if hideOutput is True:
