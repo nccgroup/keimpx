@@ -417,6 +417,7 @@ class SAMHashes(OfflineRegistry):
                 if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
                     # Old Style hashes
                     newStyle = False
+                    logger.debug('NewStyle hashes is: %s' % newStyle)
                     if userAccount['LMHashLength'] == 20:
                         encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
                     if userAccount['NTHashLength'] == 20:
@@ -424,11 +425,11 @@ class SAMHashes(OfflineRegistry):
                 else:
                     # New Style hashes
                     newStyle = True
+                    logger.debug('NewStyle hashes is: %s' % newStyle)
                     if userAccount['LMHashLength'] == 24:
                         encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
                     encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-                logger.debug('NewStyle hashes is: %s' % newStyle)
                 if userAccount['LMHashLength'] >= 20:
                     lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
                 else:
