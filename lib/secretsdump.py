@@ -8,6 +8,7 @@ import hashlib
 import sys
 import string
 import ntpath
+import traceback
 from binascii import hexlify
 from struct import pack
 from lib.common import DataStore, RemoteFile
@@ -31,13 +32,14 @@ try:
     from impacket.crypto import transformKey
 
 except ImportError:
+    sys.stderr.write('secetsdump: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 try:
-    from Crypto.Cipher import DES, ARC4, AES
-    from Crypto.Hash import HMAC, MD4
+    from Cryptodome.Cipher import DES, ARC4, AES
+    from Cryptodome.Hash import HMAC, MD4
 except ImportError:
     sys.stderr.write('You do not have any crypto installed. You need PyCrypto.'
                      + '\nRun: apt-get install python-crypto or get it from http://www.pycrypto.org')
@@ -401,49 +403,54 @@ class SAMHashes(OfflineRegistry):
         except:
             pass
         for rid in rids:
-            userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
-            rid = int(rid, 16)
+            try:
+                userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
+                rid = int(rid, 16)
+                logger.debug("Dumping %s from SAM" % str(rid))
 
-            V = userAccount['Data']
+                V = userAccount['Data']
 
-            userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
-                'utf-16le')
+                userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
+                    'utf-16le')
 
-            encNTHash = b''
-            if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
-                # Old Style hashes
-                newStyle = False
-                if userAccount['LMHashLength'] == 20:
-                    encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                if userAccount['NTHashLength'] == 20:
-                    encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
-            else:
-                # New Style hashes
-                newStyle = True
-                if userAccount['LMHashLength'] == 24:
-                    encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                encNTHash = b''
+                if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
+                    # Old Style hashes
+                    newStyle = False
+                    logger.debug('NewStyle hashes is: %s' % newStyle)
+                    if userAccount['LMHashLength'] == 20:
+                        encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    if userAccount['NTHashLength'] == 20:
+                        encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                else:
+                    # New Style hashes
+                    newStyle = True
+                    logger.debug('NewStyle hashes is: %s' % newStyle)
+                    if userAccount['LMHashLength'] == 24:
+                        encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-            logger.debug('NewStyle hashes is: %s' % newStyle)
-            if userAccount['LMHashLength'] >= 20:
-                lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
-            else:
-                lmHash = b''
+                if userAccount['LMHashLength'] >= 20:
+                    lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
+                else:
+                    lmHash = b''
 
-            if encNTHash != b'':
-                ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
-            else:
-                ntHash = b''
+                if encNTHash != b'':
+                    ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
+                else:
+                    ntHash = b''
 
-            if lmHash == b'':
-                lmHash = ntlm.LMOWFv1('', '')
-            if ntHash == b'':
-                ntHash = ntlm.NTOWFv1('', '')
+                if lmHash == b'':
+                    lmHash = ntlm.LMOWFv1('', '')
+                if ntHash == b'':
+                    ntHash = ntlm.NTOWFv1('', '')
 
-            answer = "%s:%d:%s:%s:::" % (
-                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
-            self.__itemsFound[rid] = answer
-            self.__perSecretCallback(answer)
+                answer = "%s:%d:%s:%s:::" % (
+                    userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
+                self.__itemsFound[rid] = answer
+                self.__perSecretCallback(answer)
+            except Exception as e:
+                logger.error('Error encountered when dumping SAM for user ' + userName + ': ' + str(e))
 
     def exportSAM(self):
         if len(self.__itemsFound) > 0:
@@ -1028,20 +1035,31 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
 
         SAMHashes.__init__(self, self.saveSAM(), bootKey)
         self.dumpSAM()
+        logger.debug('Dumped SAM')
         self.exportSAM()
+        logger.debug('Exported SAM')
         self.finish_hive()
+        logger.debug('Finished SAM')
 
         LSASecrets.__init__(self, self.saveSECURITY(), bootKey)
         self.dumpCachedHashes()
+        logger.debug('Dumped LSA cached hashes')
         self.exportCached()
+        logger.debug('Exported LSA cached hashes')
         self.dumpSecrets()
+        logger.debug('Dumped LSA secrets')
         self.exportSecrets()
+        logger.debug('Exported LSA secrets')
         self.finish_hive()
+        logger.debug('Finished LSA')
 
         NTDSHashes.__init__(self, self.saveNTDS(), bootKey, history=self.__history, noLMHash=self.__no_LMhash)
         self.dumpNTDS()
+        logger.debug('Dumped NTDS')
         self.exportNTDS()
+        logger.debug('Exported NTDS')
         self.finishNTDS()
+        logger.debug('Finished NTDS')
 
         self.cleanup()
 

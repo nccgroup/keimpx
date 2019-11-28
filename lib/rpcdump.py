@@ -8,9 +8,9 @@ from lib.logger import logger
 try:
     from impacket import uuid
     from impacket.uuid import uuidtup_to_bin
-    from impacket.dcerpc import ndrutils
     from impacket.dcerpc.v5 import epm
 except ImportError:
+    sys.stderr.write('rpcdump: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
@@ -20,6 +20,7 @@ except ImportError:
 # Code borrowed and adapted from Impacket's rpcdump.py example #
 ################################################################
 class RpcDump(object):
+
     def __init__(self):
         pass
 
@@ -32,15 +33,15 @@ class RpcDump(object):
 
         # Let's groups the UUIDs
         for entry in entries:
-            binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.get_dip())
+            binding = epm.PrintStringBinding(entry['tower']['Floors'], self.trans.getRemoteName())
             tmpUUID = str(entry['tower']['Floors'][0])
 
             if endpoints.has_key(tmpUUID) is not True:
                 endpoints[tmpUUID] = {}
                 endpoints[tmpUUID]['Bindings'] = list()
 
-            if ndrutils.KNOWN_UUIDS.has_key(uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
-                endpoints[tmpUUID]['EXE'] = ndrutils.KNOWN_UUIDS[uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
+            if epm.KNOWN_UUIDS.has_key(uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]):
+                endpoints[tmpUUID]['EXE'] = epm.KNOWN_UUIDS[uuidtup_to_bin(uuid.string_to_uuidtup(tmpUUID))[:18]]
             else:
                 endpoints[tmpUUID]['EXE'] = 'N/A'
 
@@ -96,7 +97,7 @@ class RpcDump(object):
 
     def __fetchList(self):
         entries = []
-        resp = epm.hept_lookup(self.trans.get_dip())
+        resp = epm.hept_lookup(self.trans.getRemoteName())
         self.__rpc_disconnect()
 
         return resp

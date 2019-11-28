@@ -86,7 +86,8 @@ try:
     from impacket.dcerpc.v5 import transport
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
-    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+    sys.stderr.write('keimpx: Impacket import error')
+    sys.stderr.write('keimpx: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
@@ -130,8 +131,8 @@ class test_login(Thread):
 
     def check_admin(self):
         try:
-            self.__trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename='svcctl',
-                                                  smb_connection=self.smb)
+            self.__trans = transport.SMBTransport(remoteName=self.__dstip, dstport=self.__dstport, filename='svcctl',
+                                                  smb_connection=self.smb, remote_host=self.__dstip)
             self.__trans.connect()
             self.__dce = self.__trans.get_dce_rpc()
             self.__dce.bind(scmr.MSRPC_UUID_SCMR)

@@ -10,6 +10,8 @@ import time
 import glob
 import socket
 import ntpath
+import traceback
+
 from lib.common import DataStore, check_dialect, read_input, keimpx_path
 from lib.logger import logger
 from lib.atexec import AtSvc
@@ -29,6 +31,7 @@ try:
     from impacket.dcerpc.v5.dtypes import NULL
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
+    sys.stderr.write('smbshell: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
                      '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
@@ -104,8 +107,8 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
         self.smb.logoff()
 
     def smb_transport(self, named_pipe):
-        self.trans = transport.SMBTransport(dstip=self.__dstip, dstport=self.__dstport, filename=named_pipe,
-                                            smb_connection=self.smb)
+        self.trans = transport.SMBTransport(remoteName=self.__dstip, dstport=self.__dstport, filename=named_pipe,
+                                            smb_connection=self.smb, remote_host=self.__dstip)
 
         try:
             self.trans.connect()
@@ -113,7 +116,7 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
             logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
             raise RuntimeError
         except SessionError, e:
-            logger.warn('SMB error: %s' % (e.getErrorString(),))
+            logger.warn('SMB error: %s' % e.getErrorString())
             raise RuntimeError
 
     def info(self, display=True):
@@ -517,8 +520,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
                 logger.debug('Uploading file %s to %s..' % (filename, destfile))
 
             try:
-                self.smb.putFile(self.share, destfile, fp.read)
+                self.smb.putFile(self.share, destfile.decode(sys.stdin.encoding), fp.read)
             except SessionError, e:
+                traceback.print_exc()
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
                     logger.warn('Access denied to upload %s' % destfile)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
