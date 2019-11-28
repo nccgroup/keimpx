@@ -121,7 +121,7 @@ class AtSvc(object):
         while True:
             try:
                 logger.info('Attempting to read ADMIN$\\Temp\\%s' % self.__tmpFileName)
-                self.transferClient.getFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName, output_callback())
+                self.transferClient.getFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName, output_callback)
                 break
             except Exception as e:
                 if str(e).find('SHARING') > 0:
