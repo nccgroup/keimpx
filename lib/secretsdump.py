@@ -450,7 +450,7 @@ class SAMHashes(OfflineRegistry):
                 self.__itemsFound[rid] = answer
                 self.__perSecretCallback(answer)
             except Exception as e:
-                logger.error('Error encountered when dumping SAM for user' + userName + ':' + str(e))
+                logger.error('Error encountered when dumping SAM for user ' + userName + ': ' + str(e))
 
     def exportSAM(self):
         if len(self.__itemsFound) > 0:
