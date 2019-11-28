@@ -1029,20 +1029,31 @@ class SecretsDump(RemoteOperations, SAMHashes, LSASecrets, NTDSHashes):
 
         SAMHashes.__init__(self, self.saveSAM(), bootKey)
         self.dumpSAM()
+        logger.debug('Dumped SAM')
         self.exportSAM()
+        logger.debug('Exported SAM')
         self.finish_hive()
+        logger.debug('Finished SAM')
 
         LSASecrets.__init__(self, self.saveSECURITY(), bootKey)
         self.dumpCachedHashes()
+        logger.debug('Dumped LSA cached hashes')
         self.exportCached()
+        logger.debug('Exported LSA cached hashes')
         self.dumpSecrets()
+        logger.debug('Dumped LSA secrets')
         self.exportSecrets()
+        logger.debug('Exported LSA secrets')
         self.finish_hive()
+        logger.debug('Finished LSA')
 
         NTDSHashes.__init__(self, self.saveNTDS(), bootKey, history=self.__history, noLMHash=self.__no_LMhash)
         self.dumpNTDS()
+        logger.debug('Dumped NTDS')
         self.exportNTDS()
+        logger.debug('Exported NTDS')
         self.finishNTDS()
+        logger.debug('Finished NTDS')
 
         self.cleanup()
 
