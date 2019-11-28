@@ -291,6 +291,5 @@ class RemoteStdInPipe(Pipes):
 
     def run(self):
         self.connectPipe()
-        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share,
-                                        self.transport)
+        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share)
         self.remote_shell.cmdloop()
