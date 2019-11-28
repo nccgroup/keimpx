@@ -8,6 +8,7 @@ import hashlib
 import sys
 import string
 import ntpath
+import traceback
 from binascii import hexlify
 from struct import pack
 from lib.common import DataStore, RemoteFile
@@ -402,49 +403,53 @@ class SAMHashes(OfflineRegistry):
         except:
             pass
         for rid in rids:
-            userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
-            rid = int(rid, 16)
+            try:
+                userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
+                rid = int(rid, 16)
+                logger.debug("Dumping %s from SAM" % str(rid))
 
-            V = userAccount['Data']
+                V = userAccount['Data']
 
-            userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
-                'utf-16le')
+                userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
+                    'utf-16le')
 
-            encNTHash = b''
-            if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
-                # Old Style hashes
-                newStyle = False
-                if userAccount['LMHashLength'] == 20:
-                    encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                if userAccount['NTHashLength'] == 20:
-                    encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
-            else:
-                # New Style hashes
-                newStyle = True
-                if userAccount['LMHashLength'] == 24:
-                    encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                encNTHash = b''
+                if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
+                    # Old Style hashes
+                    newStyle = False
+                    if userAccount['LMHashLength'] == 20:
+                        encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    if userAccount['NTHashLength'] == 20:
+                        encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                else:
+                    # New Style hashes
+                    newStyle = True
+                    if userAccount['LMHashLength'] == 24:
+                        encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-            logger.debug('NewStyle hashes is: %s' % newStyle)
-            if userAccount['LMHashLength'] >= 20:
-                lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
-            else:
-                lmHash = b''
+                logger.debug('NewStyle hashes is: %s' % newStyle)
+                if userAccount['LMHashLength'] >= 20:
+                    lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
+                else:
+                    lmHash = b''
 
-            if encNTHash != b'':
-                ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
-            else:
-                ntHash = b''
+                if encNTHash != b'':
+                    ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
+                else:
+                    ntHash = b''
 
-            if lmHash == b'':
-                lmHash = ntlm.LMOWFv1('', '')
-            if ntHash == b'':
-                ntHash = ntlm.NTOWFv1('', '')
+                if lmHash == b'':
+                    lmHash = ntlm.LMOWFv1('', '')
+                if ntHash == b'':
+                    ntHash = ntlm.NTOWFv1('', '')
 
-            answer = "%s:%d:%s:%s:::" % (
-                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
-            self.__itemsFound[rid] = answer
-            self.__perSecretCallback(answer)
+                answer = "%s:%d:%s:%s:::" % (
+                    userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
+                self.__itemsFound[rid] = answer
+                self.__perSecretCallback(answer)
+            except Exception as e:
+                traceback.print_exc()
 
     def exportSAM(self):
         if len(self.__itemsFound) > 0:
