@@ -45,7 +45,7 @@ class AtSvc(object):
             self.upload(command_and_args[0])
 
         self.__tmpFileName = ''.join([random.choice(string.letters) for i in range(8)]) + '.tmp'
-        self.__at_command = '%%COMSPEC%% /C %s > %%SystemRoot%%\\Temp\\%s\x00' % (
+        self.__at_command = '%%COMSPEC%% /C %s > %%SYSTEMROOT%%\\Temp\\%s 2>&1\x00' % (
             os.path.basename(command.replace('\\', '/')), self.__tmpFileName)
         self.__atsvc_connect()
 
@@ -57,8 +57,7 @@ class AtSvc(object):
         self.__atInfo['DaysOfMonth'] = 0
         self.__atInfo['DaysOfWeek'] = 0
         self.__atInfo['Flags'] = 0
-        self.__atInfo['Command'] = ('%%COMSPEC%% /C %s > %%SYSTEMROOT%%\\Temp\\%s 2>&1\x00'
-                                    % (self.__command, self.__tmpFileName))
+        self.__atInfo['Command'] = self.__at_command
 
         resp = atsvc.hNetrJobAdd(self.__dce, NULL, self.__atInfo)
         jobId = resp['pJobID']
