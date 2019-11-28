@@ -30,10 +30,10 @@ class AtSvc(object):
     def __init__(self):
         pass
 
-    def __output_callback(self, data):
-        print data
-
     def atexec(self, command):
+        def output_callback(data):
+            print(data.decode('utf-8'))
+
         if DataStore.version_major < 6:
             logger.warn('This command only works on Windows >= Vista')
             return
@@ -121,7 +121,7 @@ class AtSvc(object):
         while True:
             try:
                 logger.info('Attempting to read ADMIN$\\Temp\\%s' % self.__tmpFileName)
-                self.transferClient.getFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName, self.__output_callback())
+                self.transferClient.getFile('ADMIN$', 'Temp\\%s' % self.__tmpFileName, output_callback())
                 break
             except Exception as e:
                 if str(e).find('SHARING') > 0:
