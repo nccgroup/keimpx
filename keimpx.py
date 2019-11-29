@@ -4,8 +4,8 @@
 
 '''
 keimpx is an open source tool, released under a modified version of Apache
-License 1.1. It is developed in Python using CORE Security Technologies's
-Impacket library, http://code.google.com/p/impacket/.
+License 1.1. It is developed in Python using SecureAuth Corporations's
+Impacket library, https://github.com/SecureAuthCorp/impacket.
 
 It can be used to quickly check for the usefulness of credentials across a
 network over SMB.
@@ -30,11 +30,11 @@ License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009-2013 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2019 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
-This product includes software developed by CORE Security Technologies
-(http://www.coresecurity.com/).
+This product includes software developed by SecureAuth Corporation
+(https://www.secureauth.com/).
 
 THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
 WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
@@ -51,7 +51,7 @@ SUCH DAMAGE.
 '''
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.3-dev'
+__version__ = '0.4'
 
 import sys
 import os
