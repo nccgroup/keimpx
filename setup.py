@@ -56,7 +56,7 @@ from distutils.core import setup
 
 setup(
     name="keimpx",
-    version="0.4",
+    version="0.5-dev",
     description="keimpx: check for the usefulness of credentials across a network over SMB",
     author="Bernardo Damele A. G.",
     author_email="bernardo.damele@gmail.com",
