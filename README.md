@@ -61,7 +61,7 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
 
 ## Help message
 
-    keimpx 0.4
+    keimpx 0.5-dev
     by Bernardo Damele A. G. <bernardo.damele@gmail.com>
         
     Usage: keimpx.py [options]
