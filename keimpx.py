@@ -51,7 +51,7 @@ SUCH DAMAGE.
 '''
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.4'
+__version__ = '0.5-dev'
 
 import sys
 import os
