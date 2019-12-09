@@ -2815,10 +2815,22 @@ class DumpSecrets:
     def cleanup(self):
         logger.info('Cleaning up... ')
         if self.__remoteOps:
-            self.__remoteOps.finish()
+            try:
+                self.__remoteOps.finish()
+            except Exception as e:
+                logger.error(str(e))
         if self.__SAMHashes:
-            self.__SAMHashes.finish()
+            try:
+                self.__SAMHashes.finish()
+            except Exception as e:
+                logger.error(str(e))
         if self.__LSASecrets:
-            self.__LSASecrets.finish()
+            try:
+                self.__LSASecrets.finish()
+            except Exception as e:
+                logger.error(str(e))
         if self.__NTDSHashes:
-            self.__NTDSHashes.finish()
+            try:
+                self.__NTDSHashes.finish()
+            except Exception as e:
+                logger.error(str(e))
