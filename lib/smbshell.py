@@ -18,7 +18,7 @@ from lib.atexec import AtSvc
 from lib.psexec import PsExec
 from lib.rpcdump import RpcDump
 from lib.samrdump import Samr
-from lib.secretsdump import SecretsDump
+from lib.secretsdump import DumpSecrets
 from lib.services import SvcCtl
 from lib.exceptions import missingShare, missingFile
 from telnetlib import Telnet
@@ -40,9 +40,8 @@ except ImportError:
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
-class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
+class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
     def __init__(self, target, credential, local_name):
-        SecretsDump.__init__(self)
 
         self.__dstip = target.get_host()
         self.__dstport = target.get_port()
@@ -647,3 +646,9 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl, SecretsDump):
 
         time.sleep(1)
         self.undeploy(srvname)
+
+    def getdumper(self, history):
+        dumper = DumpSecrets(remoteName=self.__destfile, remoteHost=self.__dstip, username=self.__user,
+                             password=self.__password,
+                             domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash, history=history)
+        return dumper

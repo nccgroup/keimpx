@@ -13,6 +13,7 @@ from lib.common import set_verbosity
 from lib.smbshell import SMBShell
 from lib.logger import logger
 from lib.exceptions import keimpxError, missingOption, missingService, missingFile
+from secretsdump import DumpSecrets
 
 try:
     from impacket.nmb import NetBIOSTimeout
@@ -519,4 +520,6 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         self.smb_shell.psexec(command)
 
     def do_secretsdump(self, history):
-        self.smb_shell.secretsdump(history)
+        dumper = self.smb_shell.getdumper(history)
+        dumper.dump()
+        dumper.cleanup()
