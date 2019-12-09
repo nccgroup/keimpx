@@ -1185,49 +1185,52 @@ class SAMHashes(OfflineRegistry):
             pass
 
         for rid in rids:
-            userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
-            rid = int(rid, 16)
+            try:
+                userAccount = USER_ACCOUNT_V(self.getValue(ntpath.join(usersKey, rid, 'V'))[1])
+                rid = int(rid, 16)
 
-            V = userAccount['Data']
+                V = userAccount['Data']
 
-            userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
-                'utf-16le')
+                userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
+                    'utf-16le')
 
-            encNTHash = b''
-            if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
-                # Old Style hashes
-                newStyle = False
-                if userAccount['LMHashLength'] == 20:
-                    encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                if userAccount['NTHashLength'] == 20:
-                    encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
-            else:
-                # New Style hashes
-                newStyle = True
-                if userAccount['LMHashLength'] == 24:
-                    encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
-                encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                encNTHash = b''
+                if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
+                    # Old Style hashes
+                    newStyle = False
+                    if userAccount['LMHashLength'] == 20:
+                        encLMHash = SAM_HASH(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    if userAccount['NTHashLength'] == 20:
+                        encNTHash = SAM_HASH(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
+                else:
+                    # New Style hashes
+                    newStyle = True
+                    if userAccount['LMHashLength'] == 24:
+                        encLMHash = SAM_HASH_AES(V[userAccount['LMHashOffset']:][:userAccount['LMHashLength']])
+                    encNTHash = SAM_HASH_AES(V[userAccount['NTHashOffset']:][:userAccount['NTHashLength']])
 
-            logger.debug('NewStyle hashes is: %s' % newStyle)
-            if userAccount['LMHashLength'] >= 20:
-                lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
-            else:
-                lmHash = b''
+                logger.debug('NewStyle hashes is: %s' % newStyle)
+                if userAccount['LMHashLength'] >= 20:
+                    lmHash = self.__decryptHash(rid, encLMHash, LMPASSWORD, newStyle)
+                else:
+                    lmHash = b''
 
-            if encNTHash != b'':
-                ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
-            else:
-                ntHash = b''
+                if encNTHash != b'':
+                    ntHash = self.__decryptHash(rid, encNTHash, NTPASSWORD, newStyle)
+                else:
+                    ntHash = b''
 
-            if lmHash == b'':
-                lmHash = ntlm.LMOWFv1('', '')
-            if ntHash == b'':
-                ntHash = ntlm.NTOWFv1('', '')
+                if lmHash == b'':
+                    lmHash = ntlm.LMOWFv1('', '')
+                if ntHash == b'':
+                    ntHash = ntlm.NTOWFv1('', '')
 
-            answer = "%s:%d:%s:%s:::" % (
-                userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
-            self.__itemsFound[rid] = answer
-            self.__perSecretCallback(answer)
+                answer = "%s:%d:%s:%s:::" % (
+                    userName, rid, hexlify(lmHash).decode('utf-8'), hexlify(ntHash).decode('utf-8'))
+                self.__itemsFound[rid] = answer
+                self.__perSecretCallback(answer)
+            except Exception as e:
+                logger.error('Error dumping user %s: ' + str(e), userName)
 
     def export(self, baseFileName, openFileFunc=None):
         if len(self.__itemsFound) > 0:
@@ -2624,16 +2627,17 @@ def _print_helper(*args, **kwargs):
 
 
 class DumpSecrets:
-    def __init__(self, remoteName, remoteHost, username='', password='', domain='', options=None, lmhash='', nthash='',
-                 history=None):
+    def __init__(self, remoteName, remoteHost, ds, username='', password='', domain='', options=None,
+                 lmhash='', nthash='', history=None):
+        self.__DataStore = ds
         self.__useVSSMethod = False
         self.__remoteName = remoteName
         self.__remoteHost = remoteHost
         self.__username = username
         self.__password = password
         self.__domain = domain
-        self.__lmhash = ''
-        self.__nthash = ''
+        self.__lmhash = lmhash
+        self.__nthash = nthash
         self.__aesKey = None
         self.__smbConnection = None
         self.__remoteOps = None
@@ -2648,7 +2652,7 @@ class DumpSecrets:
         self.__history = history
         self.__noLMHash = True
         self.__isRemote = True
-        self.__outputFileName = None
+        self.__outputFileName = ds.server_host
         self.__doKerberos = False
         self.__justDC = False
         self.__justDCNTLM = False

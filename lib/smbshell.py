@@ -650,5 +650,5 @@ class SMBShell(AtSvc, PsExec, RpcDump, Samr, SvcCtl):
     def getdumper(self, history):
         dumper = DumpSecrets(remoteName=self.__destfile, remoteHost=self.__dstip, username=self.__user,
                              password=self.__password,
-                             domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash, history=history)
+                             domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash, history=history, ds=DataStore)
         return dumper
