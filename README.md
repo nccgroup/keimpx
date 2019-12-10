@@ -14,7 +14,7 @@ If any valid credentials are discovered across the network after its attack phas
 * Navigate through the remote SMB shares: list, upload, download files, create, remove files, etc.
 * Deploy and undeploy their own services, for instance, a backdoor listening on a TCP port for incoming connections.
 * List users details, domains and password policy.
-* More to come, see the [issues](https://github.com/inquisb/keimpx/issues) page.
+* More to come, see the [issues](https://github.com/nccgroup/keimpx/issues) page.
 
 ## Dependencies
 
@@ -85,11 +85,11 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
       -b              Batch mode: do not ask to get an interactive SMB shell
       -x EXECUTELIST  Execute a list of commands against all hosts
 
-For examples see [this wiki page](https://github.com/inquisb/keimpx/wiki/Examples).
+For examples see [this wiki page](https://github.com/nccgroup/keimpx/wiki/Examples).
 
 ## Frequently Asked Questions
 
-See [this wiki page](https://github.com/inquisb/keimpx/wiki/FAQ).
+See [this wiki page](https://github.com/nccgroup/keimpx/wiki/FAQ).
 
 ## License
 
@@ -127,4 +127,4 @@ Thanks to:
 * [Wh1t3Fox](https://github.com/Wh1t3Fox) - for updating [polenum](https://github.com/Wh1t3Fox) to make it compatible with newer versions of Impacket.
 * [frego](mailto:frego@0x3f.net) - for his Windows service bind-shell executable and help with the service deploy/undeploy methods.
 * [gera](mailto:gera@coresecurity.com), [beto](mailto:bethus@gmail.com) and the rest of the [SecureAuth Corporation](https://www.secureauth.com/) guys - for developing such amazing Python [library](https://github.com/SecureAuthCorp/impacket) and providing it with [examples](https://github.com/SecureAuthCorp/impacket/tree/master/examples).
-* [NEXUS2345](https://twitter.com/nexus2345) - for updating and maintaining keimpx.
+* [NEXUS2345](https://github.com/nexus2345) - for updating and maintaining keimpx.
