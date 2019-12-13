@@ -8,33 +8,42 @@ import os
 import random
 import string
 import time
+import sys
 from binascii import unhexlify, hexlify
 from collections import OrderedDict
 from datetime import datetime
 from struct import unpack, pack
 
-from impacket import system_errors
-from impacket import winregistry, ntlm
-from impacket.crypto import transformKey
-from impacket.dcerpc.v5 import transport, rrp, scmr, wkst, samr, epm, drsuapi
-from impacket.dcerpc.v5.dcom import wmi
-from impacket.dcerpc.v5.dcom.oaut import IID_IDispatch, IDispatch, DISPPARAMS, DISPATCH_PROPERTYGET, \
-    VARIANT, VARENUM, DISPATCH_METHOD
-from impacket.dcerpc.v5.dcomrt import DCOMConnection, OBJREF, FLAGS_OBJREF_CUSTOM, OBJREF_CUSTOM, OBJREF_HANDLER, \
-    OBJREF_EXTENDED, OBJREF_STANDARD, FLAGS_OBJREF_HANDLER, FLAGS_OBJREF_STANDARD, FLAGS_OBJREF_EXTENDED, \
-    IRemUnknown2, INTERFACE
-from impacket.dcerpc.v5.dtypes import NULL
-from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException, RPC_C_AUTHN_GSS_NEGOTIATE
-from impacket.dpapi import DPAPI_SYSTEM
-from impacket.ese import ESENT_DB
-from impacket.krb5 import constants
-from impacket.krb5.crypto import string_to_key
-from impacket.nt_errors import STATUS_MORE_ENTRIES
-from impacket.smb3structs import FILE_READ_DATA, FILE_SHARE_READ
-from impacket.smbconnection import SMBConnection
-from impacket.structure import Structure
-from impacket.structure import hexdump
-from impacket.uuid import string_to_bin
+try:
+    from impacket import system_errors
+    from impacket import winregistry, ntlm
+    from impacket.crypto import transformKey
+    from impacket.dcerpc.v5 import transport, rrp, scmr, wkst, samr, epm, drsuapi
+    from impacket.dcerpc.v5.dcom import wmi
+    from impacket.dcerpc.v5.dcom.oaut import IID_IDispatch, IDispatch, DISPPARAMS, DISPATCH_PROPERTYGET, \
+        VARIANT, VARENUM, DISPATCH_METHOD
+    from impacket.dcerpc.v5.dcomrt import DCOMConnection, OBJREF, FLAGS_OBJREF_CUSTOM, OBJREF_CUSTOM, OBJREF_HANDLER, \
+        OBJREF_EXTENDED, OBJREF_STANDARD, FLAGS_OBJREF_HANDLER, FLAGS_OBJREF_STANDARD, FLAGS_OBJREF_EXTENDED, \
+        IRemUnknown2, INTERFACE
+    from impacket.dcerpc.v5.dtypes import NULL
+    from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException, RPC_C_AUTHN_GSS_NEGOTIATE
+    from impacket.dpapi import DPAPI_SYSTEM
+    from impacket.ese import ESENT_DB
+    from impacket.krb5 import constants
+    from impacket.krb5.crypto import string_to_key
+    from impacket.nt_errors import STATUS_MORE_ENTRIES
+    from impacket.smb3structs import FILE_READ_DATA, FILE_SHARE_READ
+    from impacket.smbconnection import SMBConnection
+    from impacket.structure import Structure
+    from impacket.structure import hexdump
+    from impacket.uuid import string_to_bin
+except ImportError:
+    sys.stderr.write('keimpx: Impacket import error')
+    sys.stderr.write(
+        'secretsdump: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+        '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.exit(255)
+
 from six import b, PY2
 
 from lib.logger import logger

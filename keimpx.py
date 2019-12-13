@@ -2,6 +2,8 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+from __future__ import print_function
+
 '''
 keimpx is an open source tool, released under a modified version of Apache
 License 1.1. It is developed in Python using SecureAuth Corporations's
@@ -67,6 +69,8 @@ from optparse import OptionError, OptionParser
 from lib.exceptions import keimpxError, credentialsError, targetError
 from lib.interactiveshell import InteractiveShell
 from lib.smbshell import SMBShell
+from six.moves import range as range
+from six.moves import input as input
 
 try:
     import pyreadline as readline
@@ -87,9 +91,16 @@ try:
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
     sys.stderr.write('keimpx: Impacket import error')
-    sys.stderr.write('keimpx: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write(
+        'keimpx: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+        '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
+
+# Python 2: unicode is a built-in; Python 3: unicode built-in replaced by str
+try:
+    unicode
+except NameError:
+    unicode = str
 
 added_credentials = set()
 added_targets = set()
@@ -103,7 +114,7 @@ commands = []
 stop_threads = [False]
 
 if hasattr(sys, 'frozen'):
-    keimpx_path = os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
+    keimpx_path = os.path.dirname(unicode(sys.executable))
 else:
     keimpx_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -141,9 +152,9 @@ class test_login(Thread):
             scmr.hRCloseServiceHandle(self.__dce, self.__mgr_handle)
             self.__dce.disconnect()
             return True
-        except rpcrt.DCERPCException, e:
+        except rpcrt.DCERPCException as e:
             pass
-        except Exception, e:
+        except Exception as e:
             logger.error('Check admin error: %s' % str(e))
 
         return False
@@ -182,8 +193,9 @@ class test_login(Thread):
                         self.login(user, password, lmhash, nthash, domain)
 
                         if self.smb.isGuestSession() > 0:
-                            logger.warn('%s allows guest sessions with any credentials, skipping further login attempts'
-                                        % self.__target_id)
+                            logger.warn(
+                                '%s allows guest sessions with any credentials, skipping further login attempts'
+                                % self.__target_id)
                             return
                         else:
                             is_admin = self.check_admin()
@@ -201,7 +213,7 @@ class test_login(Thread):
 
                         status = True
                         successes += 1
-                    except SessionError, e:
+                    except SessionError as e:
                         logger.debug('Failed login for %s with %s on %s %s' % (
                             user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
@@ -213,7 +225,7 @@ class test_login(Thread):
                         break
 
             logger.info('Assessment on host %s finished' % self.__target.get_identity())
-        except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout), e:
+        except (socket.error, socket.herror, socket.gaierror, socket.timeout, NetBIOSTimeout) as e:
             if not stop_threads[0]:
                 logger.warn('Connection to host %s failed (%s)' % (self.__target.get_identity(), str(e)))
 
@@ -249,7 +261,7 @@ class CredentialsTarget:
 
 
 class Credentials:
-    def __init__(self, user, password='', lmhash='', nthash='', domain = ''):
+    def __init__(self, user, password='', lmhash='', nthash='', domain=''):
         self.user = user
         self.password = password
         self.lmhash = lmhash
@@ -404,7 +416,7 @@ def parse_list_file(filename):
         fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
         fp.close()
-    except IOError, e:
+    except IOError as _:
         logger.error('Could not open commands file %s' % filename)
         return
 
@@ -445,26 +457,26 @@ def os_cmd_list():
             logger.info('Executing OS commands from provided file')
 
             for command in commands:
-                print 'OS command \'%s\' output:' % command
+                print('OS command \'%s\' output:' % command)
 
                 try:
                     smb_shell.svcexec(command, 'SHARE')
-                except SessionError, e:
+                except SessionError as e:
                     # traceback.print_exc()
                     logger.error('SMB error: %s' % (e.getErrorString(),))
-                except NetBIOSTimeout, e:
+                except NetBIOSTimeout as e:
                     logger.error('SMB connection timed out')
-                except keimpxError, e:
+                except keimpxError as e:
                     logger.error(e)
-                except KeyboardInterrupt, _:
-                    print
+                except KeyboardInterrupt as _:
+                    print()
                     logger.info('User aborted')
-                    smb_shell.do_exit('')
-                except Exception, e:
+                    exit()
+                except Exception as e:
                     # traceback.print_exc()
                     logger.error(str(e))
 
-                print '----------8<----------'
+                print('----------8<----------')
 
 
 def smb_cmd_list():
@@ -488,26 +500,26 @@ def smb_cmd_list():
             logger.info('Executing SMB commands from provided file')
 
             for command in commands:
-                print 'SMB command \'%s\' output:' % command
+                print('SMB command \'%s\' output:' % command)
 
                 try:
                     shell.onecmd(command)
-                except SessionError, e:
+                except SessionError as e:
                     # traceback.print_exc()
                     logger.error('SMB error: %s' % (e.getErrorString(),))
-                except NetBIOSTimeout, e:
+                except NetBIOSTimeout as e:
                     logger.error('SMB connection timed out')
-                except keimpxError, e:
+                except keimpxError as e:
                     logger.error(e)
-                except KeyboardInterrupt, _:
-                    print
+                except KeyboardInterrupt as _:
+                    print()
                     logger.info('User aborted')
                     shell.do_exit('')
-                except Exception, e:
+                except Exception as e:
                     # traceback.print_exc()
                     logger.error(str(e))
 
-                print '----------8<----------'
+                print('----------8<----------')
 
 
 ###############
@@ -519,7 +531,7 @@ def parse_domains_file(filename):
         file_lines = fp.read().splitlines()
         fp.close()
 
-    except IOError, e:
+    except IOError as _:
         logger.error('Could not open domains file %s' % filename)
         return
 
@@ -575,7 +587,7 @@ def parse_credentials_file(filename):
         file_lines = fp.read().splitlines()
         fp.close()
 
-    except IOError, e:
+    except IOError as _:
         logger.error('Could not open credentials file %s' % filename)
         return
 
@@ -607,8 +619,8 @@ def parse_credentials(credentials_line):
             binascii.a2b_hex(fgdump.group(4))
 
             return fgdump.group(1), '', fgdump.group(3), fgdump.group(4)
-        except:
-            raise credentialsError, 'credentials error'
+        except Exception as _:
+            raise credentialsError('credentials error')
 
     # Credentials with hashes (wce output format)
     elif wce:
@@ -617,8 +629,8 @@ def parse_credentials(credentials_line):
             binascii.a2b_hex(wce.group(3))
 
             return wce.group(1), '', wce.group(2), wce.group(3)
-        except:
-            raise credentialsError, 'credentials error'
+        except Exception as _:
+            raise credentialsError('credentials error')
 
     # Credentials with hashes (cain/l0phtcrack output format)
     elif cain:
@@ -627,15 +639,15 @@ def parse_credentials(credentials_line):
             binascii.a2b_hex(cain.group(3))
 
             return cain.group(1), '', cain.group(2), cain.group(3)
-        except:
-            raise credentialsError, 'credentials error'
+        except Exception as _:
+            raise credentialsError('credentials error')
 
     # Credentials with password (added by user manually divided by a space)
     elif plain:
         return plain.group(1), plain.group(2), '', ''
 
     else:
-        raise credentialsError, 'credentials error'
+        raise credentialsError('credentials error')
 
 
 def add_credentials(user=None, password='', lmhash='', nthash='', domain='', line=None):
@@ -650,7 +662,7 @@ def add_credentials(user=None, password='', lmhash='', nthash='', domain='', lin
                 _, user = user.split('\\')
                 add_domain(_)
                 domain = _
-        except credentialsError, _:
+        except credentialsError as _:
             logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return
 
@@ -692,7 +704,7 @@ def parse_targets_file(filename):
         file_lines = fp.read().splitlines()
         fp.close()
 
-    except IOError, e:
+    except IOError as _:
         logger.error('Could not open targets file %s' % filename)
         return
 
@@ -720,7 +732,7 @@ def parse_target(target_line):
         return host, conf.port
 
     else:
-        raise targetError, 'target error'
+        raise targetError('target error')
 
 
 def add_target(line):
@@ -729,7 +741,7 @@ def add_target(line):
 
     try:
         host, port = parse_target(line)
-    except targetError, _:
+    except targetError as _:
         logger.warn('Bad line in targets file %s: %s' % (conf.list, line))
         return
 
@@ -746,7 +758,7 @@ def add_target(line):
 
 def addr_to_int(value):
     _ = value.split('.')
-    return (long(_[0]) << 24) + (long(_[1]) << 16) + (long(_[2]) << 8) + long(_[3])
+    return (int(_[0]) << 24) + (int(_[1]) << 16) + (int(_[2]) << 8) + int(_[3])
 
 
 def int_to_addr(value):
@@ -765,7 +777,7 @@ def set_targets():
             logger.debug('Expanding targets from command line')
             start_int = addr_to_int(address) & ~((1 << 32 - int(mask)) - 1)
             end_int = start_int | ((1 << 32 - int(mask)) - 1)
-            for _ in xrange(start_int, end_int):
+            for _ in range(start_int, end_int):
                 add_target(int_to_addr(_))
 
     if conf.list is not None:
@@ -858,7 +870,7 @@ def cmdline_parser():
             parser.error(errMsg)
 
         return args
-    except (OptionError, TypeError), e:
+    except (OptionError, TypeError) as e:
         parser.error(e)
 
     debugMsg = 'Parsing command line'
@@ -866,10 +878,10 @@ def cmdline_parser():
 
 
 def banner():
-    print '''
+    print('''
     keimpx %s
     by %s
-    ''' % (__version__, __author__)
+    ''' % (__version__, __author__))
 
 
 def main():
@@ -896,47 +908,45 @@ def main():
             pass
 
     except KeyboardInterrupt:
-        print
+        print()
         try:
             logger.warn('Test interrupted')
             a = 'Caughtit'
             stop_threads[0] = True
         except KeyboardInterrupt:
-            print
+            print()
             logger.info('User aborted')
             exit(1)
 
     if successes == 0:
-        print '\nNo credentials worked on any target\n'
+        print('\nNo credentials worked on any target\n')
         exit(0)
 
-    print '\nThe credentials worked in total %d times\n' % successes
-    print 'TARGET SORTED RESULTS:\n'
+    print('\nThe credentials worked in total %d times\n' % successes)
+    print('TARGET SORTED RESULTS:\n')
 
     for target in targets:
         valid_credentials = target.get_valid_credentials()
 
         if len(valid_credentials) > 0:
-            print target.get_identity()
+            print(target.get_identity())
 
             for valid_credential in valid_credentials:
-                print '  %s' % valid_credential.get_identity()
+                print('  %s' % valid_credential.get_identity())
 
-            print
-
-    print '\nUSER SORTED RESULTS:\n'
+            print()
+    print('\nUSER SORTED RESULTS:\n')
 
     for credential in credentials:
         valid_credentials = credential.get_valid_targets()
 
         if len(valid_credentials) > 0:
-            print credential.get_identity()
+            print(credential.get_identity())
 
             for valid_credential in valid_credentials:
-                print '  %s' % valid_credential.get_identity()
+                print('  %s' % valid_credential.get_identity())
 
-            print
-
+            print()
     if conf.smbcmdlist is not None:
         smb_cmd_list()
 
@@ -948,7 +958,7 @@ def main():
 
     while True:
         msg = 'Do you want to establish a SMB shell from any of the targets? [Y/n] '
-        choice = raw_input(msg)
+        choice = input(msg)
 
         if choice and choice[0].lower() != 'y':
             return
@@ -1008,9 +1018,9 @@ def main():
         try:
             shell = InteractiveShell(user_target, user_credentials, conf.name)
             shell.cmdloop()
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.error('Runtime error: %s' % str(e))
-        except Exception, _:
+        except Exception as _:
             # traceback.print_exc()
             pass
 
@@ -1021,7 +1031,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print
+        print()
         logger.info('User aborted')
         exit(1)
 
