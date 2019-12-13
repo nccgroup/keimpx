@@ -17,8 +17,9 @@ try:
     from impacket.smbconnection import SMB_DIALECT
 except ImportError:
     sys.stderr.write('common: Impacket import error')
-    sys.stderr.write('common: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write('common: Impacket by SecureAuth Corporation is required for this tool to work. Please download it'
+                     ' using:\npip: pip install -r requirements.txt\nOr through your package manager:'
+                     '\npython-impacket.')
     sys.exit(255)
 
 keimpx_path = ''
@@ -55,7 +56,7 @@ def read_input(msg, counter):
         if choice == '':
             choice = 1
             break
-        elif choice.isdigit() and int(choice) >= 1 and int(choice) <= counter:
+        elif choice.isdigit() and 1 <= int(choice) <= counter:
             choice = int(choice)
             break
         else:
@@ -200,7 +201,7 @@ class SMBServer(Thread):
 
         try:
             self.localsmb.serve_forever()
-        except:
+        except Exception as _:
             pass
 
     def stop(self):

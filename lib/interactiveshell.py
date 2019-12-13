@@ -2,26 +2,28 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+from __future__ import print_function
 import cmd
-import os
 import glob
+import ntpath
+import os
 import shlex
 import sys
-import ntpath
 from subprocess import Popen, PIPE, STDOUT
+
 from lib.common import set_verbosity
-from lib.smbshell import SMBShell
-from lib.logger import logger
 from lib.exceptions import keimpxError, missingOption, missingService, missingFile
-from secretsdump import DumpSecrets
+from lib.logger import logger
+from lib.smbshell import SMBShell
 
 try:
     from impacket.nmb import NetBIOSTimeout
     from impacket.smbconnection import SessionError
 except ImportError:
     sys.stderr.write('interactiveshell: Impacket import error')
-    sys.stderr.write('interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write(
+        'interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
+        '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
     sys.exit(255)
 
 
@@ -35,11 +37,11 @@ class InteractiveShell(cmd.Cmd):
 
         try:
             self.smb_shell = SMBShell(target, credential, local_name)
-        except SessionError, e:
+        except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
             return False
-        except Exception, e:
+        except Exception as e:
             # traceback.print_exc()
             logger.error('Generic error: %s' % str(e))
             return False
@@ -48,22 +50,22 @@ class InteractiveShell(cmd.Cmd):
 
     def cmdloop(self):
         logger.info('Launching interactive SMB shell')
-        print 'Type help for list of commands'
+        print('Type help for list of commands')
 
         try:
             cmd.Cmd.cmdloop(self)
-        except SessionError, e:
+        except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
-        except NetBIOSTimeout, e:
+        except NetBIOSTimeout as e:
             logger.error('SMB connection timed out')
-        except keimpxError, e:
+        except keimpxError as e:
             logger.error(e)
-        except KeyboardInterrupt, _:
-            print
+        except KeyboardInterrupt as _:
+            print()
             logger.info('User aborted')
             self.do_exit('')
-        except Exception, e:
+        except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))
 
@@ -131,7 +133,7 @@ class InteractiveShell(cmd.Cmd):
         stdout, _ = process.communicate()
 
         if stdout is not None:
-            print stdout
+            print(stdout)
 
     def do_exit(self, line):
         '''
@@ -144,7 +146,7 @@ class InteractiveShell(cmd.Cmd):
         '''
         Show the help menu
         '''
-        print '''Generic options
+        print('''Generic options
 ===============
 help - show this message
 verbosity {level} - set verbosity level (0-2)
@@ -239,7 +241,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
               is done, things are restored to the  original state.
               The argument can be Y or N to either dump or not the password
               history, by default it is N
-'''
+''')
 
     def do_verbosity(self, level):
         set_verbosity(level)
@@ -514,7 +516,9 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         if not command:
             raise missingOption('Command has not been specified')
 
-        self.smb_shell.atexec(command)
+        atexec = self.smb_shell.getAtExec(command)
+        if atexec is not None:
+            atexec.play()
 
     def do_psexec(self, command):
         self.smb_shell.psexec(command)

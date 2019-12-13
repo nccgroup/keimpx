@@ -11,10 +11,10 @@ It can be used to quickly check for the usefulness of credentials across a
 network over SMB.
 
 Homepage:                   https://inquisb.github.com/keimpx
-Usage:                      https://github.com/inquisb/keimpx#usage
-Examples:                   https://github.com/inquisb/keimpx/wiki/Examples
-Frequently Asked Questions: https://github.com/inquisb/keimpx/wiki/FAQ
-Contributors:               https://github.com/inquisb/keimpx#contributors
+Usage:                      https://github.com/nccgroup/keimpx#usage
+Examples:                   https://github.com/nccgroup/keimpx/wiki/Examples
+Frequently Asked Questions: https://github.com/nccgroup/keimpx/wiki/FAQ
+Contributors:               https://github.com/nccgroup/keimpx#contributors
 
 License:
 
