@@ -2,13 +2,15 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-import ConfigParser
+from six.moves.configparser import ConfigParser
 import logging
 import os
 import sys
 import tempfile
 from threading import Thread
 from lib.logger import logger
+from six.moves import input as input
+from six import string_types
 
 try:
     from impacket import smbserver
@@ -51,7 +53,7 @@ def check_dialect(dialect):
 
 def read_input(msg, counter):
     while True:
-        choice = raw_input(msg)
+        choice = input(msg)
 
         if choice == '':
             choice = 1
@@ -78,8 +80,8 @@ def remove_comments(lines):
     return cleaned_lines
 
 
-def set_verbosity(level=0):
-    if isinstance(level, basestring) and level.isdigit():
+def set_verbosity(level="0"):
+    if isinstance(level, string_types) and level.isdigit():
         level = int(level)
 
     if level == 0:

@@ -21,9 +21,9 @@ try:
     from impacket.smbconnection import SessionError
 except ImportError:
     sys.stderr.write('interactiveshell: Impacket import error')
-    sys.stderr.write(
-        'interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-        '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write('interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please '
+                     'download it using:\npip: pip install -r requirements.txt\nOr through your package manager:'
+                     '\npython-impacket.')
     sys.exit(255)
 
 
@@ -40,11 +40,9 @@ class InteractiveShell(cmd.Cmd):
         except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
-            return False
         except Exception as e:
             # traceback.print_exc()
             logger.error('Generic error: %s' % str(e))
-            return False
 
         self.prompt = 'SMBShell(%s) > ' % target.get_identity()
 
