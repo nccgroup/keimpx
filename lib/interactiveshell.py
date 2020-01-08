@@ -489,7 +489,8 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         self.smb_shell.domains()
 
     def do_rpcdump(self, line):
-        self.smb_shell.rpcdump()
+        dumper = self.smb_shell.getRpcDump()
+        dumper.dump()
 
     def do_bindshell(self, port):
         self.smb_shell.bindshell(port)
@@ -522,6 +523,6 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         self.smb_shell.psexec(command)
 
     def do_secretsdump(self, history):
-        dumper = self.smb_shell.getdumper(history)
+        dumper = self.smb_shell.getSecretsDumper(history)
         dumper.dump()
         dumper.cleanup()

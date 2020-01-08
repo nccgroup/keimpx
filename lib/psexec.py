@@ -2,6 +2,7 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+from __future__ import print_function
 import random
 import string
 import shlex
@@ -10,7 +11,6 @@ import sys
 import time
 import cmd
 from threading import Lock, Thread
-from structures import Structure
 from lib.common import DataStore
 from lib.logger import logger
 from lib.exceptions import keimpxError
@@ -21,6 +21,7 @@ try:
     from impacket.examples import remcomsvc
     from impacket import smb
     from impacket.smbconnection import SMBConnection, SessionError
+    from impacket.structure import Structure
 except ImportError:
     sys.stderr.write('psexec: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
@@ -84,7 +85,7 @@ class PsExec(object):
         self.__smb = self.trans.get_smb_connection()
         self.__smb.setTimeout(100000)
         self.__tid = self.__smb.connectTree('IPC$')
-        self.__fid_main = self.openPipe(self.__smb, self.__tid, '\RemCom_communicaton', 0x12019f)
+        self.__fid_main = self.openPipe(self.__smb, self.__tid, '\\RemCom_communicaton', 0x12019f)
 
         packet = RemComMessage()
         packet['Machine'] = ''.join([random.choice(string.letters) for i in range(4)])
@@ -127,7 +128,7 @@ class PsExec(object):
             try:
                 self.__smb.waitNamedPipe(tid, pipe)
                 pipeReady = True
-            except Exception, e:
+            except Exception as e:
                 # traceback.print_exc()
                 logger.error('Named pipe open error: %s' % str(e))
                 tries -= 1
@@ -170,7 +171,7 @@ class Pipes(Thread):
             self.fid = self.server.openFile(self.tid, self.pipe, self.permissions, creationOption=0x40,
                                             fileAttributes=0x80)
             self.server.setTimeout(1000000)
-        except Exception, e:
+        except Exception as e:
             # traceback.print_exc()
             logger.error('Named pipe connection error: %s (%s)' % (str(e), self.__class__))
 
@@ -185,7 +186,7 @@ class RemoteStdOutPipe(Pipes):
         while True:
             try:
                 ans = self.server.readFile(self.tid, self.fid, 0, 1024)
-            except:
+            except Exception as e:
                 pass
             else:
                 try:
@@ -202,7 +203,7 @@ class RemoteStdOutPipe(Pipes):
                     # it will give false positives tho.. we should find a better way to handle this.
                     if LastDataSent > 10:
                         LastDataSent = ''
-                except:
+                except Exception as e:
                     pass
 
 
@@ -216,13 +217,13 @@ class RemoteStdErrPipe(Pipes):
         while True:
             try:
                 ans = self.server.readFile(self.tid, self.fid, 0, 1024)
-            except:
+            except Exception as e:
                 pass
             else:
                 try:
                     sys.stderr.write(str(ans))
                     sys.stderr.flush()
-                except:
+                except Exception as e:
                     pass
 
 
@@ -240,18 +241,18 @@ class RemoteShell(cmd.Cmd):
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except SessionError, e:
+        except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
-        except NetBIOSTimeout, e:
+        except NetBIOSTimeout as e:
             logger.error('SMB connection timed out')
-        except keimpxError, e:
+        except keimpxError as e:
             logger.error(e)
-        except KeyboardInterrupt, _:
-            print
+        except KeyboardInterrupt as _:
+            print()
             logger.info('User aborted')
-            self.do_exit('')
-        except Exception, e:
+            exit()
+        except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))
 
@@ -264,7 +265,7 @@ class RemoteShell(cmd.Cmd):
         stdout, _ = process.communicate()
 
         if stdout is not None:
-            print stdout
+            print(stdout)
 
         self.send_data('\r\n')
 
@@ -273,7 +274,7 @@ class RemoteShell(cmd.Cmd):
         return
 
     def default(self, line=''):
-        self.send_data(line.decode(sys.stdin.encoding).decode('cp437')+'\r\n')
+        self.send_data(line.decode('cp437') + '\r\n')
 
     def send_data(self, data, hideOutput=True):
         if hideOutput is True:

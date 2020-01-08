@@ -92,7 +92,7 @@ def set_verbosity(level="0"):
         logger.setLevel(logging.DEBUG)
 
 
-class RemoteFile():
+class RemoteFile:
     def __init__(self, smb_connection, filename, share='ADMIN$'):
         self.smb = smb_connection
         self.__filename = filename
@@ -173,7 +173,7 @@ class SMBServer(Thread):
 
     def run(self):
         # Here we write a mini config for the server
-        smbConfig = ConfigParser.ConfigParser()
+        smbConfig = ConfigParser()
         smbConfig.add_section('global')
         smbConfig.set('global', 'server_name', 'server_name')
         smbConfig.set('global', 'server_os', 'UNIX')

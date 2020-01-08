@@ -17,7 +17,7 @@ from lib.common import DataStore, check_dialect, read_input, keimpx_path
 from lib.logger import logger
 from lib.atexec import TSCH_EXEC
 from lib.psexec import PsExec
-from lib.rpcdump import RpcDump
+from lib.rpcdump import RPCDump
 from lib.samrdump import Samr
 from lib.secretsdump import DumpSecrets
 from lib.services import SvcCtl
@@ -41,7 +41,7 @@ except ImportError:
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
-class SMBShell(PsExec, RpcDump, Samr, SvcCtl):
+class SMBShell(PsExec, Samr, SvcCtl):
     def __init__(self, target, credential, local_name):
 
         self.__dstip = target.get_host()
@@ -650,7 +650,7 @@ class SMBShell(PsExec, RpcDump, Samr, SvcCtl):
         time.sleep(1)
         self.undeploy(srvname)
 
-    def getdumper(self, history):
+    def getSecretsDumper(self, history):
         dumper = DumpSecrets(remoteName=self.__destfile, remoteHost=self.__dstip, username=self.__user,
                              password=self.__password, domain=self.__domain, lmhash=self.__lmhash,
                              nthash=self.__nthash, history=history, ds=DataStore)
@@ -665,3 +665,9 @@ class SMBShell(PsExec, RpcDump, Samr, SvcCtl):
         else:
             logger.warn("This command only works on Windows Vista or newer.")
             return None
+
+    def getRpcDump(self):
+        dumper = RPCDump(self.__destfile if self.__destfile is not None else self.__dstip, remoteHost=self.__dstip,
+                         username=self.__user, password=self.__password, domain=self.__domain,
+                         lmhash=self.__lmhash, nthash=self.__nthash)
+        return dumper
