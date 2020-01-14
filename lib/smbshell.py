@@ -51,7 +51,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
         self.__lmhash = credential.get_lm_hash()
         self.__nthash = credential.get_nt_hash()
         self.__domain = credential.get_domain()
-        self.__is_admin = credential.is_admin()
+        self.__is_admin = credential.get_is_admin()
         self.__srcfile = local_name
 
         self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip

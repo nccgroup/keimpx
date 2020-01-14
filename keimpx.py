@@ -102,14 +102,9 @@ try:
 except NameError:
     unicode = str
 
-added_credentials = set()
-added_targets = set()
 conf = {}
-credentials = []
-domains = []
 pool_thread = None
 successes = 0
-targets = []
 commands = []
 stop_threads = [False]
 
@@ -124,6 +119,8 @@ class test_login(Thread):
         Thread.__init__(self)
 
         self.__target = target
+        self.__credentials = self.__target.get_credentials()
+        self.__domains = self.__target.get_domains()
         self.__dstip = self.__target.get_host()
         self.__dstport = self.__target.get_port()
         self.__target_id = self.__target.get_identity()
@@ -166,16 +163,15 @@ class test_login(Thread):
         try:
             logger.info('Assessing host %s' % self.__target_id)
 
-            for credential in credentials:
-                user, password, lmhash, nthash = credential.get_credentials()
+            for credential in self.__credentials:
+                user, password, lmhash, nthash = credential.get_credential()
                 password_str = None
 
                 if password != '' or (password == '' and lmhash == '' and nthash == ''):
                     password_str = password or 'BLANK'
                 elif lmhash != '' and nthash != '':
                     password_str = '%s:%s' % (lmhash, nthash)
-
-                for domain in domains:
+                for domain in self.__domains:
                     if stop_threads[0]:
                         break
 
@@ -198,12 +194,13 @@ class test_login(Thread):
                                 % self.__target_id)
                             return
                         else:
-                            is_admin = self.check_admin()
+                            credential.is_admin = self.check_admin()
 
                             if (self.smb.getServerDomain().upper() != domain.upper()
                                     and self.smb.getServerName().upper() != domain.upper()):
                                 domain = ''
                                 user_str = user
+                                credential.domain = domain
 
                             logger.info('Successful login for %s with %s on %s %s'
                                         % (user_str, password_str, self.__target_id,
@@ -213,13 +210,30 @@ class test_login(Thread):
 
                         status = True
                         successes += 1
+                        credential.is_valid = True
+
                     except SessionError as e:
                         logger.debug('Failed login for %s with %s on %s %s' % (
                             user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
-
-                    credential.add_target(self.__dstip, self.__dstport, domain, status, error_code, is_admin)
-                    self.__target.add_credential(user, password, lmhash, nthash, domain, status, error_code, is_admin)
+                        if e.getErrorString()[0] is "STATUS_PASSWORD_MUST_CHANGE":
+                            credential.is_valid = True
+                            credential.password_change_required = True
+                            status = True
+                        elif e.getErrorString()[0] is "STATUS_ACCOUNT_LOCKED_OUT":
+                            credential.is_valid = True
+                            credential.is_locked_out = True
+                            status = True
+                        elif e.getErrorString()[0] is "STATUS_ACCOUNT_DISABLED":
+                            credential.is_valid = True
+                            credential.account_disabled = True
+                            status = True
+                        elif e.getErrorString()[0] is "STATUS_INVALID_LOGON_HOURS":
+                            credential.is_valid = True
+                            credential.outside_logon_hours = True
+                            status = True
+                        else:
+                            credential.is_valid = False
 
                     if status is True:
                         break
@@ -229,17 +243,99 @@ class test_login(Thread):
             if not stop_threads[0]:
                 logger.warn('Connection to host %s failed (%s)' % (self.__target.get_identity(), str(e)))
 
+        self.__target.update_credentials(self.__credentials)
         pool_thread.release()
 
 
-class CredentialsTarget:
-    def __init__(self, host, port, domain, status, error_code, is_admin):
-        self.host = host
-        self.port = port
+class Credential:
+    def __init__(self, user, password='', lmhash='', nthash='', domain='', account_status='', is_admin=False,
+                 is_locked_out=False, password_change_required=False, account_disabled=False, outside_logon_hours=False, is_valid=False):
+        self.user = user
+        self.password = password
+        self.lmhash = lmhash
+        self.nthash = nthash
         self.domain = domain
-        self.status = status
-        self.error_code = error_code
-        self.is_admin_bool = is_admin
+        self.is_admin = is_admin
+        self.account_status = account_status
+        self.is_locked_out = is_locked_out
+        self.password_change_required = password_change_required
+        self.account_disabled = account_disabled
+        self.outside_logon_hours = outside_logon_hours
+        self.is_valid = is_valid
+
+    def get_user(self):
+        return self.user
+
+    def get_password(self):
+        return self.password
+
+    def get_domain(self):
+        return self.domain
+
+    def get_lm_hash(self):
+        return self.lmhash
+
+    def get_nt_hash(self):
+        return self.nthash
+
+    def get_is_admin(self):
+        return self.is_admin
+
+    def get_account_status(self):
+        return self.account_status
+
+    def get_is_locked_out(self):
+        return self.is_locked_out
+
+    def get_password_change_required(self):
+        return self.password_change_required
+
+    def get_is_valid(self):
+        return self.is_valid
+
+    def get_identity(self):
+        identity = ""
+
+        if self.lmhash != '' and self.nthash != '':
+            if self.domain != '':
+                identity = '%s\\%s/%s:%s' % (self.domain, self.user, self.lmhash, self.nthash)
+            else:
+                identity = '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
+        else:
+            if self.domain != '':
+                identity = '%s\\%s/%s' % (self.domain, self.user, self.password or 'BLANK')
+            else:
+                identity = '%s/%s' % (self.user, self.password or 'BLANK')
+
+        if self.is_admin:
+            identity += " (Administrator)"
+        if self.is_locked_out:
+            identity += " (Locked out)"
+        if self.account_disabled:
+            identity += " (Account disabled)"
+        if self.password_change_required:
+            identity += " (Password change required)"
+        if self.outside_logon_hours:
+            identity += " (Outside logon hours)"
+
+        return identity
+
+    def get_credential(self):
+        if self.lmhash != '' and self.nthash != '':
+            return self.user, self.password, self.lmhash, self.nthash
+        else:
+            return self.user, self.password, '', ''
+
+
+class Target:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = int(port)
+
+        # All credentials tested on this target
+        # List of TargetCredentials() objects
+        self.credentials = []
+        self.domains = []
 
     def get_host(self):
         return self.host
@@ -247,156 +343,31 @@ class CredentialsTarget:
     def get_port(self):
         return self.port
 
-    def get_status(self):
-        return self.status
-
-    def is_admin(self):
-        return self.is_admin_bool
-
     def get_identity(self):
-        if self.domain:
-            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
-        else:
-            return '%s:%s %s' % (self.host, self.port, '(admin user)' if self.is_admin() else '')
+        return '%s:%d' % (self.host, self.port)
 
+    def add_credential(self, credential):
+        self.credentials.append(credential)
 
-class Credentials:
-    def __init__(self, user, password='', lmhash='', nthash='', domain=''):
-        self.user = user
-        self.password = password
-        self.lmhash = lmhash
-        self.nthash = nthash
-        self.domain = domain
+    def update_credentials(self, credentials):
+        self.credentials = None
+        self.credentials = credentials
 
-        # All targets where these credentials pair have been tested
-        # List of CredentialsTarget() objects
-        self.tested_targets = []
+    def update_domains(self, domains):
+        self.domains = domains
 
-    def get_user(self):
-        return self.user
-
-    def get_password(self):
-        return self.password
-
-    def get_lm_hash(self):
-        return self.lmhash
-
-    def get_nt_hash(self):
-        return self.nthash
-
-    def get_identity(self):
-        if self.lmhash != '' and self.nthash != '':
-            if self.domain != '':
-                return '%s\\%s/%s:%s' % (self.domain, self.user, self.lmhash, self.nthash)
-            else:
-                return '%s/%s:%s' % (self.user, self.lmhash, self.nthash)
-        else:
-            if self.domain != '':
-                return '%s\\%s/%s' % (self.domain, self.user, self.password or 'BLANK')
-            else:
-                return '%s/%s' % (self.user, self.password or 'BLANK')
+    def get_domains(self):
+        return self.domains
 
     def get_credentials(self):
-        if self.lmhash != '' and self.nthash != '':
-            return self.user, self.password, self.lmhash, self.nthash
-        else:
-            return self.user, self.password, '', ''
-
-    def add_target(self, host, port, domain, status, error_code, is_admin):
-        self.tested_targets.append(CredentialsTarget(host, port, domain, status, error_code, is_admin))
-
-    def get_targets(self, valid_only=False):
-        _ = []
-
-        for tested_target in self.tested_targets:
-            if (valid_only and tested_target.get_status() is True) \
-                    or not valid_only:
-                _.append(tested_target)
-
-        return _
-
-    def get_valid_targets(self):
-        return self.get_targets(True)
-
-
-class TargetCredentials:
-    def __init__(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
-        self.user = user
-        self.password = password
-        self.lmhash = lmhash
-        self.nthash = nthash
-        self.domain = domain
-        self.status = status
-        self.error_code = error_code
-        self.is_admin_bool = is_admin
-
-    def get_user(self):
-        return self.user
-
-    def get_password(self):
-        return self.password
-
-    def get_lm_hash(self):
-        return self.lmhash
-
-    def get_nt_hash(self):
-        return self.nthash
-
-    def get_domain(self):
-        return self.domain
-
-    def get_status(self):
-        return self.status
-
-    def is_admin(self):
-        return self.is_admin_bool
-
-    def get_identity(self):
-        if self.domain:
-            _ = '%s\\%s' % (self.domain, self.user)
-        else:
-            _ = self.user
-
-        if self.lmhash != '' and self.nthash != '':
-            return '%s/%s:%s %s' % (_, self.lmhash, self.nthash, '(admin user)' if self.is_admin() else '')
-        else:
-            return '%s/%s %s' % (_, self.password or 'BLANK', '(admin user)' if self.is_admin() else '')
-
-
-class Target:
-    def __init__(self, target, port):
-        self.target = target
-        self.port = int(port)
-
-        # All credentials tested on this target
-        # List of TargetCredentials() objects
-        self.tested_credentials = []
-
-    def get_host(self):
-        return self.target
-
-    def get_port(self):
-        return self.port
-
-    def get_identity(self):
-        return '%s:%d' % (self.target, self.port)
-
-    def add_credential(self, user, password, lmhash, nthash, domain, status, error_code, is_admin):
-        self.tested_credentials.append(
-            TargetCredentials(user, password, lmhash, nthash, domain, status, error_code, is_admin))
-
-    def get_credentials(self, valid_only=False):
-        _ = []
-
-        for tested_credential in self.tested_credentials:
-            if (valid_only and tested_credential.get_status() is True) \
-                    or not valid_only:
-                _.append(tested_credential)
-
-        return _
+        return self.credentials
 
     def get_valid_credentials(self):
-        return self.get_credentials(True)
+        valid_credentials = []
+        for credential in self.credentials:
+            if credential.get_is_valid() is True:
+                valid_credentials.append(credential)
+        return valid_credentials
 
 
 def add_command(cmd):
@@ -427,14 +398,19 @@ def parse_list_file(filename):
 
 
 def get_admin_credentials(target):
-    for credentials in target.get_valid_credentials():
-        if credentials.is_admin():
-            return credentials
+    valid_credentials = target.get_valid_credentials()
+    admin_credentials = []
+    for credential in valid_credentials:
+        if credential.get_is_admin() is True:
+            admin_credentials.append(credential)
 
-    return False
+    if len(admin_credentials) > 0:
+        return admin_credentials
+    else:
+        return False
 
 
-def os_cmd_list():
+def os_cmd_list(targets):
     parse_list_file(conf.oscmdlist)
     targets_tuple = ()
 
@@ -479,7 +455,7 @@ def os_cmd_list():
                 print('----------8<----------')
 
 
-def smb_cmd_list():
+def smb_cmd_list(targets):
     parse_list_file(conf.smbcmdlist)
     targets_tuple = ()
 
@@ -526,6 +502,7 @@ def smb_cmd_list():
 # Set domains #
 ###############
 def parse_domains_file(filename):
+    parsed_domains = []
     try:
         fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
@@ -538,50 +515,58 @@ def parse_domains_file(filename):
     file_lines = remove_comments(file_lines)
 
     for line in file_lines:
-        add_domain(line)
+        added_domains = add_domain(line)
+        for domain in added_domains:
+            parsed_domains.append(domain)
+
+    return parsed_domains
 
 
 def add_domain(line):
-    global domains
-
+    added_domains = []
     _ = str(line).replace(' ', '').split(',')
 
     for d in _:
         d = d.upper().split('.')[0]
-        domains.append(d)
+        added_domains.append(d)
 
     logger.debug('Parsed domain%s: %s' % ('(s)' if len(_) > 1 else '', ', '.join([d for d in _])))
+    return added_domains
 
 
 def set_domains():
-    global domains
+    domains = ['']
 
     logger.info('Loading domains')
 
     if conf.domain is not None:
         logger.debug('Loading domains from command line')
-        add_domain(conf.domain)
+        added_domains = add_domain(conf.domain)
+        for domain in added_domains:
+            domains.append(domain)
 
     if conf.domainsfile is not None:
         logger.debug('Loading domains from file %s' % conf.domainsfile)
-        parse_domains_file(conf.domainsfile)
+        parsed_domains = parse_domains_file(conf.domainsfile)
+        for domain in parsed_domains:
+            domains.append(domain)
 
-    domains = list(set(domains))
+    unique_domains = []
+    for domain in domains:
+        if domain not in unique_domains:
+            unique_domains.append(domain)
 
-    if len(domains) == 0:
-        logger.info('No domains specified, using a blank domain')
-        domains.append('')
+    if len(unique_domains) == 0:
+        return domains
     elif len(domains) > 0:
-        if '' not in domains:
-            domains.append('')
-
-        logger.info('Loaded %s unique domain%s' % (len(domains), 's' if len(domains) > 1 else ''))
+        return unique_domains
 
 
 ###################
 # Set credentials #
 ###################
 def parse_credentials_file(filename):
+    parsed_credentials = []
     try:
         fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
@@ -594,7 +579,12 @@ def parse_credentials_file(filename):
     file_lines = remove_comments(file_lines)
 
     for line in file_lines:
-        add_credentials(line=line)
+        parsed_credentials.append(add_credentials(line=line))
+
+    if len(parsed_credentials) > 0:
+        return parsed_credentials
+    else:
+        return False
 
 
 def parse_credentials(credentials_line):
@@ -651,54 +641,59 @@ def parse_credentials(credentials_line):
 
 
 def add_credentials(user=None, password='', lmhash='', nthash='', domain='', line=None):
-    global added_credentials
-    global credentials
-
     if line is not None:
         try:
             user, password, lmhash, nthash = parse_credentials(line)
 
             if user.count('\\') == 1:
                 _, user = user.split('\\')
-                add_domain(_)
                 domain = _
         except credentialsError as _:
             logger.warn('Bad line in credentials file %s: %s' % (conf.credsfile, line))
             return
 
-    if (user, password, lmhash, nthash, domain) in added_credentials:
-        return
-    elif user is not None:
-        added_credentials.add((user, password, lmhash, nthash, domain))
+    if user is not None:
 
-        credential = Credentials(user, password, lmhash, nthash, domain)
-        credentials.append(credential)
+        credential = Credential(user, password, lmhash, nthash, domain)
 
         logger.debug('Parsed credentials: %s' % credential.get_identity())
+        return credential
 
 
 def set_credentials():
+    credentials = []
     logger.info('Loading credentials')
 
     if conf.user is not None:
         logger.debug('Loading credentials from command line')
-        add_credentials(conf.user, conf.password or '', conf.lmhash or '', conf.nthash or '', conf.domain or '')
+        credentials.append(add_credentials(conf.user, conf.password or '', conf.lmhash or '',
+                                           conf.nthash or '', conf.domain or ''))
 
     if conf.credsfile is not None:
         logger.debug('Loading credentials from file %s' % conf.credsfile)
-        parse_credentials_file(conf.credsfile)
+        parsed_credentials = parse_credentials_file(conf.credsfile)
+        for credential in parsed_credentials:
+            credentials.append(credential)
 
-    if len(credentials) < 1:
+    unique_credentials = []
+    for credential in credentials:
+        if credential not in unique_credentials:
+            unique_credentials.append(credential)
+
+    if len(unique_credentials) < 1:
         logger.error('No valid credentials loaded')
         sys.exit(1)
 
     logger.info('Loaded %s unique credential%s' % (len(credentials), 's' if len(credentials) > 1 else ''))
+    return unique_credentials
 
 
 ###############
 # Set targets #
 ###############
 def parse_targets_file(filename):
+    parsed_targets = []
+
     try:
         fp = open(filename, 'rb')
         file_lines = fp.read().splitlines()
@@ -711,7 +706,12 @@ def parse_targets_file(filename):
     file_lines = remove_comments(file_lines)
 
     for line in file_lines:
-        add_target(line)
+        parsed_targets.append(add_target(line))
+
+    if len(parsed_targets) > 0:
+        return parsed_targets
+    else:
+        return False
 
 
 def parse_target(target_line):
@@ -736,24 +736,14 @@ def parse_target(target_line):
 
 
 def add_target(line):
-    global added_targets
-    global targets
-
     try:
         host, port = parse_target(line)
     except targetError as _:
         logger.warn('Bad line in targets file %s: %s' % (conf.list, line))
         return
-
-    if (host, port) in added_targets:
-        return
-    else:
-        added_targets.add((host, port))
-
-        target = Target(host, port)
-        targets.append(target)
-
-        logger.debug('Parsed target: %s' % target.get_identity())
+    target = Target(host, port)
+    logger.debug('Parsed target: %s' % target.get_identity())
+    return target
 
 
 def addr_to_int(value):
@@ -766,29 +756,39 @@ def int_to_addr(value):
 
 
 def set_targets():
+    targets = []
     logger.info('Loading targets')
 
     if conf.target is not None:
         if '/' not in conf.target:
             logger.debug('Loading targets from command line')
-            add_target(conf.target)
+            targets.append(add_target(conf.target))
         else:
             address, mask = re.search(r"([\d.]+)/(\d+)", conf.target).groups()
             logger.debug('Expanding targets from command line')
             start_int = addr_to_int(address) & ~((1 << 32 - int(mask)) - 1)
             end_int = start_int | ((1 << 32 - int(mask)) - 1)
             for _ in range(start_int, end_int):
-                add_target(int_to_addr(_))
+                targets.append(add_target(int_to_addr(_)))
 
     if conf.list is not None:
         logger.debug('Loading targets from file %s' % conf.list)
-        parse_targets_file(conf.list)
+        parsed_targets = parse_targets_file(conf.list)
+        if parsed_targets is not False:
+            for target in parsed_targets:
+                targets.append(target)
 
-    if len(targets) < 1:
+    unique_targets = []
+    for target in targets:
+        if target not in unique_targets:
+            unique_targets.append(target)
+
+    if len(unique_targets) < 1:
         logger.error('No valid targets loaded')
         sys.exit(1)
 
     logger.info('Loaded %s unique target%s' % (len(targets), 's' if len(targets) > 1 else ''))
+    return unique_targets
 
 
 def check_conf():
@@ -810,9 +810,21 @@ def check_conf():
         conf.threads = 3
         logger.info('Forcing number of threads to 3')
 
-    set_targets()
-    set_credentials()
-    set_domains()
+    targets = set_targets()
+    credentials = set_credentials()
+    domains = set_domains()
+
+    for credential in credentials:
+        if credential.domain is not None:
+            if credential.domain not in domains:
+                domains.append(credential.domain)
+
+    if len(domains) == 0:
+        logger.info('No domains specified, using a blank domain')
+    elif len(domains) > 0:
+        logger.info('Loaded %s unique domain%s' % (len(domains), 's' if len(domains) > 1 else ''))
+
+    return targets, credentials, domains
 
 
 def cmdline_parser():
@@ -886,18 +898,18 @@ def banner():
 
 def main():
     global conf
-    global credentials
-    global domains
     global have_readline
     global pool_thread
 
     banner()
     conf = cmdline_parser()
-    check_conf()
+    targets, credentials, domains = check_conf()
     pool_thread = threading.BoundedSemaphore(conf.threads)
 
     try:
         for target in targets:
+            target.update_credentials(credentials)
+            target.update_domains(domains)
             pool_thread.acquire()
             current = test_login(target)
             current.daemon = True
@@ -935,6 +947,7 @@ def main():
                 print('  %s' % valid_credential.get_identity())
 
             print()
+    """
     print('\nUSER SORTED RESULTS:\n')
 
     for credential in credentials:
@@ -947,11 +960,12 @@ def main():
                 print('  %s' % valid_credential.get_identity())
 
             print()
+    """
     if conf.smbcmdlist is not None:
-        smb_cmd_list()
+        smb_cmd_list(targets)
 
     if conf.oscmdlist is not None:
-        os_cmd_list()
+        os_cmd_list(targets)
 
     if conf.batch or conf.smbcmdlist or conf.oscmdlist:
         return
