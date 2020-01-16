@@ -105,7 +105,6 @@ except NameError:
 conf = {}
 pool_thread = None
 successes = 0
-commands = []
 stop_threads = [False]
 
 if hasattr(sys, 'frozen'):
@@ -293,7 +292,7 @@ class Credential:
     def get_is_valid(self):
         return self.is_valid
 
-    def get_identity(self):
+    def get_identity(self, account_details=True):
         identity = ""
 
         if self.lmhash != '' and self.nthash != '':
@@ -307,15 +306,15 @@ class Credential:
             else:
                 identity = '%s/%s' % (self.user, self.password or 'BLANK')
 
-        if self.is_admin:
+        if self.is_admin and account_details:
             identity += " (Administrator)"
-        if self.is_locked_out:
+        if self.is_locked_out and account_details:
             identity += " (Locked out)"
-        if self.account_disabled:
+        if self.account_disabled and account_details:
             identity += " (Account disabled)"
-        if self.password_change_required:
+        if self.password_change_required and account_details:
             identity += " (Password change required)"
-        if self.outside_logon_hours:
+        if self.outside_logon_hours and account_details:
             identity += " (Outside logon hours)"
 
         return identity
@@ -332,8 +331,6 @@ class Target:
         self.host = host
         self.port = int(port)
 
-        # All credentials tested on this target
-        # List of TargetCredentials() objects
         self.credentials = []
         self.domains = []
 
@@ -371,16 +368,12 @@ class Target:
 
 
 def add_command(cmd):
-    global commands
-
     # if cmd is not None and len(cmd) > 0 and cmd not in commands:
     if cmd is not None and len(cmd) > 0:
-        commands.append(cmd)
+        return cmd
 
 
 def parse_list_file(filename):
-    global commands
-
     commands = []
 
     try:
@@ -394,7 +387,9 @@ def parse_list_file(filename):
     file_lines = remove_comments(file_lines)
 
     for line in file_lines:
-        add_command(line)
+        commands.append(add_command(line))
+
+    return commands
 
 
 def get_admin_credentials(target):
@@ -411,7 +406,7 @@ def get_admin_credentials(target):
 
 
 def os_cmd_list(targets):
-    parse_list_file(conf.oscmdlist)
+    commands = parse_list_file(conf.oscmdlist)
     targets_tuple = ()
 
     for target in targets:
@@ -456,7 +451,7 @@ def os_cmd_list(targets):
 
 
 def smb_cmd_list(targets):
-    parse_list_file(conf.smbcmdlist)
+    commands = parse_list_file(conf.smbcmdlist)
     targets_tuple = ()
 
     for target in targets:
@@ -947,20 +942,24 @@ def main():
                 print('  %s' % valid_credential.get_identity())
 
             print()
-    """
+
     print('\nUSER SORTED RESULTS:\n')
 
-    for credential in credentials:
-        valid_credentials = credential.get_valid_targets()
+    credentials_valid_targets = {}
+    for target in targets:
+        valid_credentials = target.get_valid_credentials()
+        for credential in valid_credentials:
+            if credential in credentials_valid_targets:
+                credentials_valid_targets[credential].append(target)
+            else:
+                credentials_valid_targets[credential] = [target]
 
-        if len(valid_credentials) > 0:
-            print(credential.get_identity())
+    for credential, targets in credentials_valid_targets.items():
+        print(credential.get_identity(account_details=False))
+        for target in targets:
+            print('  %s' % target.get_identity())
+        print()
 
-            for valid_credential in valid_credentials:
-                print('  %s' % valid_credential.get_identity())
-
-            print()
-    """
     if conf.smbcmdlist is not None:
         smb_cmd_list(targets)
 
