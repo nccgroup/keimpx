@@ -4,6 +4,7 @@
 from datetime import datetime
 import sys
 from time import strftime, gmtime
+from six.moves import range as range
 
 from lib.logger import logger
 
@@ -119,17 +120,17 @@ class Samr(object):
             for entry in self.users_list:
                 user, uid, info = entry
 
-                print user
-                print '  User ID: %d' % uid
-                print '  Group ID: %d' % info['PrimaryGroupId']
+                print(user)
+                print('  User ID: %d' % uid)
+                print ('  Group ID: %d' % info['PrimaryGroupId'])
                 if info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED:
                     account_disabled = 'True'
                 else:
                     account_disabled = 'False'
-                print '  Enabled: %s' % account_disabled
+                print('  Enabled: %s' % account_disabled)
 
                 try:
-                    print '  Logon count: %d' % info['LogonCount']
+                    print('  Logon count: %d' % info['LogonCount'])
                 except ValueError:
                     pass
 
@@ -140,7 +141,7 @@ class Samr(object):
                     lastLogon = str(datetime.fromtimestamp(self.getUnixTime(lastLogon)))
 
                 try:
-                    print '  Last Logon: %s' % lastLogon
+                    print('  Last Logon: %s' % lastLogon)
                 except ValueError:
                     pass
 
@@ -151,7 +152,7 @@ class Samr(object):
                     lastLogoff = str(datetime.fromtimestamp(self.getUnixTime(lastLogoff)))
 
                 try:
-                    print '  Last Logoff: %s' % lastLogoff
+                    print('  Last Logoff: %s' % lastLogoff)
                 except ValueError:
                     pass
 
@@ -162,7 +163,7 @@ class Samr(object):
                     pwdLastSet = str(datetime.fromtimestamp(self.getUnixTime(pwdLastSet)))
 
                 try:
-                    print '  Last password set: %s' % pwdLastSet
+                    print('  Last password set: %s' % pwdLastSet)
                 except ValueError:
                     pass
 
@@ -172,7 +173,7 @@ class Samr(object):
                     password_expired = 'True'
 
                 try:
-                    print '  Password expired: %s' % password_expired
+                    print('  Password expired: %s' % password_expired)
                 except ValueError:
                     pass
 
@@ -182,7 +183,7 @@ class Samr(object):
                     dont_expire = 'False'
 
                 try:
-                    print '  Password does not expire: %s' % dont_expire
+                    print('  Password does not expire: %s' % dont_expire)
                 except ValueError:
                     pass
 
@@ -193,12 +194,13 @@ class Samr(object):
                     pwdCanChange = str(datetime.fromtimestamp(self.getUnixTime(pwdCanChange)))
 
                 try:
-                    print '  Password can change: %s' % pwdCanChange
+                    print('  Password can change: %s' % pwdCanChange)
                 except ValueError:
                     pass
 
                 try:
-                    pwdMustChange = (info['PasswordMustChange']['HighPart'] << 32) + info['PasswordMustChange']['LowPart']
+                    pwdMustChange = (info['PasswordMustChange']['HighPart'] << 32) + info['PasswordMustChange'][
+                        'LowPart']
                     if pwdMustChange == 0:
                         pwdMustChange = '<never>'
                     else:
@@ -207,52 +209,52 @@ class Samr(object):
                     pwdMustChange = '<never>'
 
                 try:
-                    print '  Password must change: %s' % pwdMustChange
+                    print('  Password must change: %s' % pwdMustChange)
                 except ValueError:
                     pass
 
                 try:
-                    print '  Bad password count: %d' % info['BadPasswordCount']
+                    print('  Bad password count: %d' % info['BadPasswordCount'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Full name: %s' % info['FullName']
+                    print('  Full name: %s' % info['FullName'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Home directory: %s' % info['HomeDirectory']
+                    print('  Home directory: %s' % info['HomeDirectory'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Home directory drive: %s' % info['HomeDirectoryDrive']
+                    print('  Home directory drive: %s' % info['HomeDirectoryDrive'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Script path: %s' % info['ScriptPath']
+                    print('  Script path: %s' % info['ScriptPath'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Profile path: %s' % info['ProfilePath']
+                    print('  Profile path: %s' % info['ProfilePath'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Admin comment: %s' % info['AdminComment']
+                    print('  Admin comment: %s' % info['AdminComment'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  Workstations: %s' % info['WorkStations']
+                    print('  Workstations: %s' % info['WorkStations'])
                 except ValueError:
                     pass
 
                 try:
-                    print '  User comment: %s' % info['UserComment']
+                    print('  User comment: %s' % info['UserComment'])
                 except ValueError:
                     pass
 
@@ -265,14 +267,14 @@ class Samr(object):
             if usrdomain and usrdomain.upper() != domain_name.upper():
                 continue
 
-            print 'Looking up password policy in domain %s' % domain_name
+            print('Looking up password policy in domain %s' % domain_name)
 
             resp = samr.hSamrLookupDomainInSamServer(self.__dce, serverHandle=self.__mgr_handle, name=domain_name)
             if resp['ErrorCode'] != 0:
                 raise Exception('Connect error')
 
             resp = samr.hSamrOpenDomain(self.__dce, serverHandle=self.__mgr_handle, desiredAccess=samr.MAXIMUM_ALLOWED,
-                                         domainId=resp['DomainId'])
+                                        domainId=resp['DomainId'])
             if resp['ErrorCode'] != 0:
                 raise Exception('Connect error')
             domainHandle = resp['DomainHandle']
@@ -282,8 +284,7 @@ class Samr(object):
             re = samr.hSamrQueryInformationDomain2(
                 self.__dce, domainHandle=domainHandle,
                 domainInformationClass=domain_passwd)
-            self.__min_pass_len = re['Buffer']['Password']['MinPasswordLength'] \
-                                  or "None"
+            self.__min_pass_len = (re['Buffer']['Password']['MinPasswordLength'] or "None")
             pass_hist_len = re['Buffer']['Password']['PasswordHistoryLength']
             self.__pass_hist_len = pass_hist_len or "None"
             self.__max_pass_age = convert(
@@ -306,8 +307,7 @@ class Samr(object):
                 0,
                 re['Buffer']['Lockout']['LockoutDuration'],
                 lockout=True)
-            self.__accnt_lock_thres = re['Buffer']['Lockout']['LockoutThreshold'] \
-                                      or "None"
+            self.__accnt_lock_thres = re['Buffer']['Lockout']['LockoutThreshold'] or "None"
 
             domain_logoff = samr.DOMAIN_INFORMATION_CLASS.DomainLogoffInformation
             re = samr.hSamrQueryInformationDomain2(
@@ -329,18 +329,18 @@ class Samr(object):
             0: 'Domain Refuse Password Change:'
         }
 
-        print 'Minimum password length: %s' % str(self.__min_pass_len or 'None')
-        print 'Password history length: %s' % str(self.__pass_hist_len or 'None')
-        print 'Maximum password age: %s' % str(self.__max_pass_age)
-        print 'Password Complexity Flags: %s' % str(self.__pass_prop or 'None')
-        print 'Minimum password age: %s' % str(self.__min_pass_age)
-        print 'Reset Account Lockout Counter: %s' % str(self.__rst_accnt_lock_counter)
-        print 'Locked Account Duration: %s' % str(self.__lock_accnt_dur)
-        print 'Account Lockout Threshold: %s' % str(self.__accnt_lock_thres)
-        print 'Forced Log off Time: %s' % str(self.__force_logoff_time)
+        print('Minimum password length: %s' % str(self.__min_pass_len or 'None'))
+        print('Password history length: %s' % str(self.__pass_hist_len or 'None'))
+        print('Maximum password age: %s' % str(self.__max_pass_age))
+        print('Password Complexity Flags: %s' % str(self.__pass_prop or 'None'))
+        print('Minimum password age: %s' % str(self.__min_pass_age))
+        print('Reset Account Lockout Counter: %s' % str(self.__rst_accnt_lock_counter))
+        print('Locked Account Duration: %s' % str(self.__lock_accnt_dur))
+        print('Account Lockout Threshold: %s' % str(self.__accnt_lock_thres))
+        print('Forced Log off Time: %s' % str(self.__force_logoff_time))
 
         for i, a in enumerate(self.__pass_prop):
-            print '%s: %s' % (PASSCOMPLEX[i], str(a))
+            print('%s: %s' % (PASSCOMPLEX[i], str(a)))
             i += 1
 
         return
@@ -355,7 +355,7 @@ class Samr(object):
         domains = resp['Buffer']['Buffer']
 
         if display is True:
-            print 'Domains:'
+            print('Domains:')
 
         for domain in domains:
             domain_name = domain['Name']
@@ -364,7 +364,7 @@ class Samr(object):
                 self.domains_dict[domain_name] = domain
 
             if display is True:
-                print '  %s' % domain_name
+                print('  %s' % domain_name)
 
 
 def d2b(a):
@@ -375,7 +375,7 @@ def d2b(a):
 
     t2bin = tbin[::-1]
     if len(t2bin) != 8:
-        for x in xrange(6 - len(t2bin)):
+        for x in range(6 - len(t2bin)):
             t2bin.insert(0, 0)
     return ''.join([str(g) for g in t2bin])
 
@@ -391,12 +391,12 @@ def convert(low, high, lockout=False):
 
     if not lockout:
         if (low != 0):
-            high = abs(high+1)
+            high = abs(high + 1)
         else:
             high = abs(high)
             low = abs(low)
 
-        tmp = low + (high)*16**8  # convert to 64bit int
+        tmp = low + (high) * 16 ** 8  # convert to 64bit int
         tmp *= (1e-7)  # convert to seconds
     else:
         tmp = abs(high) * (1e-7)
@@ -404,7 +404,7 @@ def convert(low, high, lockout=False):
     try:
         minutes = int(strftime("%M", gmtime(tmp)))
         hours = int(strftime("%H", gmtime(tmp)))
-        days = int(strftime("%j", gmtime(tmp)))-1
+        days = int(strftime("%j", gmtime(tmp))) - 1
     except ValueError as e:
         return "[-] Invalid TIME"
 
