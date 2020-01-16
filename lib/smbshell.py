@@ -23,6 +23,7 @@ from lib.secretsdump import DumpSecrets
 from lib.services import SvcCtl
 from lib.exceptions import missingShare, missingFile
 from telnetlib import Telnet
+from six import string_types
 
 try:
     from impacket import nt_errors
@@ -196,7 +197,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
             self.shares()
 
     def is_writable_share(self, share):
-        _ = ''.join([random.choice(string.letters) for _ in range(8)])
+        _ = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
 
         try:
             self.use(share, False)
@@ -351,10 +352,9 @@ class SMBShell(PsExec, Samr, SvcCtl):
 
         for f in files:
             if display is True:
-                print
-                '%s %8s %10d %s' % (
-                    time.ctime(float(f.get_mtime_epoch())), '<DIR>' if f.is_directory() > 0 else '', f.get_filesize(),
-                    f.get_longname())
+                print('%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())),
+                                          '<DIR>' if f.is_directory() > 0 else '',
+                                          f.get_filesize(), f.get_longname()))
 
             self.completion.append((f.get_longname(), f.is_directory(), f.get_filesize()))
 
@@ -368,8 +368,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
         for x in range(0, path.count('\\')):
             print('|  ')
 
-        print
-        '%s' % os.path.basename(path.replace('\\', '/'))
+        print('%s' % os.path.basename(path.replace('\\', '/')))
 
         self.ls('%s\\*' % path, display=False)
 
@@ -498,14 +497,14 @@ class SMBShell(PsExec, Samr, SvcCtl):
     def upload(self, pathname, destfile=None):
         self.check_share()
 
-        if isinstance(pathname, basestring):
+        if isinstance(pathname, string_types):
             files = glob.glob(pathname)
         else:
             files = [pathname]
 
         for filename in files:
             try:
-                if isinstance(filename, basestring):
+                if isinstance(filename, string_types):
                     fp = open(filename, 'rb')
                 else:
                     fp = filename
@@ -518,7 +517,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
 
             destfile = ntpath.join(self.pwd, destfile)
 
-            if isinstance(filename, basestring):
+            if isinstance(filename, string_types):
                 logger.debug('Uploading file %s to %s..' % (filename, destfile))
 
             try:

@@ -85,7 +85,7 @@ class SvcShell(cmd.Cmd):
         stdout, _ = process.communicate()
 
         if stdout is not None:
-            print stdout
+            print(stdout)
 
     def do_exit(self, line):
         return True
@@ -131,6 +131,6 @@ class SvcShell(cmd.Cmd):
         DataStore.cmd_stdout = self.__outputBuffer
 
         if self.__display:
-            print self.__outputBuffer
+            print(self.__outputBuffer)
 
         self.__outputBuffer = ''

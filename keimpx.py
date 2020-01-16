@@ -377,7 +377,7 @@ def parse_list_file(filename):
     commands = []
 
     try:
-        fp = open(filename, 'rb')
+        fp = open(filename, 'r')
         file_lines = fp.read().splitlines()
         fp.close()
     except IOError as _:
@@ -499,7 +499,7 @@ def smb_cmd_list(targets):
 def parse_domains_file(filename):
     parsed_domains = []
     try:
-        fp = open(filename, 'rb')
+        fp = open(filename, 'r')
         file_lines = fp.read().splitlines()
         fp.close()
 
@@ -563,7 +563,7 @@ def set_domains():
 def parse_credentials_file(filename):
     parsed_credentials = []
     try:
-        fp = open(filename, 'rb')
+        fp = open(filename, 'r')
         file_lines = fp.read().splitlines()
         fp.close()
 
@@ -690,7 +690,7 @@ def parse_targets_file(filename):
     parsed_targets = []
 
     try:
-        fp = open(filename, 'rb')
+        fp = open(filename, 'r')
         file_lines = fp.read().splitlines()
         fp.close()
 
