@@ -2,6 +2,7 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
+from __future__ import print_function
 import os
 import shlex
 import sys
@@ -114,13 +115,13 @@ class SvcCtl(object):
                 try:
                     self.stop(name)
                 except:
-                    print "Couldn't stop %s (%s), currently in state: %s" % (
-                        display, name, self.__scmr_parse_state(state))
+                    print("Couldn't stop %s (%s), currently in state: %s" % (
+                        display, name, self.__scmr_parse_state(state)))
 
     def svcexec(self, command, mode='SHARE', display=True):
         if mode == 'SERVER' and not is_local_admin():
-            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
-                   "server.")
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. "
+                   "Privileged port is needed to run SMB server.")
             raise missingPermission(err)
 
         command_and_args = shlex.split(command)
@@ -145,13 +146,13 @@ class SvcCtl(object):
 
             if mode == 'SERVER':
                 self.__serverThread.stop()
-        except SessionError, e:
+        except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
-        except KeyboardInterrupt, _:
-            print
+        except KeyboardInterrupt as _:
+            print()
             logger.info('User aborted')
-        except Exception, e:
+        except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))
 
@@ -180,13 +181,13 @@ class SvcCtl(object):
 
             if mode == 'SERVER':
                 self.__serverThread.stop()
-        except SessionError, e:
+        except SessionError as e:
             # traceback.print_exc()
             logger.error('SMB error: %s' % (e.getErrorString(),))
-        except KeyboardInterrupt, _:
-            print
+        except KeyboardInterrupt as _:
+            print()
             logger.info('User aborted')
-        except Exception, e:
+        except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))
 
@@ -260,53 +261,53 @@ class SvcCtl(object):
         scmr.hRDeleteService(self.__rpc, self.__service_handle)
 
     def __scmr_parse_config(self, resp):
-        print 'TYPE              : %2d - ' % resp['lpServiceConfig']['dwServiceType'],
+        print('TYPE              : %2d - ' % resp['lpServiceConfig']['dwServiceType'])
 
         if resp['lpServiceConfig']['dwServiceType'] & 0x1:
-            print 'SERVICE_KERNLE_DRIVER'
+            print('SERVICE_KERNEL_DRIVER')
         if resp['lpServiceConfig']['dwServiceType'] & 0x2:
-            print 'SERVICE_FILE_SYSTEM_DRIVER'
+            print('SERVICE_FILE_SYSTEM_DRIVER')
         if resp['lpServiceConfig']['dwServiceType'] & 0x10:
-            print 'SERVICE_WIN32_OWN_PROCESS'
+            print('SERVICE_WIN32_OWN_PROCESS')
         if resp['lpServiceConfig']['dwServiceType'] & 0x20:
-            print 'SERVICE_WIN32_SHARE_PROCESS'
+            print('SERVICE_WIN32_SHARE_PROCESS')
         if resp['lpServiceConfig']['dwServiceType'] & 0x100:
-            print 'SERVICE_INTERACTIVE_PROCESS'
+            print('SERVICE_INTERACTIVE_PROCESS')
 
-        print 'START_TYPE        : %2d - ' % resp['lpServiceConfig']['dwStartType'],
+        print('START_TYPE        : %2d - ' % resp['lpServiceConfig']['dwStartType'])
 
         if resp['lpServiceConfig']['dwStartType'] == 0x0:
-            print 'BOOT START'
+            print('BOOT START')
         elif resp['lpServiceConfig']['dwStartType'] == 0x1:
-            print 'SYSTEM START'
+            print('SYSTEM START')
         elif resp['lpServiceConfig']['dwStartType'] == 0x2:
-            print 'AUTO START'
+            print('AUTO START')
         elif resp['lpServiceConfig']['dwStartType'] == 0x3:
-            print 'DEMAND START'
+            print('DEMAND START')
         elif resp['lpServiceConfig']['dwStartType'] == 0x4:
-            print 'DISABLED'
+            print('DISABLED')
         else:
-            print 'UNKOWN'
+            print('UNKNOWN')
 
-        print 'ERROR_CONTROL     : %2d - ' % resp['lpServiceConfig']['dwErrorControl'],
+        print('ERROR_CONTROL     : %2d - ' % resp['lpServiceConfig']['dwErrorControl'])
 
         if resp['lpServiceConfig']['dwErrorControl'] == 0x0:
-            print 'IGNORE'
+            print('IGNORE')
         elif resp['lpServiceConfig']['dwErrorControl'] == 0x1:
-            print 'NORMAL'
+            print('NORMAL')
         elif resp['lpServiceConfig']['dwErrorControl'] == 0x2:
-            print 'SEVERE'
+            print('SEVERE')
         elif resp['lpServiceConfig']['dwErrorControl'] == 0x3:
-            print 'CRITICAL'
+            print('CRITICAL')
         else:
-            print 'UNKOWN'
+            print('UNKNOWN')
 
-        print 'BINARY_PATH_NAME  : %s' % resp['lpServiceConfig']['lpBinaryPathName'][:-1]
-        print 'LOAD_ORDER_GROUP  : %s' % resp['lpServiceConfig']['lpLoadOrderGroup'][:-1]
-        print 'TAG               : %d' % resp['lpServiceConfig']['dwTagId']
-        print 'DISPLAY_NAME      : %s' % resp['lpServiceConfig']['lpDisplayName'][:-1]
-        print 'DEPENDENCIES      : %s' % resp['lpServiceConfig']['lpDependencies'][:-1]
-        print 'SERVICE_START_NAME: %s' % resp['lpServiceConfig']['lpServiceStartName'][:-1]
+        print('BINARY_PATH_NAME  : %s' % resp['lpServiceConfig']['lpBinaryPathName'][:-1])
+        print('LOAD_ORDER_GROUP  : %s' % resp['lpServiceConfig']['lpLoadOrderGroup'][:-1])
+        print('TAG               : %d' % resp['lpServiceConfig']['dwTagId'])
+        print('DISPLAY_NAME      : %s' % resp['lpServiceConfig']['lpDisplayName'][:-1])
+        print('DEPENDENCIES      : %s' % resp['lpServiceConfig']['lpDependencies'][:-1])
+        print('SERVICE_START_NAME: %s' % resp['lpServiceConfig']['lpServiceStartName'][:-1])
 
     def __scmr_parse_state(self, state):
         if state == scmr.SERVICE_CONTINUE_PENDING:
@@ -338,7 +339,7 @@ class SvcCtl(object):
         if return_state:
             return self.__scmr_parse_state(state)
         else:
-            print 'Service %s state is: %s' % (srvname, self.__scmr_parse_state(state))
+            print('Service %s state is: %s' % (srvname, self.__scmr_parse_state(state)))
 
     def __scmr_config(self, srvname, return_answer=False):
         '''
@@ -351,7 +352,7 @@ class SvcCtl(object):
         if return_answer:
             return resp
 
-        print 'Service %s information:' % srvname
+        print('Service %s information:' % srvname)
         self.__scmr_parse_config(resp)
 
     def __scmr_start(self, srvname, srvargs=''):
@@ -441,7 +442,7 @@ class SvcCtl(object):
         services.sort()
 
         for service in services:
-            print '%s (%s): %-80s' % (service[0], service[1], self.__scmr_parse_state(service[2]))
+            print('%s (%s): %-80s' % (service[0], service[1], self.__scmr_parse_state(service[2])))
 
         return len(services)
 
@@ -454,4 +455,4 @@ class SvcCtl(object):
         resp = scmr.hREnumServicesStatusW(self.__rpc, self.__mgr_handle, dwServiceState=scmr.SERVICE_STATE_ALL)
         num = self.__scmr_list_parse(srvname, resp)
 
-        print '\nTotal services: %d\n' % num
+        print('\nTotal services: %d\n' % num)
