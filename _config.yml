@@ -1,0 +1,8 @@
+title: keimpx
+description: Check for validity of NT/LM credentials across a network over SMB
+google_analytics: UA-32960908-1
+show_downloads: true
+theme: jekyll-theme-slate
+
+gems:
+  - jekyll-mentions
