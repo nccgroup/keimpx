@@ -8,22 +8,48 @@ It can be used to quickly check for valid credentials across a network over SMB.
 * Combination of **user / NTLM hash**.
 * Combination of **user / NTLM logon session token**.
 
-If any valid credentials has been discovered across the network after its attack phase, the user is asked to choose which host to connect to and which valid credentials to use, then he will be prompted with an **interactive SMB shell** where the user can:
+If any valid credentials are discovered across the network after its attack phase, the user is asked to choose which host to connect to and which valid credentials to use. They will then be provided with an **interactive SMB shell** where the user can:
 
 * Spawn an interactive command prompt.
 * Navigate through the remote SMB shares: list, upload, download files, create, remove files, etc.
-* Deploy and undeploy his own service, for instance, a backdoor listening on a TCP port for incoming connections.
+* Deploy and undeploy their own services, for instance, a backdoor listening on a TCP port for incoming connections.
 * List users details, domains and password policy.
-* More to come, see the [issues](https://github.com/inquisb/keimpx/issues) page.
+* More to come, see the [issues](https://github.com/nccgroup/keimpx/issues) page.
 
 ## Dependencies
 
-It is developed in [Python](http://www.python.org) using CORE Impact's [Impacket](http://code.google.com/p/impacket/) library: **you need to install the latest development version from its Google Code subversion repository** otherwise keimpx won't work. This Python library requires also [PyCrypto](http://www.dlitz.net/software/pycrypto/) to work. If you want to run keimpx on Windows, you might find useful the prebuilt [PyCrypto binaries](http://www.voidspace.org.uk/python/modules.shtml#pycrypto).
+keimpx is currently developed using [Python 2.7](https://www.python.org/) and makes use of the excellent [Impacket](https://github.com/SecureAuthCorp/impacket) library from [SecureAuth Corporation](https://www.secureauth.com/) for much of its functionality. keimpx also makes use of the [PyCryptodome](https://github.com/Legrandin/pycryptodome) library for cryptographic functions.
+
+## Installation
+
+To install keimpx, first install Python 2.7. On Windows, you can find the installer at this [link](https://www.python.org/downloads/release/python-2717/). For Linux users, many distributions provide Python 2 and make it available via your package manager (usual package names include python2 and python). **This tool does not work with Python 3 at this time. Support is being developed.**
+
+On Linux systems, you may also need to install pip and openssl-dev using your package manager for the next step.
+
+Once you have Python 2.7 installed, use pip to install the required dependencies using this command:
+```python
+pip install -r requirements.txt
+```
+keimpx can then be executed by running on Linux systems:
+```bash
+./keimpx.py [options]
+```
+Or if this doesn't work:
+```bash
+python keimpx.py [options]
+python2 keimpx.py [options]
+```
+
+On Windows systems, you may need to specify the full path to your Python 2.7 binary, for example:
+```
+C:\Python27\bin\python.exe keimpx.py [options]
+```
+Please ensure you use the correct path for your system, as this is only an example.
 
 ## Usage
 
 Let's say you are performing an infrastructure penetration test of a large network, you 
-[owned](http://metasploit.com/) a Windows workstation, [escalated](http://corelabs.coresecurity.com/index.php?module=Wiki&action=view&type=tool&name=Pass-The-Hash_Toolkit) [your](http://www.mwrinfosecurity.com/publications/mwri_security-implications-of-windows-access-tokens_2008-04-14.pdf) [privileges](http://technet.microsoft.com/en-us/sysinternals/bb664922.aspx) to `Administrator` or `LOCAL SYSTEM` and [dumped password hashes](http://bernardodamele.blogspot.com/search/label/dump).
+[owned](http://metasploit.com/) a Windows workstation, escalated your [privileges](http://technet.microsoft.com/en-us/sysinternals/bb664922.aspx) to `Administrator` or `LOCAL SYSTEM` and [dumped password hashes](http://bernardodamele.blogspot.com/search/label/dump).
 
 You also enumerated the list of machines within the Windows domain via `net` command, ping sweep, ARP scan and network traffic sniffing.
 
@@ -35,8 +61,8 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
 
 ## Help message
 
-        keimpx 0.3-dev
-        by Bernardo Damele A. G. <bernardo.damele@gmail.com>
+    keimpx 0.5-dev
+    by Bernardo Damele A. G. <bernardo.damele@gmail.com>
         
     Usage: keimpx.py [options]
 
@@ -59,11 +85,11 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
       -b              Batch mode: do not ask to get an interactive SMB shell
       -x EXECUTELIST  Execute a list of commands against all hosts
 
-For examples see [this wiki page](https://github.com/inquisb/keimpx/wiki/Examples).
+For examples see [this wiki page](https://github.com/nccgroup/keimpx/wiki/Examples).
 
 ## Frequently Asked Questions
 
-See [this wiki page](https://github.com/inquisb/keimpx/wiki/FAQ).
+See [this wiki page](https://github.com/nccgroup/keimpx/wiki/FAQ).
 
 ## License
 
@@ -74,11 +100,11 @@ The `Apache Software License' is an Open Source Initiative Approved License.
 The Apache Software License, Version 1.1
 Modifications by Bernardo Damele A. G. (see above)
 
-Copyright (c) 2009-2012 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright (c) 2009-2019 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 All rights reserved.
 
-This product includes software developed by CORE Security Technologies
-(http://www.coresecurity.com/).
+This product includes software developed by SecureAuth Corporation
+(https://www.secureauth.com/).
 
 THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
 WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
@@ -97,6 +123,8 @@ SUCH DAMAGE.
 
 Thanks to:
 
-* [deanx](mailto:deanx@65535.com) - for developing [polenum](http://labs.portcullis.co.uk/application/polenum/) tool and some classes ripped from him.
+* [deanx](mailto:deanx@65535.com) - for developing [polenum](http://labs.portcullis.co.uk/application/polenum/) and some classes ripped from him.
+* [Wh1t3Fox](https://github.com/Wh1t3Fox) - for updating [polenum](https://github.com/Wh1t3Fox) to make it compatible with newer versions of Impacket.
 * [frego](mailto:frego@0x3f.net) - for his Windows service bind-shell executable and help with the service deploy/undeploy methods.
-* [gera](mailto:gera@coresecurity.com), [beto](mailto:bethus@gmail.com) and the rest of the [CORE Security](http://corelabs.coresecurity.com) guys - for developing such amazing Python [library](http://code.google.com/p/impacket/) and providing it with [examples](http://code.google.com/p/impacket/source/browse/#svn%2Ftrunk%2Fexamples).
+* [gera](mailto:gera@coresecurity.com), [beto](mailto:bethus@gmail.com) and the rest of the [SecureAuth Corporation](https://www.secureauth.com/) guys - for developing such amazing Python [library](https://github.com/SecureAuthCorp/impacket) and providing it with [examples](https://github.com/SecureAuthCorp/impacket/tree/master/examples).
+* [NEXUS2345](https://github.com/nexus2345) - for updating and maintaining keimpx.
