@@ -188,6 +188,7 @@ class SvcCtl(object):
             print()
             logger.info('User aborted')
         except Exception as e:
+            # import traceback
             # traceback.print_exc()
             logger.error(str(e))
 

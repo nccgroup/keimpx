@@ -35,8 +35,8 @@ class SvcShell(cmd.Cmd):
         self.__mode = mode
         self.__display = display
         self.__smbserver_share = smbserver_share
-        self.__output_file = '%s.txt' % ''.join(random.choice(string.letters) for _ in range(8))
-        self.__batch_filename = '%s.bat' % ''.join([random.choice(string.letters) for _ in range(8)])
+        self.__output_file = '%s.txt' % ''.join(random.choice(string.ascii_letters) for _ in range(8))
+        self.__batch_filename = '%s.bat' % ''.join([random.choice(string.ascii_letters) for _ in range(8)])
 
         if self.__mode == 'SERVER':
             self.__batchFile = ntpath.join('%TEMP%', self.__batch_filename)
@@ -58,7 +58,7 @@ class SvcShell(cmd.Cmd):
             self.__local_ip = self.transferClient.getSMBServer().get_socket().getsockname()[0]
 
     def __output_callback(self, data):
-        self.__outputBuffer += data
+        self.__outputBuffer += data.decode()
 
     def cmdloop(self):
         logger.info('Launching semi-interactive OS shell')
@@ -68,7 +68,7 @@ class SvcShell(cmd.Cmd):
 
         if len(self.__outputBuffer) > 0:
             # Stripping CR/LF
-            self.prompt = string.replace(self.__outputBuffer, '\r\n', '') + '>'
+            self.prompt = self.__outputBuffer.replace('\r\n', '') + '>'
             self.__outputBuffer = ''
 
         cmd.Cmd.cmdloop(self)

@@ -62,8 +62,8 @@ class PsExec(object):
         pass
 
     def psexec(self, command=None):
-        srvname = ''.join([random.choice(string.letters) for _ in range(8)])
-        remote_file = '%s.exe' % ''.join([random.choice(string.lowercase) for _ in range(8)])
+        srvname = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
+        remote_file = '%s.exe' % ''.join([random.choice(string.ascii_lowercase) for _ in range(8)])
 
         if not command:
             logger.info('Command has not been specified, going to call cmd.exe')
@@ -88,7 +88,7 @@ class PsExec(object):
         self.__fid_main = self.openPipe(self.__smb, self.__tid, '\\RemCom_communicaton', 0x12019f)
 
         packet = RemComMessage()
-        packet['Machine'] = ''.join([random.choice(string.letters) for i in range(4)])
+        packet['Machine'] = ''.join([random.choice(string.ascii_letters) for i in range(4)])
         packet['Command'] = os.path.basename(command.replace('\\', '/'))
         packet['ProcessID'] = os.getpid()
 
