@@ -93,7 +93,7 @@ See [this wiki page](https://github.com/nccgroup/keimpx/wiki/FAQ).
 
 ## License
 
-Copyright 2009-2019 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright 2009-2020 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
