@@ -92,7 +92,7 @@ class PsExec(object):
         packet['Command'] = os.path.basename(command.replace('\\', '/'))
         packet['ProcessID'] = os.getpid()
 
-        self.__smb.writeNamedPipe(self.__tid, self.__fid_main, str(packet))
+        self.__smb.writeNamedPipe(self.__tid, self.__fid_main, packet.getData())
 
         # Here we'll store the command we type so we don't print it back ;)
         # ( I know.. globals are nasty :P )
@@ -274,7 +274,10 @@ class RemoteShell(cmd.Cmd):
         return
 
     def default(self, line=''):
-        self.send_data(line.decode('cp437') + '\r\n')
+        if line is bytearray:
+            self.send_data(line.decode('cp437') + '\r\n')
+        else:
+            self.send_data(line + '\r\n')
 
     def send_data(self, data, hideOutput=True):
         if hideOutput is True:

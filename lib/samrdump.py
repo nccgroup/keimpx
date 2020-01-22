@@ -329,20 +329,29 @@ class Samr(object):
             0: 'Domain Refuse Password Change:'
         }
 
-        print('Minimum password length: %s' % str(self.__min_pass_len or 'None'))
-        print('Password history length: %s' % str(self.__pass_hist_len or 'None'))
-        print('Maximum password age: %s' % str(self.__max_pass_age))
-        print('Password Complexity Flags: %s' % str(self.__pass_prop or 'None'))
-        print('Minimum password age: %s' % str(self.__min_pass_age))
-        print('Reset Account Lockout Counter: %s' % str(self.__rst_accnt_lock_counter))
-        print('Locked Account Duration: %s' % str(self.__lock_accnt_dur))
-        print('Account Lockout Threshold: %s' % str(self.__accnt_lock_thres))
-        print('Forced Log off Time: %s' % str(self.__force_logoff_time))
+        print("\n[+] Minimum password length: {0}".format(
+            self.__min_pass_len))
+        print("[+] Password history length: {0}".format(
+            self.__pass_hist_len))
+        print("[+] Maximum password age: {0}".format(self.__max_pass_age))
+        print("[+] Password Complexity Flags: {0}\n".format(
+            self.__pass_prop or "None"))
 
         for i, a in enumerate(self.__pass_prop):
-            print('%s: %s' % (PASSCOMPLEX[i], str(a)))
-            i += 1
+            if int(i) < 6:
+                print("[+] {0} {1}".format(PASSCOMPLEX[i], str(a)))
+            else:
+                break
 
+        print("\n[+] Minimum password age: {0}".format(self.__min_pass_age))
+        print("[+] Reset Account Lockout Counter: {0}".format(
+            self.__rst_accnt_lock_counter))
+        print("[+] Locked Account Duration: {0}".format(
+            self.__lock_accnt_dur))
+        print("[+] Account Lockout Threshold: {0}".format(
+            self.__accnt_lock_thres))
+        print("[+] Forced Log off Time: {0}".format(
+            self.__force_logoff_time))
         return
 
     def __samr_domains(self, display=True):
@@ -391,12 +400,12 @@ def convert(low, high, lockout=False):
 
     if not lockout:
         if (low != 0):
-            high = abs(high + 1)
+            high = abs(high+1)
         else:
             high = abs(high)
             low = abs(low)
 
-        tmp = low + (high) * 16 ** 8  # convert to 64bit int
+        tmp = low + (high)*16**8  # convert to 64bit int
         tmp *= (1e-7)  # convert to seconds
     else:
         tmp = abs(high) * (1e-7)
@@ -404,7 +413,7 @@ def convert(low, high, lockout=False):
     try:
         minutes = int(strftime("%M", gmtime(tmp)))
         hours = int(strftime("%H", gmtime(tmp)))
-        days = int(strftime("%j", gmtime(tmp))) - 1
+        days = int(strftime("%j", gmtime(tmp)))-1
     except ValueError as e:
         return "[-] Invalid TIME"
 

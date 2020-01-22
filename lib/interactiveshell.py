@@ -131,7 +131,7 @@ class InteractiveShell(cmd.Cmd):
         stdout, _ = process.communicate()
 
         if stdout is not None:
-            print(stdout)
+            print(stdout.decode())
 
     def do_exit(self, line):
         '''
