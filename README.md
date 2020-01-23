@@ -1,6 +1,6 @@
 # Introduction
 
-keimpx is an open source tool, released under a modified version of Apache License 1.1.
+keimpx is an open source tool, released under the Apache License 2.0.
 
 It can be used to quickly check for valid credentials across a network over SMB. Credentials can be:
 
