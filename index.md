@@ -1,6 +1,6 @@
 # Introduction
 
-keimpx is an open source tool, released under a modified version of Apache License 1.1.
+keimpx is an open source tool, released under the Apache License 2.0.
 
 It can be used to quickly check for valid credentials across a network over SMB. Credentials can be:
 
@@ -18,15 +18,15 @@ If any valid credentials are discovered across the network after its attack phas
 
 ## Dependencies
 
-keimpx is currently developed using [Python 2.7](https://www.python.org/) and makes use of the excellent [Impacket](https://github.com/SecureAuthCorp/impacket) library from [SecureAuth Corporation](https://www.secureauth.com/) for much of its functionality. keimpx also makes use of the [PyCryptodome](https://github.com/Legrandin/pycryptodome) library for cryptographic functions.
+keimpx is currently developed using [Python 3.7](https://www.python.org/) and makes use of the excellent [Impacket](https://github.com/SecureAuthCorp/impacket) library from [SecureAuth Corporation](https://www.secureauth.com/) for much of its functionality. keimpx also makes use of the [PyCryptodome](https://github.com/Legrandin/pycryptodome) library for cryptographic functions.
 
 ## Installation
 
-To install keimpx, first install Python 2.7. On Windows, you can find the installer at this [link](https://www.python.org/downloads/release/python-2717/). For Linux users, many distributions provide Python 2 and make it available via your package manager (usual package names include python2 and python). **This tool does not work with Python 3 at this time. Support is being developed.**
+To install keimpx, first install Python 3.7. On Windows, you can find the installer at this [link](https://www.python.org/downloads/release/python-376/). For Linux users, many distributions provide Python 3 and make it available via your package manager (usual package names include python3 and python).
 
 On Linux systems, you may also need to install pip and openssl-dev using your package manager for the next step.
 
-Once you have Python 2.7 installed, use pip to install the required dependencies using this command:
+Once you have Python 3.7 installed, use pip to install the required dependencies using this command:
 ```python
 pip install -r requirements.txt
 ```
@@ -37,12 +37,12 @@ keimpx can then be executed by running on Linux systems:
 Or if this doesn't work:
 ```bash
 python keimpx.py [options]
-python2 keimpx.py [options]
+python3 keimpx.py [options]
 ```
 
-On Windows systems, you may need to specify the full path to your Python 2.7 binary, for example:
+On Windows systems, you may need to specify the full path to your Python 3.7 binary, for example:
 ```
-C:\Python27\bin\python.exe keimpx.py [options]
+C:\Python37\bin\python.exe keimpx.py [options]
 ```
 Please ensure you use the correct path for your system, as this is only an example.
 
@@ -61,7 +61,7 @@ Another scenario where it comes handy is discussed in [this blog post](http://be
 
 ## Help message
 
-    keimpx 0.5-dev
+    keimpx 0.5-beta.1
     by Bernardo Damele A. G. <bernardo.damele@gmail.com>
         
     Usage: keimpx.py [options]
@@ -93,7 +93,7 @@ See [this wiki page](https://github.com/nccgroup/keimpx/wiki/FAQ).
 
 ## License
 
-Copyright 2009-2019 Bernardo Damele A. G. <bernardo.damele@gmail.com>
+Copyright 2009-2020 Bernardo Damele A. G. <bernardo.damele@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
