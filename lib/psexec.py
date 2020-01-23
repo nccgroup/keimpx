@@ -221,7 +221,7 @@ class RemoteStdErrPipe(Pipes):
                 pass
             else:
                 try:
-                    sys.stderr.write(str(ans))
+                    sys.stderr.write(ans.decode('cp437'))
                     sys.stderr.flush()
                 except Exception as e:
                     pass
@@ -274,7 +274,7 @@ class RemoteShell(cmd.Cmd):
         return
 
     def default(self, line=''):
-        if line is bytearray:
+        if isinstance(line, bytearray):
             self.send_data(line.decode('cp437') + '\r\n')
         else:
             self.send_data(line + '\r\n')
