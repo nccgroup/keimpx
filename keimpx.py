@@ -3,14 +3,14 @@
 # -*- Mode: python -*-
 
 '''
-keimpx is an open source tool, released under a modified version of Apache
-License 1.1. It is developed in Python using SecureAuth Corporations's
+keimpx is an open source tool, released under the Apache
+License 2.0. It is developed in Python using SecureAuth Corporations's
 Impacket library, https://github.com/SecureAuthCorp/impacket.
 
 It can be used to quickly check for the usefulness of credentials across a
 network over SMB.
 
-Homepage:                   https://inquisb.github.com/keimpx
+Homepage:                   https://nccgroup.github.io/keimpx/
 Usage:                      https://github.com/nccgroup/keimpx#usage
 Examples:                   https://github.com/nccgroup/keimpx/wiki/Examples
 Frequently Asked Questions: https://github.com/nccgroup/keimpx/wiki/FAQ
@@ -33,7 +33,7 @@ specific language governing permissions and limitations under the License.
 from __future__ import print_function
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.5-dev'
+__version__ = '0.5-beta.1'
 
 import binascii
 import os
