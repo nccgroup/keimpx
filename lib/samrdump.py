@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
-from datetime import datetime
 import sys
+from datetime import datetime
 from time import strftime, gmtime
+
 from six.moves import range as range
 
 from lib.logger import logger
@@ -122,7 +123,7 @@ class Samr(object):
 
                 print(user)
                 print('  User ID: %d' % uid)
-                print ('  Group ID: %d' % info['PrimaryGroupId'])
+                print('  Group ID: %d' % info['PrimaryGroupId'])
                 if info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED:
                     account_disabled = 'True'
                 else:
@@ -400,12 +401,12 @@ def convert(low, high, lockout=False):
 
     if not lockout:
         if (low != 0):
-            high = abs(high+1)
+            high = abs(high + 1)
         else:
             high = abs(high)
             low = abs(low)
 
-        tmp = low + (high)*16**8  # convert to 64bit int
+        tmp = low + (high) * 16 ** 8  # convert to 64bit int
         tmp *= (1e-7)  # convert to seconds
     else:
         tmp = abs(high) * (1e-7)
@@ -413,7 +414,7 @@ def convert(low, high, lockout=False):
     try:
         minutes = int(strftime("%M", gmtime(tmp)))
         hours = int(strftime("%H", gmtime(tmp)))
-        days = int(strftime("%j", gmtime(tmp)))-1
+        days = int(strftime("%j", gmtime(tmp))) - 1
     except ValueError as e:
         return "[-] Invalid TIME"
 

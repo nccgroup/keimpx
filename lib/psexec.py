@@ -3,18 +3,20 @@
 # -*- Mode: python -*-
 
 from __future__ import print_function
-import random
-import string
-import shlex
+
+import cmd
 import os
+import random
+import shlex
+import string
 import sys
 import time
-import cmd
-from threading import Lock, Thread
-from lib.common import DataStore
-from lib.logger import logger
-from lib.exceptions import keimpxError
 from subprocess import Popen, PIPE, STDOUT
+from threading import Lock, Thread
+
+from lib.common import DataStore
+from lib.exceptions import keimpxError
+from lib.logger import logger
 
 try:
     from impacket.nmb import NetBIOSTimeout

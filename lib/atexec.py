@@ -4,12 +4,12 @@
 
 from __future__ import division
 from __future__ import print_function
-import string
-import time
-import random
-import sys
 
-from lib.common import DataStore
+import random
+import string
+import sys
+import time
+
 from lib.logger import logger
 
 try:

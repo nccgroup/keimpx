@@ -2,15 +2,17 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from six.moves.configparser import ConfigParser
 import logging
 import os
 import sys
 import tempfile
 from threading import Thread
-from lib.logger import logger
-from six.moves import input as input
+
 from six import string_types
+from six.moves import input as input
+from six.moves.configparser import ConfigParser
+
+from lib.logger import logger
 
 try:
     from impacket import smbserver

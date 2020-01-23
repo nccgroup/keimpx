@@ -2,8 +2,6 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-from __future__ import print_function
-
 '''
 keimpx is an open source tool, released under a modified version of Apache
 License 1.1. It is developed in Python using SecureAuth Corporations's
@@ -32,25 +30,29 @@ Unless required by applicable law or agreed to in writing, software distributed 
 specific language governing permissions and limitations under the License.
 '''
 
+from __future__ import print_function
+
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
 __version__ = '0.5-dev'
 
-import sys
+import binascii
 import os
 import re
-import binascii
+import socket
+import sys
 import threading
 import warnings
-import socket
-from threading import Thread
-from lib.logger import logger
-from lib.common import remove_comments, set_verbosity, read_input
 from optparse import OptionError, OptionParser
+from threading import Thread
+
+from six.moves import input as input
+from six.moves import range as range
+
+from lib.common import remove_comments, set_verbosity, read_input
 from lib.exceptions import keimpxError, credentialsError, targetError
 from lib.interactiveshell import InteractiveShell
+from lib.logger import logger
 from lib.smbshell import SMBShell
-from six.moves import range as range
-from six.moves import input as input
 
 try:
     import pyreadline as readline
@@ -228,7 +230,8 @@ class test_login(Thread):
 
 class Credential:
     def __init__(self, user, password='', lmhash='', nthash='', domain='', account_status='', is_admin=False,
-                 is_locked_out=False, password_change_required=False, account_disabled=False, outside_logon_hours=False, is_valid=False):
+                 is_locked_out=False, password_change_required=False, account_disabled=False,
+                 outside_logon_hours=False, is_valid=False):
         self.user = user
         self.password = password
         self.lmhash = lmhash
@@ -628,7 +631,6 @@ def add_credentials(user=None, password='', lmhash='', nthash='', domain='', lin
             return
 
     if user is not None:
-
         credential = Credential(user, password, lmhash, nthash, domain)
 
         logger.debug('Parsed credentials: %s' % credential.get_identity())

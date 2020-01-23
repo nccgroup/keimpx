@@ -3,15 +3,16 @@
 # -*- Mode: python -*-
 
 import cmd
+import ntpath
+import os
 import random
 import string
-import os
-import tempfile
 import sys
-import ntpath
+import tempfile
+from subprocess import PIPE, Popen, STDOUT
+
 from lib.common import DataStore
 from lib.logger import logger
-from subprocess import PIPE, Popen, STDOUT
 
 try:
     from impacket.dcerpc.v5 import scmr

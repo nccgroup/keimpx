@@ -3,28 +3,30 @@
 # -*- Mode: python -*-
 
 from __future__ import print_function
-import os
-import sys
-import random
-import string
-import time
-import glob
-import socket
-import ntpath
-import traceback
 
-from lib.common import DataStore, check_dialect, read_input, keimpx_path
-from lib.logger import logger
+import glob
+import ntpath
+import os
+import random
+import socket
+import string
+import sys
+import time
+import traceback
+from telnetlib import Telnet
+
+from six import string_types
+from six.moves import range as range
+
 from lib.atexec import TSCH_EXEC
+from lib.common import DataStore, check_dialect, read_input, keimpx_path
+from lib.exceptions import missingShare, missingFile
+from lib.logger import logger
 from lib.psexec import PsExec
 from lib.rpcdump import RPCDump
 from lib.samrdump import Samr
 from lib.secretsdump import DumpSecrets
 from lib.services import SvcCtl
-from lib.exceptions import missingShare, missingFile
-from telnetlib import Telnet
-from six import string_types
-from six.moves import range as range
 
 try:
     from impacket import nt_errors

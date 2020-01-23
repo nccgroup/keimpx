@@ -3,15 +3,17 @@
 # -*- Mode: python -*-
 
 from __future__ import print_function
+
+import ntpath
 import os
 import shlex
 import sys
-import ntpath
-from lib.logger import logger
-from lib.common import DataStore, is_local_admin, SMBServer
-from lib.smbexec import SvcShell
+
 from lib.avservices import AVSERVICES
+from lib.common import DataStore, is_local_admin, SMBServer
 from lib.exceptions import missingPermission
+from lib.logger import logger
+from lib.smbexec import SvcShell
 
 try:
     from impacket.dcerpc.v5 import scmr

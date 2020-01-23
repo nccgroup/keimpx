@@ -7,8 +7,8 @@ import ntpath
 import os
 import random
 import string
-import time
 import sys
+import time
 from binascii import unhexlify, hexlify
 from collections import OrderedDict
 from datetime import datetime
