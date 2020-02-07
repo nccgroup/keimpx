@@ -9,6 +9,7 @@ import tempfile
 from threading import Thread
 
 from six import string_types
+from six import integer_types
 from six.moves import input as input
 from six.moves.configparser import ConfigParser
 
@@ -143,13 +144,13 @@ def is_local_admin():
     if os.name in ('posix', 'mac'):
         _ = os.geteuid()
 
-        isAdmin = isinstance(_, (int, float, long)) and _ == 0
+        isAdmin = isinstance(_, (integer_types, float)) and _ == 0
     elif sys.platform.lower() == 'win32':
         import ctypes
 
         _ = ctypes.windll.shell32.IsUserAnAdmin()
 
-        isAdmin = isinstance(_, (int, float, long)) and _ == 1
+        isAdmin = isinstance(_, (integer_types, float)) and _ == 1
     else:
         errMsg = "keimpx is not able to check if you are running it "
         errMsg += "as an administrator account on this platform. "

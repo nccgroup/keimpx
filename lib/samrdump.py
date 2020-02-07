@@ -339,10 +339,7 @@ class Samr(object):
             self.__pass_prop or "None"))
 
         for i, a in enumerate(self.__pass_prop):
-            if int(i) < 6:
-                print("[+] {0} {1}".format(PASSCOMPLEX[i], str(a)))
-            else:
-                break
+            print("[+] {0} {1}".format(PASSCOMPLEX[i], str(a)))
 
         print("\n[+] Minimum password age: {0}".format(self.__min_pass_age))
         print("[+] Reset Account Lockout Counter: {0}".format(
@@ -381,7 +378,7 @@ def d2b(a):
     tbin = []
     while a:
         tbin.append(a % 2)
-        a /= 2
+        a //= 2
 
     t2bin = tbin[::-1]
     if len(t2bin) != 8:
