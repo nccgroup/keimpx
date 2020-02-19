@@ -7,18 +7,14 @@ from __future__ import print_function
 import cmd
 import os
 import random
-import shlex
 import string
 import sys
 import time
-from subprocess import Popen, PIPE, STDOUT
 from threading import Lock, Thread
 
-from lib.common import DataStore
-from lib.exceptions import keimpxError
-from lib.logger import logger
-
 from six import PY3
+
+from lib.logger import logger
 
 try:
     from impacket.nmb import NetBIOSTimeout
