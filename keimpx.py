@@ -792,9 +792,10 @@ def check_conf():
     domains = set_domains()
 
     for credential in credentials:
-        if credential.domain is not None:
-            if credential.domain not in domains:
-                domains.append(credential.domain)
+        if credential is not None:
+            if credential.domain is not None:
+                if credential.domain not in domains:
+                    domains.append(credential.domain)
 
     if len(domains) == 0:
         logger.info('No domains specified, using a blank domain')
