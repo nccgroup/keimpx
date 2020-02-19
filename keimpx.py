@@ -33,7 +33,7 @@ specific language governing permissions and limitations under the License.
 from __future__ import print_function
 
 __author__ = 'Bernardo Damele A. G. <bernardo.damele@gmail.com>'
-__version__ = '0.5-beta.2'
+__version__ = '0.5-beta.3'
 
 import binascii
 import os
