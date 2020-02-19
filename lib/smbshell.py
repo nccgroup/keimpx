@@ -22,7 +22,7 @@ from lib.atexec import TSCH_EXEC
 from lib.common import DataStore, check_dialect, read_input, keimpx_path
 from lib.exceptions import missingShare, missingFile
 from lib.logger import logger
-from lib.psexec import PsExec
+from lib.psexec import PSEXEC
 from lib.rpcdump import RPCDump
 from lib.samrdump import Samr
 from lib.secretsdump import DumpSecrets
@@ -45,7 +45,7 @@ except ImportError:
 #######################################################
 # Enhanced version of Impacket's smbclient.py example #
 #######################################################
-class SMBShell(PsExec, Samr, SvcCtl):
+class SMBShell(Samr, SvcCtl):
     def __init__(self, target, credential, local_name):
 
         self.__dstip = target.get_host()
@@ -674,3 +674,10 @@ class SMBShell(PsExec, Samr, SvcCtl):
                          username=self.__user, password=self.__password, domain=self.__domain,
                          lmhash=self.__lmhash, nthash=self.__nthash)
         return dumper
+
+    def getPsExec(self, command, path=None, exeFile=None, copyFile=None):
+        psexec = PSEXEC(command, path, exeFile, copyFile,
+                        remoteName=self.__destfile if self.__destfile is not None else self.__dstip,
+                        remoteHost=self.__dstip, username=self.__user, password=self.__password,
+                        domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash)
+        return psexec

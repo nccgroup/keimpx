@@ -521,7 +521,9 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             atexec.play()
 
     def do_psexec(self, command):
-        self.smb_shell.psexec(command)
+        logger.debug("PSEXEC CMD: '%s'" % command)
+        psexec = self.smb_shell.getPsExec(command)
+        psexec.run()
 
     def do_secretsdump(self, history):
         dumper = self.smb_shell.getSecretsDumper(history)

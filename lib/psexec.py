@@ -18,12 +18,15 @@ from lib.common import DataStore
 from lib.exceptions import keimpxError
 from lib.logger import logger
 
+from six import PY3
+
 try:
     from impacket.nmb import NetBIOSTimeout
-    from impacket.examples import remcomsvc
+    from impacket.examples import remcomsvc, serviceinstall
     from impacket import smb
     from impacket.smbconnection import SMBConnection, SessionError
     from impacket.structure import Structure
+    from impacket.dcerpc.v5 import transport
 except ImportError:
     sys.stderr.write('psexec: Impacket import error')
     sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
@@ -34,6 +37,7 @@ except ImportError:
 ###############################################################
 # Code borrowed and adapted from Impacket's psexec.py example #
 ###############################################################
+
 class RemComMessage(Structure):
     structure = (
         ('Command', '4096s=""'),
@@ -59,90 +63,168 @@ RemComSTDERR = "RemCom_stderr"
 lock = Lock()
 
 
-class PsExec(object):
-    def __init__(self):
-        pass
+class PSEXEC:
+    def __init__(self, command, path, exeFile, copyFile, port=445, remoteName='', remoteHost='',
+                 username='', password='', domain='', lmhash=None, nthash=None, aesKey=None, doKerberos=False,
+                 kdcHost=None,
+                 serviceName='',
+                 remoteBinaryName=None):
+        self.__username = username
+        self.__password = password
+        self.__port = port
+        self.__remoteName = remoteName
+        self.__remoteHost = remoteHost
 
-    def psexec(self, command=None):
-        srvname = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
-        remote_file = '%s.exe' % ''.join([random.choice(string.ascii_lowercase) for _ in range(8)])
+        if command == ' ' or command == '':
+            self.__command = 'cmd.exe'
+        else:
+            self.__command = command
 
-        if not command:
-            logger.info('Command has not been specified, going to call cmd.exe')
-            command = 'cmd.exe'
+        self.__path = path
+        self.__domain = domain
+        self.__lmhash = lmhash
+        self.__nthash = nthash
+        self.__aesKey = aesKey
+        self.__exeFile = exeFile
+        self.__copyFile = copyFile
+        self.__doKerberos = doKerberos
+        self.__kdcHost = kdcHost
+        self.__serviceName = serviceName
+        self.__remoteBinaryName = remoteBinaryName
 
-        if command in ('cmd.exe', 'command.com'):
-            logger.info('Launching interactive OS shell')
+    def run(self):
 
-        command_and_args = shlex.split(command)
+        stringbinding = r'ncacn_np:%s[\pipe\svcctl]' % self.__remoteName
+        logger.debug('StringBinding %s' % stringbinding)
+        rpctransport = transport.DCERPCTransportFactory(stringbinding)
+        rpctransport.set_dport(self.__port)
+        rpctransport.setRemoteHost(self.__remoteHost)
 
-        if os.path.exists(command_and_args[0]):
-            self.use(DataStore.writable_share)
-            self.upload(command_and_args[0])
+        if hasattr(rpctransport, 'set_credentials'):
+            # This method exists only for selected protocol sequences.
+            rpctransport.set_credentials(self.__username, self.__password, self.__domain, self.__lmhash,
+                                         self.__nthash, self.__aesKey)
 
-        logger.debug('Going to use temporary service %s' % srvname)
-
-        self.deploy(srvname, local_file=remcomsvc.RemComSvc(), srvargs='', remote_file=remote_file)
-        self.smb_transport('svcctl')
-        self.__smb = self.trans.get_smb_connection()
-        self.__smb.setTimeout(100000)
-        self.__tid = self.__smb.connectTree('IPC$')
-        self.__fid_main = self.openPipe(self.__smb, self.__tid, '\\RemCom_communicaton', 0x12019f)
-
-        packet = RemComMessage()
-        packet['Machine'] = ''.join([random.choice(string.ascii_letters) for i in range(4)])
-        packet['Command'] = os.path.basename(command.replace('\\', '/'))
-        packet['ProcessID'] = os.getpid()
-
-        self.__smb.writeNamedPipe(self.__tid, self.__fid_main, packet.getData())
-
-        # Here we'll store the command we type so we don't print it back ;)
-        # ( I know.. globals are nasty :P )
-        global LastDataSent
-        LastDataSent = ''
-
-        # Create the pipes threads
-        stdin_pipe = RemoteStdInPipe(self.trans, '\\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
-                                     smb.FILE_WRITE_DATA | smb.FILE_APPEND_DATA, self.share)
-        stdin_pipe.start()
-        stdout_pipe = RemoteStdOutPipe(self.trans, '\\%s%s%d' % (RemComSTDOUT, packet['Machine'],
-                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
-        stdout_pipe.start()
-        stderr_pipe = RemoteStdErrPipe(self.trans, '\\%s%s%d' % (RemComSTDERR, packet['Machine'],
-                                                                 packet['ProcessID']), smb.FILE_READ_DATA)
-        stderr_pipe.start()
-
-        # And we stay here till the end
-        ans = self.__smb.readNamedPipe(self.__tid, self.__fid_main, 8)
-
-        if len(ans):
-            retCode = RemComResponse(ans)
-            logger.info('Process %s finished with ErrorCode: %d, ReturnCode: %d'
-                        % (os.path.basename(command.replace('\\', '/')), retCode['ErrorCode'], retCode['ReturnCode']))
-
-        self.undeploy(srvname)
+        rpctransport.set_kerberos(self.__doKerberos, self.__kdcHost)
+        self.doStuff(rpctransport)
 
     def openPipe(self, s, tid, pipe, accessMask):
         pipeReady = False
         tries = 50
-
         while pipeReady is False and tries > 0:
             try:
-                self.__smb.waitNamedPipe(tid, pipe)
+                s.waitNamedPipe(tid, pipe)
                 pipeReady = True
-            except Exception as e:
-                # traceback.print_exc()
-                logger.error('Named pipe open error: %s' % str(e))
+            except:
                 tries -= 1
                 time.sleep(2)
+                pass
 
         if tries == 0:
-            logger.error('Named pipe not ready, aborting')
-            raise
+            raise Exception('Pipe not ready, aborting')
 
-        fid = self.__smb.openFile(tid, pipe, accessMask, creationOption=0x40, fileAttributes=0x80)
+        fid = s.openFile(tid, pipe, accessMask, creationOption=0x40, fileAttributes=0x80)
 
         return fid
+
+    def doStuff(self, rpctransport):
+
+        dce = rpctransport.get_dce_rpc()
+        try:
+            dce.connect()
+        except Exception as e:
+            logger.critical(str(e))
+            return
+
+        global dialect
+        dialect = rpctransport.get_smb_connection().getDialect()
+
+        try:
+            unInstalled = False
+            s = rpctransport.get_smb_connection()
+
+            # We don't wanna deal with timeouts from now on.
+            s.setTimeout(100000)
+            if self.__exeFile is None:
+                installService = serviceinstall.ServiceInstall(rpctransport.get_smb_connection(),
+                                                               remcomsvc.RemComSvc(), self.__serviceName)
+            else:
+                try:
+                    f = open(self.__exeFile)
+                except Exception as e:
+                    logger.critical(str(e))
+                    return
+                installService = serviceinstall.ServiceInstall(rpctransport.get_smb_connection(), f)
+
+            if installService.install() is False:
+                return
+
+            if self.__exeFile is not None:
+                f.close()
+
+            # Check if we need to copy a file for execution
+            if self.__copyFile is not None:
+                installService.copy_file(self.__copyFile, installService.getShare(), os.path.basename(self.__copyFile))
+                # And we change the command to be executed to this filename
+                self.__command = os.path.basename(self.__copyFile) + ' ' + self.__command
+
+            tid = s.connectTree('IPC$')
+            fid_main = self.openPipe(s, tid, r'\RemCom_communicaton', 0x12019f)
+
+            packet = RemComMessage()
+            pid = os.getpid()
+
+            packet['Machine'] = ''.join([random.choice(string.ascii_letters) for _ in range(4)])
+            if self.__path is not None:
+                packet['WorkingDir'] = self.__path
+            packet['Command'] = self.__command
+            packet['ProcessID'] = pid
+
+            s.writeNamedPipe(tid, fid_main, packet.getData())
+
+            # Here we'll store the command we type so we don't print it back ;)
+            # ( I know.. globals are nasty :P )
+            global LastDataSent
+            LastDataSent = ''
+
+            # Create the pipes threads
+            stdin_pipe = RemoteStdInPipe(rpctransport,
+                                         r'\%s%s%d' % (RemComSTDIN, packet['Machine'], packet['ProcessID']),
+                                         smb.FILE_WRITE_DATA | smb.FILE_APPEND_DATA, installService.getShare())
+            stdin_pipe.start()
+            stdout_pipe = RemoteStdOutPipe(rpctransport,
+                                           r'\%s%s%d' % (RemComSTDOUT, packet['Machine'], packet['ProcessID']),
+                                           smb.FILE_READ_DATA)
+            stdout_pipe.start()
+            stderr_pipe = RemoteStdErrPipe(rpctransport,
+                                           r'\%s%s%d' % (RemComSTDERR, packet['Machine'], packet['ProcessID']),
+                                           smb.FILE_READ_DATA)
+            stderr_pipe.start()
+
+            # And we stay here till the end
+            ans = s.readNamedPipe(tid, fid_main, 8)
+
+            if len(ans):
+                retCode = RemComResponse(ans)
+                logger.info("Process %s finished with ErrorCode: %d, ReturnCode: %d" % (
+                    self.__command, retCode['ErrorCode'], retCode['ReturnCode']))
+            installService.uninstall()
+            if self.__copyFile is not None:
+                # We copied a file for execution, let's remove it
+                s.deleteFile(installService.getShare(), os.path.basename(self.__copyFile))
+            unInstalled = True
+            return
+
+        except SystemExit:
+            raise
+        except Exception as e:
+            logger.debug(str(e))
+            if unInstalled is False:
+                installService.uninstall()
+                if self.__copyFile is not None:
+                    s.deleteFile(installService.getShare(), os.path.basename(self.__copyFile))
+            sys.stdout.flush()
+            return
 
 
 class Pipes(Thread):
@@ -162,10 +244,17 @@ class Pipes(Thread):
     def connectPipe(self):
         try:
             lock.acquire()
-            self.server = SMBConnection('*SMBSERVER', self.transport.get_smb_connection().getRemoteHost(),
-                                        sess_port=self.port)
-            user, passwd, domain, lm, nt, _, _, _ = self.credentials
-            self.server.login(user, passwd, domain, lm, nt)
+            global dialect
+            # self.server = SMBConnection('*SMBSERVER', self.transport.get_smb_connection().getRemoteHost(), sess_port = self.port, preferredDialect = SMB_DIALECT)
+            self.server = SMBConnection(self.transport.get_smb_connection().getRemoteName(),
+                                        self.transport.get_smb_connection().getRemoteHost(),
+                                        sess_port=self.port, preferredDialect=dialect)
+            user, passwd, domain, lm, nt, aesKey, TGT, TGS = self.credentials
+            if self.transport.get_kerberos() is True:
+                self.server.kerberosLogin(user, passwd, domain, lm, nt, aesKey, kdcHost=self.transport.get_kdcHost(),
+                                          TGT=TGT, TGS=TGS)
+            else:
+                self.server.login(user, passwd, domain, lm, nt)
             lock.release()
             self.tid = self.server.connectTree('IPC$')
 
@@ -173,9 +262,8 @@ class Pipes(Thread):
             self.fid = self.server.openFile(self.tid, self.pipe, self.permissions, creationOption=0x40,
                                             fileAttributes=0x80)
             self.server.setTimeout(1000000)
-        except Exception as e:
-            # traceback.print_exc()
-            logger.error('Named pipe connection error: %s (%s)' % (str(e), self.__class__))
+        except:
+            logger.error("Something wen't wrong connecting the pipes(%s), try again" % self.__class__)
 
 
 class RemoteStdOutPipe(Pipes):
@@ -184,28 +272,25 @@ class RemoteStdOutPipe(Pipes):
 
     def run(self):
         self.connectPipe()
-
         while True:
             try:
                 ans = self.server.readFile(self.tid, self.fid, 0, 1024)
-            except Exception as e:
+            except:
                 pass
             else:
                 try:
                     global LastDataSent
-
                     if ans != LastDataSent:
                         sys.stdout.write(ans.decode('cp437'))
                         sys.stdout.flush()
                     else:
                         # Don't echo what I sent, and clear it up
                         LastDataSent = ''
-
                     # Just in case this got out of sync, i'm cleaning it up if there are more than 10 chars,
                     # it will give false positives tho.. we should find a better way to handle this.
                     if LastDataSent > 10:
                         LastDataSent = ''
-                except Exception as e:
+                except:
                     pass
 
 
@@ -215,71 +300,119 @@ class RemoteStdErrPipe(Pipes):
 
     def run(self):
         self.connectPipe()
-
         while True:
             try:
                 ans = self.server.readFile(self.tid, self.fid, 0, 1024)
-            except Exception as e:
+            except:
                 pass
             else:
                 try:
-                    sys.stderr.write(ans.decode('cp437'))
+                    sys.stderr.write(str(ans))
                     sys.stderr.flush()
-                except Exception as e:
+                except:
                     pass
 
 
 class RemoteShell(cmd.Cmd):
-    def __init__(self, server, port, credentials, tid, fid, share):
+    def __init__(self, server, port, credentials, tid, fid, share, transport):
         cmd.Cmd.__init__(self, False)
         self.prompt = '\x08'
         self.server = server
+        self.transferClient = None
         self.tid = tid
         self.fid = fid
         self.credentials = credentials
         self.share = share
         self.port = port
+        self.transport = transport
+        self.intro = '[!] Press help for extra shell commands'
 
-    def cmdloop(self):
+    def connect_transferClient(self):
+        #self.transferClient = SMBConnection('*SMBSERVER', self.server.getRemoteHost(), sess_port = self.port, preferredDialect = SMB_DIALECT)
+        self.transferClient = SMBConnection('*SMBSERVER', self.server.getRemoteHost(), sess_port=self.port,
+                                            preferredDialect=dialect)
+        user, passwd, domain, lm, nt, aesKey, TGT, TGS = self.credentials
+        if self.transport.get_kerberos() is True:
+            self.transferClient.kerberosLogin(user, passwd, domain, lm, nt, aesKey,
+                                              kdcHost=self.transport.get_kdcHost(), TGT=TGT, TGS=TGS)
+        else:
+            self.transferClient.login(user, passwd, domain, lm, nt)
+
+    def do_help(self, line):
+        print("""
+ lcd {path}                 - changes the current local directory to {path}
+ exit                       - terminates the server process (and this session)
+ put {src_file, dst_path}   - uploads a local file to the dst_path RELATIVE to the connected share (%s)
+ get {file}                 - downloads pathname RELATIVE to the connected share (%s) to the current local dir
+ ! {cmd}                    - executes a local shell cmd
+""" % (self.share, self.share))
+        self.send_data('\r\n', False)
+
+    def do_shell(self, s):
+        os.system(s)
+        self.send_data('\r\n')
+
+    def do_get(self, src_path):
         try:
-            cmd.Cmd.cmdloop(self)
-        except SessionError as e:
-            # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
-        except NetBIOSTimeout as e:
-            logger.error('SMB connection timed out')
-        except keimpxError as e:
-            logger.error(e)
-        except KeyboardInterrupt as _:
-            print()
-            logger.info('User aborted')
-            exit()
+            if self.transferClient is None:
+                self.connect_transferClient()
+
+            import ntpath
+            filename = ntpath.basename(src_path)
+            fh = open(filename,'wb')
+            logger.info("Downloading %s\\%s" % (self.share, src_path))
+            self.transferClient.getFile(self.share, src_path, fh.write)
+            fh.close()
         except Exception as e:
-            # traceback.print_exc()
+            logger.critical(str(e))
+            pass
+
+        self.send_data('\r\n')
+
+    def do_put(self, s):
+        try:
+            if self.transferClient is None:
+                self.connect_transferClient()
+            params = s.split(' ')
+            if len(params) > 1:
+                src_path = params[0]
+                dst_path = params[1]
+            elif len(params) == 1:
+                src_path = params[0]
+                dst_path = '/'
+
+            src_file = os.path.basename(src_path)
+            fh = open(src_path, 'rb')
+            f = dst_path + '/' + src_file
+            pathname = f.replace('/','\\')
+            logger.info("Uploading %s to %s\\%s" % (src_file, self.share, dst_path))
+            if PY3:
+                self.transferClient.putFile(self.share, pathname, fh.read)
+            else:
+                self.transferClient.putFile(self.share, pathname.decode(sys.stdin.encoding), fh.read)
+            fh.close()
+        except Exception as e:
             logger.error(str(e))
+            pass
+
+        self.send_data('\r\n')
+
+    def do_lcd(self, s):
+        if s == '':
+            print(os.getcwd())
+        else:
+            os.chdir(s)
+        self.send_data('\r\n')
 
     def emptyline(self):
         self.send_data('\r\n')
         return
 
-    def do_shell(self, command):
-        process = Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
-        stdout, _ = process.communicate()
-
-        if stdout is not None:
-            print(stdout)
-
-        self.send_data('\r\n')
-
-    def do_exit(self, line):
-        self.send_data('exit\r\n')
-        return
-
-    def default(self, line=''):
-        if isinstance(line, bytearray):
-            self.send_data(line.decode('cp437') + '\r\n')
+    def default(self, line):
+        if PY3:
+            self.send_data(line.encode('cp437')+b'\r\n')
         else:
-            self.send_data(line + '\r\n')
+            self.send_data(line.decode(sys.stdin.encoding).encode('cp437')+'\r\n')
 
     def send_data(self, data, hideOutput=True):
         if hideOutput is True:
@@ -287,15 +420,16 @@ class RemoteShell(cmd.Cmd):
             LastDataSent = data
         else:
             LastDataSent = ''
-
         self.server.writeFile(self.tid, self.fid, data)
 
 
 class RemoteStdInPipe(Pipes):
     def __init__(self, transport, pipe, permisssions, share=None):
+        self.shell = None
         Pipes.__init__(self, transport, pipe, permisssions, share)
 
     def run(self):
         self.connectPipe()
-        self.remote_shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share)
-        self.remote_shell.cmdloop()
+        self.shell = RemoteShell(self.server, self.port, self.credentials, self.tid, self.fid, self.share,
+                                 self.transport)
+        self.shell.cmdloop()
