@@ -650,7 +650,8 @@ def set_credentials():
         logger.debug('Loading credentials from file %s' % conf.credsfile)
         parsed_credentials = parse_credentials_file(conf.credsfile)
         for credential in parsed_credentials:
-            credentials.append(credential)
+            if credential is not None:
+                credentials.append(credential)
 
     unique_credentials = []
     for credential in credentials:
@@ -792,10 +793,9 @@ def check_conf():
     domains = set_domains()
 
     for credential in credentials:
-        if credential is not None:
-            if credential.domain is not None:
-                if credential.domain not in domains:
-                    domains.append(credential.domain)
+        if credential.domain is not None:
+            if credential.domain not in domains:
+                domains.append(credential.domain)
 
     if len(domains) == 0:
         logger.info('No domains specified, using a blank domain')
