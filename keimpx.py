@@ -527,7 +527,8 @@ def set_domains():
         logger.debug('Loading domains from file %s' % conf.domainsfile)
         parsed_domains = parse_domains_file(conf.domainsfile)
         for domain in parsed_domains:
-            domains.append(domain)
+            if domain is not None:
+                domains.append(domain)
 
     unique_domains = []
     for domain in domains:
@@ -650,7 +651,8 @@ def set_credentials():
         logger.debug('Loading credentials from file %s' % conf.credsfile)
         parsed_credentials = parse_credentials_file(conf.credsfile)
         for credential in parsed_credentials:
-            credentials.append(credential)
+            if credential is not None:
+                credentials.append(credential)
 
     unique_credentials = []
     for credential in credentials:
@@ -753,7 +755,8 @@ def set_targets():
         parsed_targets = parse_targets_file(conf.list)
         if parsed_targets is not False:
             for target in parsed_targets:
-                targets.append(target)
+                if target is not None:
+                    targets.append(target)
 
     unique_targets = []
     for target in targets:
