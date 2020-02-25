@@ -130,8 +130,9 @@ class CMDEXEC:
             self.__rpctransport.set_credentials(self.__username, self.__password, self.__domain, self.__lmhash,
                                                 self.__nthash, self.__aesKey)
         self.__rpctransport.set_kerberos(self.__doKerberos, self.__kdcHost)
+        logger.debug("Done prep")
 
-    def shell(self):
+    def do_shell(self):
         self.shell = None
         try:
             if self.__mode == 'SERVER':

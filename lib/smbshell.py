@@ -696,7 +696,7 @@ class SMBShell(Samr, SvcCtl):
                                 lmhash=self.__lmhash, nthash=self.__nthash, mode=shell_mode,
                                 share=DataStore.writable_share)
             svc_shell.prep()
-            svc_shell.shell()
+            svc_shell.do_shell()
 
         except SessionError as e:
             # traceback.print_exc()
