@@ -19,14 +19,15 @@ from six import string_types
 from six.moves import range as range
 
 from lib.atexec import TSCH_EXEC
-from lib.common import DataStore, check_dialect, read_input, keimpx_path
-from lib.exceptions import missingShare, missingFile
+from lib.common import DataStore, check_dialect, read_input, keimpx_path, is_local_admin
+from lib.exceptions import missingShare, missingFile, missingPermission
 from lib.logger import logger
 from lib.psexec import PSEXEC
 from lib.rpcdump import RPCDump
 from lib.samrdump import Samr
 from lib.secretsdump import DumpSecrets
 from lib.services import SvcCtl
+from lib.smbexec import CMDEXEC
 
 try:
     from impacket import nt_errors
@@ -681,3 +682,29 @@ class SMBShell(Samr, SvcCtl):
                         remoteHost=self.__dstip, username=self.__user, password=self.__password,
                         domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash)
         return psexec
+
+    def svcshell(self, shell_mode='SHARE'):
+        if shell_mode == 'SERVER' and not is_local_admin():
+            err = ("keimpx needs to be run as Administrator/root to use svcshell in SERVER mode. Privileged port is "
+                   "needed to run SMB server.")
+            raise missingPermission(err)
+
+        try:
+            svc_shell = CMDEXEC(self.__destfile if self.__destfile is not None else self.__dstip, self.__dstip,
+                                username=self.__user, password=self.__password, domain=self.__domain,
+                                lmhash=self.__lmhash, nthash=self.__nthash, mode=shell_mode,
+                                share=DataStore.writable_share)
+            svc_shell.run()
+
+        except SessionError as e:
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
+        except KeyboardInterrupt as _:
+            print()
+            logger.info('User aborted')
+        except Exception as e:
+            # import traceback
+            # traceback.print_exc()
+            logger.error(str(e))
+
+        sys.stdout.flush()

@@ -13,7 +13,7 @@ from lib.avservices import AVSERVICES
 from lib.common import DataStore, is_local_admin, SMBServer
 from lib.exceptions import missingPermission
 from lib.logger import logger
-from lib.smbexec import SvcShell
+from lib.smbexec import CMDEXEC
 
 try:
     from impacket.dcerpc.v5 import scmr
@@ -163,39 +163,6 @@ class SvcCtl(object):
 
         if os.path.exists(command_and_args[0]):
             self.rm(os.path.basename(command_and_args[0]))
-
-    def svcshell(self, mode='SHARE'):
-        if mode == 'SERVER' and not is_local_admin():
-            err = ("keimpx needs to be run as Administrator/root to use svcshell. Privileged port is needed to run SMB "
-                   "server.")
-            raise missingPermission(err)
-
-        self.__scmr_connect()
-
-        try:
-            if mode == 'SERVER':
-                self.__serverThread = SMBServer(self.smbserver_share)
-                self.__serverThread.daemon = True
-                self.__serverThread.start()
-
-            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, self.smbserver_share, mode)
-            self.svc_shell.cmdloop()
-
-            if mode == 'SERVER':
-                self.__serverThread.stop()
-        except SessionError as e:
-            # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
-        except KeyboardInterrupt as _:
-            print()
-            logger.info('User aborted')
-        except Exception as e:
-            # import traceback
-            # traceback.print_exc()
-            logger.error(str(e))
-
-        sys.stdout.flush()
-        self.__scmr_disconnect()
 
     def __scmr_srv_manager(self, srvname):
         self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname)

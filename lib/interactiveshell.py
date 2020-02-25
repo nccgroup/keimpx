@@ -510,7 +510,9 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
         self.smb_shell.svcexec(command, mode)
 
     def do_svcshell(self, mode='SHARE'):
-        self.smb_shell.svcshell(mode)
+        if mode != "SHARE" and mode != "SERVER":
+            mode = "SHARE"
+        self.smb_shell.svcshell(shell_mode=mode)
 
     def do_atexec(self, command):
         if not command:
