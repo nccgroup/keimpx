@@ -116,27 +116,29 @@ class CMDEXEC:
         self.__share = share
         self.__mode = mode
         self.__display = display
+        self.__rpctransport = None
         self.shell = None
 
-    def run(self):
+    def prep(self):
         stringbinding = r'ncacn_np:%s[\pipe\svcctl]' % self.__remoteName
         logger.debug('StringBinding %s' % stringbinding)
-        rpctransport = transport.DCERPCTransportFactory(stringbinding)
-        rpctransport.set_dport(self.__port)
-        rpctransport.setRemoteHost(self.__remoteHost)
-        if hasattr(rpctransport, 'set_credentials'):
+        self.__rpctransport = transport.DCERPCTransportFactory(stringbinding)
+        self.__rpctransport.set_dport(self.__port)
+        self.__rpctransport.setRemoteHost(self.__remoteHost)
+        if hasattr(self.__rpctransport, 'set_credentials'):
             # This method exists only for selected protocol sequences.
-            rpctransport.set_credentials(self.__username, self.__password, self.__domain, self.__lmhash,
-                                         self.__nthash, self.__aesKey)
-        rpctransport.set_kerberos(self.__doKerberos, self.__kdcHost)
+            self.__rpctransport.set_credentials(self.__username, self.__password, self.__domain, self.__lmhash,
+                                                self.__nthash, self.__aesKey)
+        self.__rpctransport.set_kerberos(self.__doKerberos, self.__kdcHost)
 
+    def shell(self):
         self.shell = None
         try:
             if self.__mode == 'SERVER':
                 serverThread = SMBServer()
                 serverThread.daemon = True
                 serverThread.start()
-            self.shell = RemoteShell(self.__share, rpctransport, self.__mode,
+            self.shell = RemoteShell(self.__share, self.__rpctransport, self.__mode,
                                      self.__serviceName, display=self.__display)
             self.shell.cmdloop()
             if self.__mode == 'SERVER':
@@ -148,16 +150,35 @@ class CMDEXEC:
             sys.stdout.flush()
             return
 
+    def onecmd(self, command):
+        self.shell = None
+        try:
+            if self.__mode == 'SERVER':
+                serverThread = SMBServer()
+                serverThread.daemon = True
+                serverThread.start()
+            self.shell = RemoteShell(self.__share, self.__rpctransport, self.__mode,
+                                     self.__serviceName, display=self.__display)
+            self.shell.onecmd(command)
+            if self.__mode == 'SERVER':
+                serverThread.stop()
+        except (Exception, KeyboardInterrupt) as e:
+            logger.critical(str(e))
+            if self.shell is not None:
+                self.shell.finish()
+            sys.stdout.flush()
+            return
+
 
 class RemoteShell(cmd.Cmd):
-    def __init__(self, share, rpc, mode, serviceName, display=True):
+    def __init__(self, share, rpc, mode, serviceName, command='', display=True):
         cmd.Cmd.__init__(self)
         self.__share = share
         self.__mode = mode
         self.__output = '\\\\127.0.0.1\\' + self.__share + '\\' + OUTPUT_FILENAME
         self.__batchFile = '%TEMP%\\' + BATCH_FILENAME
         self.__outputBuffer = b''
-        self.__command = ''
+        self.__command = command
         self.__shell = '%COMSPEC% /Q /c '
         self.__serviceName = serviceName
         self.__rpc = rpc

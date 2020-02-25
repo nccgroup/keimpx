@@ -8,6 +8,7 @@ import glob
 import ntpath
 import os
 import random
+import shlex
 import socket
 import string
 import sys
@@ -694,7 +695,8 @@ class SMBShell(Samr, SvcCtl):
                                 username=self.__user, password=self.__password, domain=self.__domain,
                                 lmhash=self.__lmhash, nthash=self.__nthash, mode=shell_mode,
                                 share=DataStore.writable_share)
-            svc_shell.run()
+            svc_shell.prep()
+            svc_shell.shell()
 
         except SessionError as e:
             # traceback.print_exc()
@@ -708,3 +710,41 @@ class SMBShell(Samr, SvcCtl):
             logger.error(str(e))
 
         sys.stdout.flush()
+
+    def svcexec(self, command, shell_mode='SHARE', display=True):
+        if shell_mode == 'SERVER' and not is_local_admin():
+            err = ("keimpx needs to be run as Administrator/root to use svcshell. "
+                   "Privileged port is needed to run SMB server.")
+            raise missingPermission(err)
+
+        command_and_args = shlex.split(command)
+
+        if os.path.exists(command_and_args[0]):
+            self.use(DataStore.writable_share)
+            self.upload(command_and_args[0])
+
+        try:
+            if os.path.exists(command_and_args[0]):
+                command = ntpath.join(DataStore.share_path, os.path.basename(command))
+
+            svc_shell = CMDEXEC(self.__destfile if self.__destfile is not None else self.__dstip, self.__dstip,
+                                username=self.__user, password=self.__password, domain=self.__domain,
+                                lmhash=self.__lmhash, nthash=self.__nthash, mode=shell_mode,
+                                share=DataStore.writable_share)
+            svc_shell.prep()
+            svc_shell.onecmd(command)
+
+        except SessionError as e:
+            # traceback.print_exc()
+            logger.error('SMB error: %s' % (e.getErrorString(),))
+        except KeyboardInterrupt as _:
+            print()
+            logger.info('User aborted')
+        except Exception as e:
+            # traceback.print_exc()
+            logger.error(str(e))
+
+        sys.stdout.flush()
+
+        if os.path.exists(command_and_args[0]):
+            self.rm(os.path.basename(command_and_args[0]))

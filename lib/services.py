@@ -120,50 +120,6 @@ class SvcCtl(object):
                     print("Couldn't stop %s (%s), currently in state: %s" % (
                         display, name, self.__scmr_parse_state(state)))
 
-    def svcexec(self, command, mode='SHARE', display=True):
-        if mode == 'SERVER' and not is_local_admin():
-            err = ("keimpx needs to be run as Administrator/root to use svcshell. "
-                   "Privileged port is needed to run SMB server.")
-            raise missingPermission(err)
-
-        command_and_args = shlex.split(command)
-
-        if os.path.exists(command_and_args[0]):
-            self.use(DataStore.writable_share)
-            self.upload(command_and_args[0])
-
-        self.__scmr_connect()
-
-        try:
-            if mode == 'SERVER':
-                self.__serverThread = SMBServer(self.smbserver_share)
-                self.__serverThread.daemon = True
-                self.__serverThread.start()
-
-            if os.path.exists(command_and_args[0]):
-                command = ntpath.join(DataStore.share_path, os.path.basename(command))
-
-            self.svc_shell = SvcShell(self.__rpc, self.__mgr_handle, self.trans, self.smbserver_share, mode, display)
-            self.svc_shell.onecmd(command)
-
-            if mode == 'SERVER':
-                self.__serverThread.stop()
-        except SessionError as e:
-            # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
-        except KeyboardInterrupt as _:
-            print()
-            logger.info('User aborted')
-        except Exception as e:
-            # traceback.print_exc()
-            logger.error(str(e))
-
-        sys.stdout.flush()
-        self.__scmr_disconnect()
-
-        if os.path.exists(command_and_args[0]):
-            self.rm(os.path.basename(command_and_args[0]))
-
     def __scmr_srv_manager(self, srvname):
         self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname)
         self.__service_handle = self.__resp['lpServiceHandle']
