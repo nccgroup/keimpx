@@ -7,7 +7,7 @@ import logging
 import re
 import sys
 
-if sys.platform == 'win32':
+if sys.platform == "win32":
     IS_WIN = True
 else:
     IS_WIN = False
@@ -30,32 +30,32 @@ def stdoutEncode(data):  # Cross-referenced function
 class ColorizingStreamHandler(logging.StreamHandler):
     # color names to indices
     color_map = {
-        'black': 0,
-        'red': 1,
-        'green': 2,
-        'yellow': 3,
-        'blue': 4,
-        'magenta': 5,
-        'cyan': 6,
-        'white': 7,
+        "black": 0,
+        "red": 1,
+        "green": 2,
+        "yellow": 3,
+        "blue": 4,
+        "magenta": 5,
+        "cyan": 6,
+        "white": 7,
     }
 
     # levels to (background, foreground, bold/intense)
     level_map = {
-        logging.DEBUG: (None, 'blue', False),
-        logging.INFO: (None, 'green', False),
-        logging.WARNING: (None, 'yellow', False),
-        logging.ERROR: (None, 'red', False),
-        logging.CRITICAL: ('red', 'white', False)
+        logging.DEBUG: (None, "blue", False),
+        logging.INFO: (None, "green", False),
+        logging.WARNING: (None, "yellow", False),
+        logging.ERROR: (None, "red", False),
+        logging.CRITICAL: ("red", "white", False)
     }
-    csi = '\x1b['
-    reset = '\x1b[0m'
+    csi = "\x1b["
+    reset = "\x1b[0m"
     bold = "\x1b[1m"
     disable_coloring = False
 
     @property
     def is_tty(self):
-        isatty = getattr(self.stream, 'isatty', None)
+        isatty = getattr(self.stream, "isatty", None)
         return isatty and isatty() and not self.disable_coloring
 
     def emit(self, record):
@@ -69,7 +69,7 @@ class ColorizingStreamHandler(logging.StreamHandler):
                 stream.write(message)
             else:
                 self.output_colorized(message)
-            stream.write(getattr(self, 'terminator', '\n'))
+            stream.write(getattr(self, "terminator", "\n"))
 
             self.flush()
         except (KeyboardInterrupt, SystemExit):
@@ -83,7 +83,7 @@ class ColorizingStreamHandler(logging.StreamHandler):
         def output_colorized(self, message):
             self.stream.write(message)
     else:
-        ansi_esc = re.compile(r'\x1b\[((?:\d+)(?:;(?:\d+))*)m')
+        ansi_esc = re.compile(r"\x1b\[((?:\d+)(?:;(?:\d+))*)m")
 
         nt_color_map = {
             0: 0x00,  # black
@@ -99,7 +99,7 @@ class ColorizingStreamHandler(logging.StreamHandler):
         def output_colorized(self, message):
             parts = self.ansi_esc.split(message)
             h = None
-            fd = getattr(self.stream, 'fileno', None)
+            fd = getattr(self.stream, "fileno", None)
 
             if fd is not None:
                 fd = fd()
@@ -118,7 +118,7 @@ class ColorizingStreamHandler(logging.StreamHandler):
                     params = parts.pop(0)
 
                     if h is not None:
-                        params = [int(p) for p in params.split(';')]
+                        params = [int(p) for p in params.split(";")]
                         color = 0
 
                         for p in params:
@@ -157,7 +157,7 @@ class ColorizingStreamHandler(logging.StreamHandler):
                 params.append(str(self.color_map[fg] + 30))
 
             if bold:
-                params.append('1')
+                params.append("1")
 
             if params and message:
                 match = re.search(r"\A(\s+)", message)
@@ -170,51 +170,51 @@ class ColorizingStreamHandler(logging.StreamHandler):
                     if message.startswith(self.bold):
                         message = message.replace(self.bold, "")
                         reset = self.reset + self.bold
-                        params.append('1')
+                        params.append("1")
                     else:
                         reset = self.reset
-                    message = message.replace(level, ''.join((self.csi, ';'.join(params), 'm', level, reset)), 1)
+                    message = message.replace(level, "".join((self.csi, ";".join(params), "m", level, reset)), 1)
 
                     match = re.search(r"\A\s*\[([\d:]+)\]", message)  # time
                     if match:
                         time = match.group(1)
-                        message = message.replace(time, ''.join(
-                            (self.csi, str(self.color_map["cyan"] + 30), 'm', time, self._reset(message))), 1)
+                        message = message.replace(time, "".join(
+                            (self.csi, str(self.color_map["cyan"] + 30), "m", time, self._reset(message))), 1)
 
                     match = re.search(r"\[(#\d+)\]", message)  # counter
                     if match:
                         counter = match.group(1)
-                        message = message.replace(counter, ''.join(
-                            (self.csi, str(self.color_map["yellow"] + 30), 'm', counter, self._reset(message))), 1)
+                        message = message.replace(counter, "".join(
+                            (self.csi, str(self.color_map["yellow"] + 30), "m", counter, self._reset(message))), 1)
 
                     if level != "PAYLOAD":
                         if any(_ in message for _ in ("parsed DBMS error message",)):
                             match = re.search(r": '(.+)'", message)
                             if match:
                                 string = match.group(1)
-                                message = message.replace("'%s'" % string, "'%s'" % ''.join(
-                                    (self.csi, str(self.color_map["white"] + 30), 'm', string, self._reset(message))),
+                                message = message.replace("'%s'" % string, "'%s'" % "".join(
+                                    (self.csi, str(self.color_map["white"] + 30), "m", string, self._reset(message))),
                                                           1)
                         else:
                             match = re.search(r"\bresumed: '(.+\.\.\.)", message)
                             if match:
                                 string = match.group(1)
-                                message = message.replace("'%s" % string, "'%s" % ''.join(
-                                    (self.csi, str(self.color_map["white"] + 30), 'm', string, self._reset(message))),
+                                message = message.replace("'%s" % string, "'%s" % "".join(
+                                    (self.csi, str(self.color_map["white"] + 30), "m", string, self._reset(message))),
                                                           1)
                             else:
                                 match = re.search(r" \('(.+)'\)\Z", message)
                                 if match:
                                     string = match.group(1)
-                                    message = message.replace("'%s'" % string, "'%s'" % ''.join((self.csi, str(
-                                        self.color_map["white"] + 30), 'm', string, self._reset(message))), 1)
+                                    message = message.replace("'%s'" % string, "'%s'" % "".join((self.csi, str(
+                                        self.color_map["white"] + 30), "m", string, self._reset(message))), 1)
                                 else:
                                     for match in re.finditer(r"[^\w]'([^']+)'", message):  # single-quoted
                                         string = match.group(1)
-                                        message = message.replace("'%s'" % string, "'%s'" % ''.join((self.csi, str(
-                                            self.color_map["white"] + 30), 'm', string, self._reset(message))), 1)
+                                        message = message.replace("'%s'" % string, "'%s'" % "".join((self.csi, str(
+                                            self.color_map["white"] + 30), "m", string, self._reset(message))), 1)
                 else:
-                    message = ''.join((self.csi, ';'.join(params), 'm', message, self.reset))
+                    message = "".join((self.csi, ";".join(params), "m", message, self.reset))
 
                 if prefix:
                     message = "%s%s" % (prefix, message)

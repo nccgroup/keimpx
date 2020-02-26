@@ -21,18 +21,18 @@ try:
     from impacket.nmb import NetBIOSTimeout
     from impacket.smbconnection import SessionError
 except ImportError:
-    sys.stderr.write('interactiveshell: Impacket import error')
-    sys.stderr.write('interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please '
-                     'download it using:\npip: pip install -r requirements.txt\nOr through your package manager:'
-                     '\npython-impacket.')
+    sys.stderr.write("interactiveshell: Impacket import error")
+    sys.stderr.write("interactiveshell: Impacket by SecureAuth Corporation is required for this tool to work. Please "
+                     "download it using:\npip: pip install -r requirements.txt\nOr through your package manager:"
+                     "\npython-impacket.")
     sys.exit(255)
 
 
 class InteractiveShell(cmd.Cmd):
     def __init__(self, target, credential, local_name):
-        '''
+        """
         Initialize the object variables
-        '''
+        """
 
         cmd.Cmd.__init__(self)
 
@@ -40,30 +40,30 @@ class InteractiveShell(cmd.Cmd):
             self.smb_shell = SMBShell(target, credential, local_name)
         except SessionError as e:
             # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
+            logger.error("SMB error: %s" % (e.getErrorString(),))
         except Exception as e:
             # traceback.print_exc()
-            logger.error('Generic error: %s' % str(e))
+            logger.error("Generic error: %s" % str(e))
 
-        self.prompt = 'SMBShell(%s) > ' % target.get_identity()
+        self.prompt = "SMBShell(%s) > " % target.get_identity()
 
     def cmdloop(self):
-        logger.info('Launching interactive SMB shell')
-        print('Type help for list of commands')
+        logger.info("Launching interactive SMB shell")
+        print("Type help for list of commands")
 
         try:
             cmd.Cmd.cmdloop(self)
         except SessionError as e:
             # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
+            logger.error("SMB error: %s" % (e.getErrorString(),))
         except NetBIOSTimeout as e:
-            logger.error('SMB connection timed out')
+            logger.error("SMB connection timed out")
         except keimpxError as e:
             logger.error(e)
         except KeyboardInterrupt as _:
             print()
-            logger.info('User aborted')
-            self.do_exit('')
+            logger.info("User aborted")
+            self.do_exit("")
         except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))
@@ -72,18 +72,18 @@ class InteractiveShell(cmd.Cmd):
         pass
 
     def complete_local_files(self, text, line, begidx, endidx, include=0):
-        '''
+        """
         include means
         * 0: all files and directories
         * 1: just files
         * 2: just directories
-        '''
+        """
         if text:
             path = os.path.normpath(text)
         else:
-            path = ''
+            path = ""
 
-        files = glob.glob('%s*' % path)
+        files = glob.glob("%s*" % path)
         items = []
 
         for filename in files:
@@ -97,16 +97,16 @@ class InteractiveShell(cmd.Cmd):
         return items
 
     def complete_files(self, text, line, begidx, endidx, include=0):
-        '''
+        """
         include means
         * 0: all files and directories
         * 1: just files
         * 2: just directories
-        '''
+        """
         self.smb_shell.ls(None, display=False)
         path = ntpath.normpath(line)
 
-        if path.find('\\') < 0:
+        if path.find("\\") < 0:
             items = []
 
             if include == 1:
@@ -124,10 +124,10 @@ class InteractiveShell(cmd.Cmd):
                 return items
 
     def do_shell(self, command):
-        '''
+        """
         Execute a local command if the provided command is preceed by an
         exclamation mark
-        '''
+        """
         process = Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
         stdout, _ = process.communicate()
 
@@ -135,17 +135,17 @@ class InteractiveShell(cmd.Cmd):
             print(stdout.decode())
 
     def do_exit(self, line):
-        '''
+        """
         Disconnect the SMB session
-        '''
+        """
         self.smb_shell.logoff()
         return True
 
     def do_help(self, line):
-        '''
+        """
         Show the help menu
-        '''
-        print('''Generic options
+        """
+        print("""Generic options
 ===============
 help - show this message
 verbosity {level} - set verbosity level (0-2)
@@ -240,7 +240,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
               is done, things are restored to the  original state.
               The argument can be Y or N to either dump or not the password
               history, by default it is N
-''')
+""")
 
     def do_verbosity(self, level):
         set_verbosity(level)
@@ -301,7 +301,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_download(self, filename):
         if not filename:
-            raise missingOption('File name has not been specified')
+            raise missingOption("File name has not been specified")
 
         self.smb_shell.download(filename)
 
@@ -331,7 +331,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             argvalues = shlex.split(pathname)
 
             if len(argvalues) < 1:
-                raise missingOption('You have to specify at least the local file name')
+                raise missingOption("You have to specify at least the local file name")
             elif len(argvalues) > 1:
                 destfile = argvalues[1]
 
@@ -353,7 +353,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
             argvalues = shlex.split(srcfile)
 
             if len(argvalues) != 2:
-                raise missingOption('You have to specify source and destination file names')
+                raise missingOption("You have to specify source and destination file names")
             else:
                 srcfile, destfile = argvalues
 
@@ -391,22 +391,22 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_status(self, srvname):
         if not srvname:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         self.smb_shell.status(srvname)
 
     def do_query(self, srvname):
         if not srvname:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         self.smb_shell.query(srvname)
 
-    def do_start(self, srvname, srvargs=''):
+    def do_start(self, srvname, srvargs=""):
         if not srvargs:
             argvalues = shlex.split(srvname)
 
             if len(argvalues) < 1:
-                raise missingService('Service name has not been specified')
+                raise missingService("Service name has not been specified")
             elif len(argvalues) > 1:
                 srvargs = argvalues[1]
 
@@ -416,34 +416,34 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_stop(self, srvname):
         if not srvname:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         self.smb_shell.stop(srvname)
 
     def do_change(self, srvname):
         if not srvname:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         # TODO: handle parameters
         # https://code.google.com/p/impacket/source/diff?spec=svn852&r=852&format=side&path=/trunk/examples/services.py
         # https://code.google.com/p/impacket/source/diff?spec=svn858&r=858&format=side&path=/trunk/examples/services.py
         self.smb_shell.change(srvname)
 
-    def do_deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
-        '''
+    def do_deploy(self, srvname, local_file=None, srvargs="", remote_file=None, displayname=None):
+        """
         Sample command:
-        deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe 'long name'
-        '''
+        deploy shortname contrib/srv_bindshell.exe 5438 remotefile.exe "long name"
+        """
         argvalues = shlex.split(srvname)
 
         if len(argvalues) < 1:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         srvname = argvalues[0]
 
         if not local_file:
             if len(argvalues) < 2:
-                raise missingFile('Service file %s has not been specified' % local_file)
+                raise missingFile("Service file %s has not been specified" % local_file)
             if len(argvalues) >= 5:
                 displayname = argvalues[4]
             if len(argvalues) >= 4:
@@ -454,15 +454,15 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
                 local_file = argvalues[1]
 
         if not os.path.exists(local_file):
-            raise missingFile('Service file %s does not exist' % local_file)
+            raise missingFile("Service file %s does not exist" % local_file)
 
         srvname = str(srvname)
         srvargs = str(srvargs)
 
         if not remote_file:
-            remote_file = str(os.path.basename(local_file.replace('\\', '/')))
+            remote_file = str(os.path.basename(local_file.replace("\\", "/")))
         else:
-            remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
+            remote_file = str(os.path.basename(remote_file.replace("\\", "/")))
 
         if not displayname:
             displayname = srvname
@@ -473,7 +473,7 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
 
     def do_undeploy(self, srvname):
         if not srvname:
-            raise missingService('Service name has not been specified')
+            raise missingService("Service name has not been specified")
 
         self.smb_shell.undeploy(srvname)
 
@@ -496,34 +496,34 @@ secretsdump [y|N] - performs various techniques to dump hashes from the
     def do_bindshell(self, port):
         self.smb_shell.bindshell(port)
 
-    def do_svcexec(self, command, mode='SHARE'):
+    def do_svcexec(self, command, mode="SHARE"):
         argvalues = shlex.split(command)
 
         if len(argvalues) < 1:
-            raise missingService('Command has not been specified')
+            raise missingService("Command has not been specified")
         elif len(argvalues) == 1:
             command = argvalues[0]
-        elif len(argvalues) > 1 and argvalues[-1] in ('SHARE', 'SERVER'):
-            command = ' '.join(_ for _ in argvalues[0:-1])
+        elif len(argvalues) > 1 and argvalues[-1] in ("SHARE", "SERVER"):
+            command = " ".join(_ for _ in argvalues[0:-1])
             mode = argvalues[1]
 
         self.smb_shell.svcexec(command, mode)
 
-    def do_svcshell(self, mode='SHARE'):
+    def do_svcshell(self, mode="SHARE"):
         if mode != "SHARE" and mode != "SERVER":
             mode = "SHARE"
         self.smb_shell.svcshell(shell_mode=mode)
 
     def do_atexec(self, command):
         if not command:
-            raise missingOption('Command has not been specified')
+            raise missingOption("Command has not been specified")
 
         atexec = self.smb_shell.getAtExec(command)
         if atexec is not None:
             atexec.play()
 
     def do_psexec(self, command):
-        logger.debug("PSEXEC CMD: '%s'" % command)
+        logger.debug("PSEXEC CMD: 's'" % command)
         psexec = self.smb_shell.getPsExec(command)
         psexec.run()
 

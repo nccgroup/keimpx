@@ -1,4 +1,4 @@
 AVSERVICES = {
-    'MsMpSvc': 'Microsoft Antimalware Service',
-    'AntiVirService': 'Avira Real-Time Protection'
+    "MsMpSvc": "Microsoft Antimalware Service",
+    "AntiVirService": "Avira Real-Time Protection"
 }

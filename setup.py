@@ -2,7 +2,7 @@
 # -*- coding: iso-8859-15 -*-
 # -*- Mode: python -*-
 
-'''
+"""
 $Id$
 
 keimpx is an open source tool, released under the Apache
@@ -33,7 +33,7 @@ specific language governing permissions and limitations under the License.
 
 This product includes software developed by SecureAuth Corporation
 (https://www.secureauth.com/).
-'''
+"""
 
 from distutils.core import setup
 
@@ -44,9 +44,9 @@ setup(
     author="Bernardo Damele A. G.",
     author_email="bernardo.damele@gmail.com",
     url="https://github.com/nccgroup/keimpx",
-    license="Modified Apache license",
+    license="Apache 2.0",
     console=["keimpx.py"],
     data_files=[
-        ("contrib", ["contrib\\srv_bindshell.exe", ]),
+        ("contrib", [r"contrib\srv_bindshell.exe", ]),
     ]
 )

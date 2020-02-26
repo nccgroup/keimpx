@@ -6,14 +6,11 @@ from __future__ import print_function
 
 import ntpath
 import os
-import shlex
 import sys
 
 from lib.avservices import AVSERVICES
-from lib.common import DataStore, is_local_admin, SMBServer
-from lib.exceptions import missingPermission
+from lib.common import DataStore
 from lib.logger import logger
-from lib.smbexec import CMDEXEC
 
 try:
     from impacket.dcerpc.v5 import scmr
@@ -21,14 +18,14 @@ try:
     from impacket.smbconnection import SessionError
     from impacket.crypto import encryptSecret
 except ImportError:
-    sys.stderr.write('services: Impacket import error')
-    sys.stderr.write('Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:'
-                     '\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.')
+    sys.stderr.write("services: Impacket import error")
+    sys.stderr.write("Impacket by SecureAuth Corporation is required for this tool to work. Please download it using:"
+                     "\npip: pip install -r requirements.txt\nOr through your package manager:\npython-impacket.")
     sys.exit(255)
 
 
 #################################################################
-# Code borrowed and adapted from Impacket's services.py example #
+# Code borrowed and adapted from Impacket"s services.py example #
 #################################################################
 class SvcCtl(object):
     def __init__(self):
@@ -55,7 +52,7 @@ class SvcCtl(object):
 
         return resp
 
-    def start(self, srvname, srvargs=''):
+    def start(self, srvname, srvargs=""):
         self.__scmr_connect()
         self.__scmr_srv_manager(srvname)
         self.__scmr_start(srvname, srvargs)
@@ -74,9 +71,9 @@ class SvcCtl(object):
         self.__scmr_change(display, path, service_type, start_type, start_name, password)
         self.__scmr_disconnect(srvname)
 
-    def deploy(self, srvname, local_file=None, srvargs='', remote_file=None, displayname=None):
+    def deploy(self, srvname, local_file=None, srvargs="", remote_file=None, displayname=None):
         self.oldpwd = self.pwd
-        self.pwd = '\\'
+        self.pwd = "\\"
 
         self.__scmr_bin_upload(local_file, remote_file)
         self.__scmr_connect()
@@ -89,15 +86,15 @@ class SvcCtl(object):
 
     def undeploy(self, srvname):
         self.oldpwd = self.pwd
-        self.pwd = '\\'
+        self.pwd = "\\"
 
         self.__scmr_connect()
         self.__scmr_srv_manager(srvname)
         resp = scmr.hRQueryServiceConfigW(self.__rpc, self.__service_handle)
-        remote_file = resp['lpServiceConfig']['lpBinaryPathName'][:-1]
-        remote_file = str(os.path.basename(remote_file.replace('\\', '/')))
+        remote_file = resp["lpServiceConfig"]["lpBinaryPathName"][:-1]
+        remote_file = str(os.path.basename(remote_file.replace("\\", "/")))
 
-        if self.__scmr_state(srvname, return_state=True) == 'RUNNING':
+        if self.__scmr_state(srvname, return_state=True) == "RUNNING":
             self.__scmr_stop(srvname)
 
         self.__scmr_delete(srvname)
@@ -110,9 +107,9 @@ class SvcCtl(object):
         resp = scmr.hREnumServicesStatusW(self.__rpc, self.__mgr_handle, dwServiceState=scmr.SERVICE_STATE_ALL)
 
         for i in range(len(resp)):
-            name = resp[i]['lpServiceName'][:-1]
-            display = resp[i]['lpDisplayName'][:-1]
-            state = resp[i]['ServiceStatus']['dwCurrentState']
+            name = resp[i]["lpServiceName"][:-1]
+            display = resp[i]["lpDisplayName"][:-1]
+            state = resp[i]["ServiceStatus"]["dwCurrentState"]
             if state == scmr.SERVICE_RUNNING and name in AVSERVICES:
                 try:
                     self.stop(name)
@@ -121,25 +118,25 @@ class SvcCtl(object):
                         display, name, self.__scmr_parse_state(state)))
 
     def __scmr_srv_manager(self, srvname):
-        self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname)
-        self.__service_handle = self.__resp['lpServiceHandle']
+        self.__resp = scmr.hROpenServiceW(self.__rpc, self.__mgr_handle, "%s\x00" % srvname)
+        self.__service_handle = self.__resp["lpServiceHandle"]
 
     def __scmr_connect(self):
-        '''
+        """
         Connect to svcctl named pipe
-        '''
-        self.smb_transport('svcctl')
+        """
+        self.smb_transport("svcctl")
 
         self.__dce = self.trans.get_dce_rpc()
         self.__dce.bind(scmr.MSRPC_UUID_SCMR)
         self.__rpc = self.__dce
         self.__resp = scmr.hROpenSCManagerW(self.__dce)
-        self.__mgr_handle = self.__resp['lpScHandle']
+        self.__mgr_handle = self.__resp["lpScHandle"]
 
     def __scmr_disconnect(self, srvname=None):
-        '''
+        """
         Disconnect from svcctl named pipe
-        '''
+        """
         if srvname:
             scmr.hRCloseServiceHandle(self.__rpc, self.__service_handle)
 
@@ -149,146 +146,146 @@ class SvcCtl(object):
         self.__dce.disconnect()
 
     def __scmr_bin_upload(self, local_file, remote_file):
-        '''
+        """
         Upload the service executable
-        '''
+        """
         self.use(DataStore.writable_share)
         self.__pathname = ntpath.join(DataStore.writable_share, remote_file)
-        logger.info('Uploading the service executable to %s' % self.__pathname)
+        logger.info("Uploading the service executable to %s" % self.__pathname)
         self.upload(local_file, remote_file)
 
     def __scmr_bin_remove(self, remote_file):
-        '''
+        """
         Remove the service executable
-        '''
+        """
         self.use(DataStore.writable_share)
         self.__pathname = ntpath.join(DataStore.writable_share, remote_file)
-        logger.info('Removing the service executable %s' % self.__pathname)
+        logger.info("Removing the service executable %s" % self.__pathname)
         self.rm(remote_file)
 
     def __scmr_create(self, srvname, remote_file, displayname=None):
-        '''
+        """
         Create the service
-        '''
-        logger.info('Creating the service %s' % srvname)
+        """
+        logger.info("Creating the service %s" % srvname)
 
         if not displayname:
             displayname = srvname
 
         self.__pathname = ntpath.join(DataStore.share_path, remote_file)
-        scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, '%s\x00' % srvname, '%s\x00' % displayname,
-                              lpBinaryPathName='%s\x00' % self.__pathname, dwStartType=scmr.SERVICE_DEMAND_START)
+        scmr.hRCreateServiceW(self.__rpc, self.__mgr_handle, "%s\x00" % srvname, "%s\x00" % displayname,
+                              lpBinaryPathName="%s\x00" % self.__pathname, dwStartType=scmr.SERVICE_DEMAND_START)
 
     def __scmr_delete(self, srvname):
-        '''
+        """
         Delete the service
-        '''
-        logger.info('Deleting the service %s' % srvname)
+        """
+        logger.info("Deleting the service %s" % srvname)
         scmr.hRDeleteService(self.__rpc, self.__service_handle)
 
     def __scmr_parse_config(self, resp):
-        print('TYPE              : %2d - ' % resp['lpServiceConfig']['dwServiceType'])
+        print("TYPE              : %2d - " % resp["lpServiceConfig"]["dwServiceType"])
 
-        if resp['lpServiceConfig']['dwServiceType'] & 0x1:
-            print('SERVICE_KERNEL_DRIVER')
-        if resp['lpServiceConfig']['dwServiceType'] & 0x2:
-            print('SERVICE_FILE_SYSTEM_DRIVER')
-        if resp['lpServiceConfig']['dwServiceType'] & 0x10:
-            print('SERVICE_WIN32_OWN_PROCESS')
-        if resp['lpServiceConfig']['dwServiceType'] & 0x20:
-            print('SERVICE_WIN32_SHARE_PROCESS')
-        if resp['lpServiceConfig']['dwServiceType'] & 0x100:
-            print('SERVICE_INTERACTIVE_PROCESS')
+        if resp["lpServiceConfig"]["dwServiceType"] & 0x1:
+            print("SERVICE_KERNEL_DRIVER")
+        if resp["lpServiceConfig"]["dwServiceType"] & 0x2:
+            print("SERVICE_FILE_SYSTEM_DRIVER")
+        if resp["lpServiceConfig"]["dwServiceType"] & 0x10:
+            print("SERVICE_WIN32_OWN_PROCESS")
+        if resp["lpServiceConfig"]["dwServiceType"] & 0x20:
+            print("SERVICE_WIN32_SHARE_PROCESS")
+        if resp["lpServiceConfig"]["dwServiceType"] & 0x100:
+            print("SERVICE_INTERACTIVE_PROCESS")
 
-        print('START_TYPE        : %2d - ' % resp['lpServiceConfig']['dwStartType'])
+        print("START_TYPE        : %2d - " % resp["lpServiceConfig"]["dwStartType"])
 
-        if resp['lpServiceConfig']['dwStartType'] == 0x0:
-            print('BOOT START')
-        elif resp['lpServiceConfig']['dwStartType'] == 0x1:
-            print('SYSTEM START')
-        elif resp['lpServiceConfig']['dwStartType'] == 0x2:
-            print('AUTO START')
-        elif resp['lpServiceConfig']['dwStartType'] == 0x3:
-            print('DEMAND START')
-        elif resp['lpServiceConfig']['dwStartType'] == 0x4:
-            print('DISABLED')
+        if resp["lpServiceConfig"]["dwStartType"] == 0x0:
+            print("BOOT START")
+        elif resp["lpServiceConfig"]["dwStartType"] == 0x1:
+            print("SYSTEM START")
+        elif resp["lpServiceConfig"]["dwStartType"] == 0x2:
+            print("AUTO START")
+        elif resp["lpServiceConfig"]["dwStartType"] == 0x3:
+            print("DEMAND START")
+        elif resp["lpServiceConfig"]["dwStartType"] == 0x4:
+            print("DISABLED")
         else:
-            print('UNKNOWN')
+            print("UNKNOWN")
 
-        print('ERROR_CONTROL     : %2d - ' % resp['lpServiceConfig']['dwErrorControl'])
+        print("ERROR_CONTROL     : %2d - " % resp["lpServiceConfig"]["dwErrorControl"])
 
-        if resp['lpServiceConfig']['dwErrorControl'] == 0x0:
-            print('IGNORE')
-        elif resp['lpServiceConfig']['dwErrorControl'] == 0x1:
-            print('NORMAL')
-        elif resp['lpServiceConfig']['dwErrorControl'] == 0x2:
-            print('SEVERE')
-        elif resp['lpServiceConfig']['dwErrorControl'] == 0x3:
-            print('CRITICAL')
+        if resp["lpServiceConfig"]["dwErrorControl"] == 0x0:
+            print("IGNORE")
+        elif resp["lpServiceConfig"]["dwErrorControl"] == 0x1:
+            print("NORMAL")
+        elif resp["lpServiceConfig"]["dwErrorControl"] == 0x2:
+            print("SEVERE")
+        elif resp["lpServiceConfig"]["dwErrorControl"] == 0x3:
+            print("CRITICAL")
         else:
-            print('UNKNOWN')
+            print("UNKNOWN")
 
-        print('BINARY_PATH_NAME  : %s' % resp['lpServiceConfig']['lpBinaryPathName'][:-1])
-        print('LOAD_ORDER_GROUP  : %s' % resp['lpServiceConfig']['lpLoadOrderGroup'][:-1])
-        print('TAG               : %d' % resp['lpServiceConfig']['dwTagId'])
-        print('DISPLAY_NAME      : %s' % resp['lpServiceConfig']['lpDisplayName'][:-1])
-        print('DEPENDENCIES      : %s' % resp['lpServiceConfig']['lpDependencies'][:-1])
-        print('SERVICE_START_NAME: %s' % resp['lpServiceConfig']['lpServiceStartName'][:-1])
+        print("BINARY_PATH_NAME  : %s" % resp["lpServiceConfig"]["lpBinaryPathName"][:-1])
+        print("LOAD_ORDER_GROUP  : %s" % resp["lpServiceConfig"]["lpLoadOrderGroup"][:-1])
+        print("TAG               : %d" % resp["lpServiceConfig"]["dwTagId"])
+        print("DISPLAY_NAME      : %s" % resp["lpServiceConfig"]["lpDisplayName"][:-1])
+        print("DEPENDENCIES      : %s" % resp["lpServiceConfig"]["lpDependencies"][:-1])
+        print("SERVICE_START_NAME: %s" % resp["lpServiceConfig"]["lpServiceStartName"][:-1])
 
     def __scmr_parse_state(self, state):
         if state == scmr.SERVICE_CONTINUE_PENDING:
-            return 'CONTINUE PENDING'
+            return "CONTINUE PENDING"
         elif state == scmr.SERVICE_PAUSE_PENDING:
-            return 'PAUSE PENDING'
+            return "PAUSE PENDING"
         elif state == scmr.SERVICE_PAUSED:
-            return 'PAUSED'
+            return "PAUSED"
         elif state == scmr.SERVICE_RUNNING:
-            return 'RUNNING'
+            return "RUNNING"
         elif state == scmr.SERVICE_START_PENDING:
-            return 'START PENDING'
+            return "START PENDING"
         elif state == scmr.SERVICE_STOP_PENDING:
-            return 'STOP PENDING'
+            return "STOP PENDING"
         elif state == scmr.SERVICE_STOPPED:
-            return 'STOPPED'
+            return "STOPPED"
         else:
-            return 'UNKOWN'
+            return "UNKNOWN"
 
     def __scmr_state(self, srvname, return_state=False):
-        '''
+        """
         Display state of a service
-        '''
-        logger.info('Querying the state of service %s' % srvname)
+        """
+        logger.info("Querying the state of service %s" % srvname)
 
         resp = scmr.hRQueryServiceStatus(self.__rpc, self.__service_handle)
-        state = resp['lpServiceStatus']['dwCurrentState']
+        state = resp["lpServiceStatus"]["dwCurrentState"]
 
         if return_state:
             return self.__scmr_parse_state(state)
         else:
-            print('Service %s state is: %s' % (srvname, self.__scmr_parse_state(state)))
+            print("Service %s state is: %s" % (srvname, self.__scmr_parse_state(state)))
 
     def __scmr_config(self, srvname, return_answer=False):
-        '''
+        """
         Display a service configuration
-        '''
-        logger.info('Querying the service configuration of service %s' % srvname)
+        """
+        logger.info("Querying the service configuration of service %s" % srvname)
 
         resp = scmr.hRQueryServiceConfigW(self.__rpc, self.__service_handle)
 
         if return_answer:
             return resp
 
-        print('Service %s information:' % srvname)
+        print("Service %s information:" % srvname)
         self.__scmr_parse_config(resp)
 
-    def __scmr_start(self, srvname, srvargs=''):
-        '''
+    def __scmr_start(self, srvname, srvargs=""):
+        """
         Start the service
-        '''
-        logger.info('Starting the service %s' % srvname)
+        """
+        logger.info("Starting the service %s" % srvname)
 
         if srvargs:
-            srvargs = str(srvargs).split(' ')
+            srvargs = str(srvargs).split(" ")
         else:
             srvargs = []
 
@@ -296,19 +293,19 @@ class SvcCtl(object):
         self.__scmr_state(srvname)
 
     def __scmr_stop(self, srvname):
-        '''
+        """
         Stop the service
-        '''
-        logger.info('Stopping the service %s' % srvname)
+        """
+        logger.info("Stopping the service %s" % srvname)
 
         scmr.hRControlService(self.__rpc, self.__service_handle, scmr.SERVICE_CONTROL_STOP)
         self.__scmr_state(srvname)
 
     def __scmr_change(self, display=None, path=None, service_type=None, start_type=None, start_name=None,
                       password=None):
-        '''
+        """
         Change the configuration of a service
-        '''
+        """
         if start_type is not None:
             start_type = int(start_type)
         else:
@@ -320,24 +317,24 @@ class SvcCtl(object):
             service_type = scmr.SERVICE_NO_CHANGE
 
         if display is not None:
-            display = '%s\x00' % display
+            display = "%s\x00" % display
         else:
             display = NULL
 
         if path is not None:
-            path = '%s\x00' % path
+            path = "%s\x00" % path
         else:
             path = NULL
 
         if start_name is not None:
-            start_name = '%s\x00' % start_name
+            start_name = "%s\x00" % start_name
         else:
             start_name = NULL
 
         if password is not None:
             s = self.trans.get_smb_connection()
             key = s.getSessionKey()
-            password = ('%s\x00' % password).encode('utf-16le')
+            password = ("%s\x00" % password).encode("utf-16le")
             password = encryptSecret(key, password)
         else:
             password = NULL
@@ -347,18 +344,18 @@ class SvcCtl(object):
                                     display)
 
     def __scmr_list_parse(self, srvname, resp):
-        '''
+        """
         Parse list of services
-        '''
+        """
         services = []
 
         for i in range(len(resp)):
-            name = resp[i]['lpServiceName'][:-1]
-            display = resp[i]['lpDisplayName'][:-1]
-            state = resp[i]['ServiceStatus']['dwCurrentState']
+            name = resp[i]["lpServiceName"][:-1]
+            display = resp[i]["lpDisplayName"][:-1]
+            state = resp[i]["ServiceStatus"]["dwCurrentState"]
 
             if srvname:
-                srvname = srvname.strip('*')
+                srvname = srvname.strip("*")
 
                 if srvname.lower() not in display.lower() and srvname.lower() not in name.lower():
                     continue
@@ -368,17 +365,17 @@ class SvcCtl(object):
         services.sort()
 
         for service in services:
-            print('%s (%s): %-80s' % (service[0], service[1], self.__scmr_parse_state(service[2])))
+            print("%s (%s): %-80s" % (service[0], service[1], self.__scmr_parse_state(service[2])))
 
         return len(services)
 
     def __scmr_list(self, srvname):
-        '''
+        """
         List services
-        '''
-        logger.info('Listing services')
+        """
+        logger.info("Listing services")
 
         resp = scmr.hREnumServicesStatusW(self.__rpc, self.__mgr_handle, dwServiceState=scmr.SERVICE_STATE_ALL)
         num = self.__scmr_list_parse(srvname, resp)
 
-        print('\nTotal services: %d\n' % num)
+        print("\nTotal services: %d\n" % num)
