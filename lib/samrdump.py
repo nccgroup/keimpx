@@ -21,7 +21,7 @@ except ImportError:
 
 
 #################################################################
-# Code borrowed and adapted from Impacket"s samrdump.py example #
+# Code borrowed and adapted from Impacket's samrdump.py example #
 #################################################################
 class Samr(object):
 

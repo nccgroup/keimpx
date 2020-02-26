@@ -125,7 +125,7 @@ class InteractiveShell(cmd.Cmd):
 
     def do_shell(self, command):
         """
-        Execute a local command if the provided command is preceed by an
+        Execute a local command if the provided command is preceded by an
         exclamation mark
         """
         process = Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)

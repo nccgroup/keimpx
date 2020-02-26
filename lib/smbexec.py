@@ -26,7 +26,7 @@ except ImportError:
     sys.exit(255)
 
 ################################################################
-# Code borrowed and adapted from Impacket"s smbexec.py example #
+# Code borrowed and adapted from Impacket's smbexec.py example #
 ################################################################
 
 OUTPUT_FILENAME = "__output"
@@ -60,7 +60,7 @@ class SMBServer(Thread):
         smbConfig.set("global", "log_file", SMBSERVER_DIR + "/smb.log")
         smbConfig.set("global", "credentials_file", "")
 
-        # Let"s add a dummy share
+        # Let's add a dummy share
         smbConfig.add_section(DUMMY_SHARE)
         smbConfig.set(DUMMY_SHARE, "comment", "")
         smbConfig.set(DUMMY_SHARE, "read only", "no")
@@ -195,7 +195,7 @@ class RemoteShell(cmd.Cmd):
 
         s = rpc.get_smb_connection()
 
-        # We don"t wanna deal with timeouts from now on.
+        # We don't wanna deal with timeouts from now on.
         s.setTimeout(100000)
         if mode == "SERVER":
             myIPaddr = s.getSMBServer().get_socket().getsockname()[0]
@@ -233,7 +233,7 @@ class RemoteShell(cmd.Cmd):
         return False
 
     def do_cd(self, s):
-        # We just can"t CD or maintain track of the target dir.
+        # We just can't CD or maintain track of the target dir.
         if len(s) > 0:
             logger.error("You can't CD under SMBEXEC. Use full paths.")
 

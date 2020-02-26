@@ -25,7 +25,7 @@ except ImportError:
 
 
 ###############################################################
-# Code borrowed and adapted from Impacket"s atexec.py example #
+# Code borrowed and adapted from Impacket's atexec.py example #
 ###############################################################
 
 
@@ -157,7 +157,7 @@ class TSCH_EXEC:
                     time.sleep(3)
                 elif str(e).find("STATUS_OBJECT_NAME_NOT_FOUND") >= 0:
                     if waitOnce is True:
-                        # We"re giving it the chance to flush the file before giving up
+                        # We're giving it the chance to flush the file before giving up
                         time.sleep(3)
                         waitOnce = False
                     else:

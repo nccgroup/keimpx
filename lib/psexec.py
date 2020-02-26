@@ -31,7 +31,7 @@ except ImportError:
 
 
 ###############################################################
-# Code borrowed and adapted from Impacket"s psexec.py example #
+# Code borrowed and adapted from Impacket's psexec.py example #
 ###############################################################
 
 class RemComMessage(Structure):
@@ -139,7 +139,7 @@ class PSEXEC:
             unInstalled = False
             s = rpctransport.get_smb_connection()
 
-            # We don"t wanna deal with timeouts from now on.
+            # We don't wanna deal with timeouts from now on.
             s.setTimeout(100000)
             if self.__exeFile is None:
                 installService = serviceinstall.ServiceInstall(rpctransport.get_smb_connection(),
@@ -178,7 +178,7 @@ class PSEXEC:
 
             s.writeNamedPipe(tid, fid_main, packet.getData())
 
-            # Here we"ll store the command we type so we don"t print it back ;)
+            # Here we'll store the command we type so we don't print it back ;)
             # ( I know.. globals are nasty :P )
             global LastDataSent
             LastDataSent = ""
@@ -206,7 +206,7 @@ class PSEXEC:
                     self.__command, retCode["ErrorCode"], retCode["ReturnCode"]))
             installService.uninstall()
             if self.__copyFile is not None:
-                # We copied a file for execution, let"s remove it
+                # We copied a file for execution, let's remove it
                 s.deleteFile(installService.getShare(), os.path.basename(self.__copyFile))
             unInstalled = True
             return
@@ -280,9 +280,9 @@ class RemoteStdOutPipe(Pipes):
                         sys.stdout.write(ans.decode("cp437"))
                         sys.stdout.flush()
                     else:
-                        # Don"t echo what I sent, and clear it up
+                        # Don't echo what I sent, and clear it up
                         LastDataSent = ""
-                    # Just in case this got out of sync, i"m cleaning it up if there are more than 10 chars,
+                    # Just in case this got out of sync, I'm cleaning it up if there are more than 10 chars,
                     # it will give false positives tho.. we should find a better way to handle this.
                     if LastDataSent > 10:
                         LastDataSent = ""

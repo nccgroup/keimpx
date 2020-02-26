@@ -25,7 +25,7 @@ except ImportError:
 
 
 #################################################################
-# Code borrowed and adapted from Impacket"s services.py example #
+# Code borrowed and adapted from Impacket's services.py example #
 #################################################################
 class SvcCtl(object):
     def __init__(self):

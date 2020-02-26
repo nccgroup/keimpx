@@ -5,13 +5,10 @@
 import logging
 import os
 import sys
-import tempfile
-from threading import Thread
 
 from six import string_types
 from six import integer_types
 from six.moves import input as input
-from six.moves.configparser import ConfigParser
 
 from lib.logger import logger
 

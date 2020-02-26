@@ -45,7 +45,7 @@ except ImportError:
 
 
 #######################################################
-# Enhanced version of Impacket"s smbclient.py example #
+# Enhanced version of Impacket's smbclient.py example #
 #######################################################
 class SMBShell(Samr, SvcCtl):
     def __init__(self, target, credential, local_name):
@@ -311,7 +311,7 @@ class SMBShell(Samr, SvcCtl):
         else:
             self.pwd = ntpath.join(self.pwd, path)
 
-        # Let"s try to open the directory to see if it"s valid
+        # Let's try to open the directory to see if it"s valid
         try:
             fid = self.smb.openFile(self.tid, self.pwd)
             self.smb.closeFile(self.tid, fid)
@@ -479,7 +479,7 @@ class SMBShell(Samr, SvcCtl):
         self.cd(basename)
 
         # Check if the provided path is not a directory (if so, then the
-        # working directory has not changed
+        # working directory has not changed)
         if self.pwd == self.oldpwd:
             self.download(basename)
             return

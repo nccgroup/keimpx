@@ -20,7 +20,7 @@ except ImportError:
 
 
 ################################################################
-# Code borrowed and adapted from Impacket"s rpcdump.py example #
+# Code borrowed and adapted from Impacket's rpcdump.py example #
 ################################################################
 
 
@@ -73,7 +73,7 @@ class RPCDump:
         # Display results.
 
         endpoints = {}
-        # Let"s groups the UUIDS
+        # Let's group the UUIDS
         for entry in entries:
             binding = epm.PrintStringBinding(entry["tower"]["Floors"], rpctransport.getRemoteHost())
             tmpUUID = str(entry["tower"]["Floors"][0])
