@@ -1,4 +1,4 @@
-pycryptodomex==3.9.4
-impacket==0.9.20
+pycryptodomex==3.9.7
+impacket==0.9.21
 pyasn1==0.4.8
-six==1.13.0
+six==1.14.0

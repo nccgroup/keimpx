@@ -1203,6 +1203,11 @@ class SAMHashes(OfflineRegistry):
                 userName = V[userAccount['NameOffset']:userAccount['NameOffset'] + userAccount['NameLength']].decode(
                     'utf-16le')
 
+                if userAccount['NTHashLength'] == 0:
+                    logger.error("SAM hashes extraction for user %s failed. "
+                                 "The account doesn't have hash information." % userName)
+                    continue
+
                 encNTHash = b''
                 if V[userAccount['NTHashOffset']:][2:3] == b'\x01':
                     # Old Style hashes
@@ -1239,7 +1244,7 @@ class SAMHashes(OfflineRegistry):
                 self.__itemsFound[rid] = answer
                 self.__perSecretCallback(answer)
             except Exception as e:
-                logger.error('Error dumping user %s: ' + str(e), userName)
+                continue
 
     def export(self, baseFileName, openFileFunc=None):
         if len(self.__itemsFound) > 0:

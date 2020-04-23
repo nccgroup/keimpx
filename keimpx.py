@@ -197,19 +197,19 @@ class test_login(Thread):
                         logger.debug('Failed login for %s with %s on %s %s' % (
                             user_str, password_str, self.__target_id, e.getErrorString()))
                         error_code = e.getErrorCode()
-                        if e.getErrorString()[0] is "STATUS_PASSWORD_MUST_CHANGE":
+                        if e.getErrorString()[0] == "STATUS_PASSWORD_MUST_CHANGE":
                             credential.is_valid = True
                             credential.password_change_required = True
                             status = True
-                        elif e.getErrorString()[0] is "STATUS_ACCOUNT_LOCKED_OUT":
+                        elif e.getErrorString()[0] == "STATUS_ACCOUNT_LOCKED_OUT":
                             credential.is_valid = True
                             credential.is_locked_out = True
                             status = True
-                        elif e.getErrorString()[0] is "STATUS_ACCOUNT_DISABLED":
+                        elif e.getErrorString()[0] == "STATUS_ACCOUNT_DISABLED":
                             credential.is_valid = True
                             credential.account_disabled = True
                             status = True
-                        elif e.getErrorString()[0] is "STATUS_INVALID_LOGON_HOURS":
+                        elif e.getErrorString()[0] == "STATUS_INVALID_LOGON_HOURS":
                             credential.is_valid = True
                             credential.outside_logon_hours = True
                             status = True
